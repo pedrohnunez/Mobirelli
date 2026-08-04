@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
+import { createPortal } from "react-dom";
 import * as maplibregl from "maplibre-gl";
 import mapStyle from "./mapStyle.json";
 
@@ -192,6 +193,62 @@ function pagamentosDaMoto(moto, lancamentos) {
         (l.motoId === moto.id || (p && !l.motoId && `${l.categoria || ""} ${l.descricao || ""}`.toUpperCase().includes(p)))
     )
     .sort((a, b) => (a.data < b.data ? 1 : -1));
+}
+
+// custos da moto — junta os registros manuais (custosExtras) com as saídas do fluxo
+// de caixa que foram vinculadas a essa moto (ex: despachante lançado direto no Caixa)
+function custosDaMoto(moto, lancamentos) {
+  if (!moto) return [];
+  const manuais = (moto.custosExtras || []).map((c) => ({
+    id: c.id,
+    data: c.data,
+    descricao: c.descricao || "Sem descrição",
+    valorGasto: c.valorGasto,
+  }));
+  const doCaixa = (lancamentos || [])
+    .filter((l) => l.tipo === "saida" && l.motoId === moto.id)
+    .map((l) => ({
+      id: l.id,
+      data: l.data,
+      descricao: l.descricao || l.categoria || "Sem descrição",
+      valorGasto: l.valor,
+    }));
+  return [...manuais, ...doCaixa].sort((a, b) => (a.data < b.data ? 1 : -1));
+}
+
+// projeta os próximos `meses` meses (a partir do mês atual) somando as contas futuras —
+// as recorrentes (ex: contabilidade) contam em todo mês a partir do vencimento cadastrado,
+// as avulsas (ex: imposto de renda) só contam no mês do próprio vencimento
+function projecaoFuturosPorMes(futuros, meses = 12) {
+  const hoje = new Date();
+  const inicio = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+  const resultado = [];
+  for (let i = 0; i < meses; i++) {
+    const d = new Date(inicio.getFullYear(), inicio.getMonth() + i, 1);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    let total = 0;
+    (futuros || []).forEach((f) => {
+      if (!f.vencimento) return;
+      const vd = new Date(`${f.vencimento}T00:00:00`);
+      if (f.recorrente) {
+        const inicioRecorrencia = new Date(vd.getFullYear(), vd.getMonth(), 1);
+        if (d >= inicioRecorrencia) total += Number(f.valor) || 0;
+      } else if (!f.pago && f.vencimento.slice(0, 7) === key) {
+        total += Number(f.valor) || 0;
+      }
+    });
+    resultado.push({ key, mes: monthLabel(key), total });
+  }
+  return resultado;
+}
+
+function totaisFuturos(futuros) {
+  const fixoMensal = (futuros || []).filter((f) => f.recorrente).reduce((s, f) => s + (Number(f.valor) || 0), 0);
+  const avulsosPendentes = (futuros || [])
+    .filter((f) => !f.recorrente && !f.pago)
+    .reduce((s, f) => s + (Number(f.valor) || 0), 0);
+  const previsto12Meses = projecaoFuturosPorMes(futuros, 12).reduce((s, m) => s + m.total, 0);
+  return { fixoMensal, avulsosPendentes, previsto12Meses };
 }
 
 // consulta o CEP no ViaCEP (serviço público, gratuito, sem chave) e devolve o endereço
@@ -487,10 +544,10 @@ function Modal({ title, onClose, children }) {
 
   const visible = show && !closing;
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
-      style={{ background: "rgba(10,20,13,0.7)", opacity: visible ? 1 : 0, transition: "opacity 0.2s ease" }}
+      className="fixed inset-0 flex items-end sm:items-center justify-center"
+      style={{ background: "rgba(10,20,13,0.7)", opacity: visible ? 1 : 0, transition: "opacity 0.2s ease", zIndex: 999 }}
       onClick={handleClose}
     >
       <div
@@ -514,7 +571,8 @@ function Modal({ title, onClose, children }) {
         </div>
         {children}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -557,7 +615,7 @@ function Row2({ children }) {
 /* ===========================================================
    ANEXO — link OU upload direto (até 3MB), guardado em chave própria
 =========================================================== */
-function AnexoField({ label, linkValue, onLinkChange, storageKey, fileName, onFileNameChange }) {
+function AnexoField({ label, linkValue, storageKey, fileName, onChange }) {
   const [status, setStatus] = useState("");
   const inputRef = useRef(null);
 
@@ -574,8 +632,7 @@ function AnexoField({ label, linkValue, onLinkChange, storageKey, fileName, onFi
       const path = `${storageKey}-${file.name}`;
       const url = await uploadArquivo(path, file);
       if (url) {
-        onLinkChange(url);
-        onFileNameChange(file.name);
+        onChange({ link: url, fileName: file.name });
         setStatus("");
       } else {
         setStatus("Não foi possível enviar o arquivo agora.");
@@ -584,15 +641,19 @@ function AnexoField({ label, linkValue, onLinkChange, storageKey, fileName, onFi
   };
 
   const handleRemove = () => {
-    onLinkChange("");
-    onFileNameChange("");
+    onChange({ link: "", fileName: "" });
     setStatus("");
   };
 
   return (
     <div className="mb-3">
       <FieldLabel>{label}</FieldLabel>
-      <input style={inputStyle} value={linkValue} onChange={(e) => onLinkChange(e.target.value)} placeholder="Cole o link (Drive, etc.)" />
+      <input
+        style={inputStyle}
+        value={linkValue}
+        onChange={(e) => onChange({ link: e.target.value, fileName })}
+        placeholder="Cole o link (Drive, etc.)"
+      />
       <div className="flex items-center gap-2 flex-wrap -mt-1">
         <input ref={inputRef} type="file" accept="application/pdf,image/*" onChange={handleFile} style={{ display: "none" }} />
         <button
@@ -826,10 +887,9 @@ function VincularMotoModal({ cliente, motosDisponiveis, onClose, onSave }) {
       <AnexoField
         label="Contrato assinado"
         linkValue={contrato.contratoLink}
-        onLinkChange={(v) => setContrato({ ...contrato, contratoLink: v })}
         storageKey={`mobirelli-arquivo-contrato-${contratoId}`}
         fileName={contrato.contratoArquivo}
-        onFileNameChange={(name) => setContrato({ ...contrato, contratoArquivo: name })}
+        onChange={(v) => setContrato({ ...contrato, contratoLink: v.link, contratoArquivo: v.fileName })}
       />
       <button
         onClick={() =>
@@ -1021,6 +1081,10 @@ function emptyMoto() {
     valorCompra: "",
     notaFiscalLink: "",
     notaFiscalArquivo: "",
+    documentoLink: "",
+    documentoArquivo: "",
+    certificadoLink: "",
+    certificadoArquivo: "",
     linkRastreamento: "",
     status: "preparacao",
     contratoAtual: null,
@@ -1372,7 +1436,7 @@ function MotoTrackingBlock({ link, placa }) {
 }
 
 function MotoFormModal({ moto, onClose, onSave, title }) {
-  const [form, setForm] = useState(moto);
+  const [form, setForm] = useState({ ...emptyMoto(), ...moto });
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
 
   return (
@@ -1431,10 +1495,23 @@ function MotoFormModal({ moto, onClose, onSave, title }) {
       <AnexoField
         label="Nota fiscal da moto"
         linkValue={form.notaFiscalLink}
-        onLinkChange={(v) => setForm({ ...form, notaFiscalLink: v })}
         storageKey={`mobirelli-arquivo-nf-${form.id}`}
         fileName={form.notaFiscalArquivo}
-        onFileNameChange={(name) => setForm({ ...form, notaFiscalArquivo: name })}
+        onChange={(v) => setForm({ ...form, notaFiscalLink: v.link, notaFiscalArquivo: v.fileName })}
+      />
+      <AnexoField
+        label="Documento da moto (CRLV, etc.)"
+        linkValue={form.documentoLink}
+        storageKey={`mobirelli-arquivo-doc-${form.id}`}
+        fileName={form.documentoArquivo}
+        onChange={(v) => setForm({ ...form, documentoLink: v.link, documentoArquivo: v.fileName })}
+      />
+      <AnexoField
+        label="Certificado"
+        linkValue={form.certificadoLink}
+        storageKey={`mobirelli-arquivo-cert-${form.id}`}
+        fileName={form.certificadoArquivo}
+        onChange={(v) => setForm({ ...form, certificadoLink: v.link, certificadoArquivo: v.fileName })}
       />
       <FieldLabel>Link de rastreamento (Melocaliza)</FieldLabel>
       <input
@@ -1615,10 +1692,9 @@ function ContratoModal({ moto, clientes, onClose, onSave }) {
       <AnexoField
         label="Contrato assinado"
         linkValue={contrato.contratoLink}
-        onLinkChange={(v) => setContrato({ ...contrato, contratoLink: v })}
         storageKey={`mobirelli-arquivo-contrato-${contratoId}`}
         fileName={contrato.contratoArquivo}
-        onFileNameChange={(name) => setContrato({ ...contrato, contratoArquivo: name })}
+        onChange={(v) => setContrato({ ...contrato, contratoLink: v.link, contratoArquivo: v.fileName })}
       />
 
       <button
@@ -1923,17 +1999,23 @@ function MotosView({ motos, persist, clientes, persistClientes, config, lancamen
 
                   <MotoTrackingBlock link={moto.linkRastreamento || config?.linkRastreioGeral} placa={moto.placa} />
 
-                  {(moto.notaFiscalLink || moto.notaFiscalArquivo) && (
-                    <a
-                      href={moto.notaFiscalLink || "#"}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-1 text-xs mb-3"
-                      style={{ color: theme.blue }}
-                    >
-                      <FileText size={12} /> Nota fiscal {moto.notaFiscalArquivo ? `(${moto.notaFiscalArquivo})` : ""}
-                    </a>
-                  )}
+                  <div className="flex items-center gap-3 flex-wrap mb-3">
+                    {(moto.notaFiscalLink || moto.notaFiscalArquivo) && (
+                      <a href={moto.notaFiscalLink || "#"} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs" style={{ color: theme.blue }}>
+                        <FileText size={12} /> Nota fiscal
+                      </a>
+                    )}
+                    {(moto.documentoLink || moto.documentoArquivo) && (
+                      <a href={moto.documentoLink || "#"} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs" style={{ color: theme.blue }}>
+                        <FileText size={12} /> Documento
+                      </a>
+                    )}
+                    {(moto.certificadoLink || moto.certificadoArquivo) && (
+                      <a href={moto.certificadoLink || "#"} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs" style={{ color: theme.blue }}>
+                        <FileText size={12} /> Certificado
+                      </a>
+                    )}
+                  </div>
 
                   {moto.contratoAtual ? (
                     <div className="rounded-xl p-3 mb-3" style={{ background: theme.card2 }}>
@@ -2031,19 +2113,19 @@ function MotosView({ motos, persist, clientes, persistClientes, config, lancamen
                   <div className="mb-2">
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-xs uppercase tracking-wide" style={{ color: theme.textMuted }}>
-                        Custos extras (despachante, doc. etc.)
+                        Custos
                       </span>
                       <button onClick={() => setModal({ type: "custoExtra", moto })} className="mbr-hover-grow" style={{ color: theme.blue }}>
                         <Plus size={14} />
                       </button>
                     </div>
-                    {(moto.custosExtras || []).length === 0 ? (
+                    {custosDaMoto(moto, lancamentos).length === 0 ? (
                       <div style={{ color: theme.textMuted, fontSize: 12 }}>Nenhum registrado.</div>
                     ) : (
-                      [...moto.custosExtras].reverse().map((c) => (
+                      [...custosDaMoto(moto, lancamentos)].reverse().map((c) => (
                         <div key={c.id} className="flex items-center justify-between text-xs py-1" style={{ borderTop: `1px solid ${theme.cardBorder}` }}>
                           <span style={{ color: theme.text }}>
-                            {formatDate(c.data)} · {c.descricao || "Sem descrição"}
+                            {formatDate(c.data)} · {c.descricao}
                           </span>
                           <span style={{ color: theme.textMuted }}>{formatCurrency(c.valorGasto)}</span>
                         </div>
@@ -2194,7 +2276,237 @@ function LancamentoModal({ lancamento, onClose, onSave, onDelete, motos, editand
   );
 }
 
-function FluxoCaixaView({ lancamentos, persist, motos }) {
+function emptyFuturo() {
+  return { id: uid(), descricao: "", categoria: "", valor: "", vencimento: todayISO(), recorrente: false, pago: false };
+}
+
+function FuturoModal({ futuro, onClose, onSave, onDelete, editando }) {
+  const [form, setForm] = useState(futuro);
+  const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
+
+  return (
+    <Modal title={editando ? "Editar conta futura" : "Nova conta futura"} onClose={onClose}>
+      <FieldLabel>Descrição</FieldLabel>
+      <input style={inputStyle} value={form.descricao} onChange={set("descricao")} placeholder="Contabilidade, Imposto de renda..." />
+      <FieldLabel>Categoria (opcional)</FieldLabel>
+      <input style={inputStyle} value={form.categoria} onChange={set("categoria")} placeholder="Imposto, serviço, taxa..." />
+      <Row2>
+        <div>
+          <FieldLabel>Valor (R$)</FieldLabel>
+          <input type="number" step="0.01" style={inputStyle} value={form.valor} onChange={set("valor")} />
+        </div>
+        <div>
+          <FieldLabel>Vencimento</FieldLabel>
+          <input type="date" style={inputStyle} value={form.vencimento} onChange={set("vencimento")} />
+        </div>
+      </Row2>
+      <label className="flex items-center gap-2 mb-3 text-sm" style={{ color: theme.text, fontFamily: BODY_FONT }}>
+        <input type="checkbox" checked={form.recorrente} onChange={(e) => setForm({ ...form, recorrente: e.target.checked })} />
+        Se repete todo mês (ex: contabilidade)
+      </label>
+      {!form.recorrente && (
+        <label className="flex items-center gap-2 mb-3 text-sm" style={{ color: theme.text, fontFamily: BODY_FONT }}>
+          <input type="checkbox" checked={form.pago} onChange={(e) => setForm({ ...form, pago: e.target.checked })} />
+          Já foi pago
+        </label>
+      )}
+      <div className="flex gap-2">
+        <button
+          onClick={() => onSave({ ...form, valor: Number(form.valor) || 0 })}
+          className="flex-1 rounded-xl py-2 font-semibold mt-1"
+          style={{ background: theme.mint, color: theme.mintText }}
+        >
+          Salvar
+        </button>
+        {editando && (
+          <button
+            onClick={onDelete}
+            className="rounded-xl py-2 px-4 font-semibold mt-1"
+            style={{ border: `1px solid ${theme.cardBorder}`, color: theme.coral }}
+          >
+            Excluir
+          </button>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+function FuturosView({ futuros, persist }) {
+  const [modal, setModal] = useState(null);
+
+  const salvar = async (f) => {
+    const existe = futuros.find((x) => x.id === f.id);
+    const next = existe ? futuros.map((x) => (x.id === f.id ? f : x)) : [...futuros, f];
+    await persist(next);
+    setModal(null);
+  };
+  const excluir = async (id) => persist(futuros.filter((x) => x.id !== id));
+
+  const { fixoMensal, avulsosPendentes, previsto12Meses } = totaisFuturos(futuros);
+  const projecao = projecaoFuturosPorMes(futuros, 12);
+  const maxProjecao = Math.max(1, ...projecao.map((m) => m.total));
+
+  const recorrentes = futuros.filter((f) => f.recorrente);
+  const avulsos = [...futuros.filter((f) => !f.recorrente)].sort((a, b) => (a.vencimento > b.vencimento ? 1 : -1));
+
+  return (
+    <div>
+      <div className="flex items-center justify-end mb-4">
+        <button
+          onClick={() => setModal(emptyFuturo())}
+          className="flex items-center gap-1 rounded-xl px-3 py-2 text-sm font-semibold"
+          style={{ background: theme.mint, color: theme.mintText }}
+        >
+          <Plus size={16} /> Nova conta futura
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+        <div className="rounded-2xl p-4" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
+          <div className="text-xs uppercase tracking-wide mb-1" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+            Fixo por mês
+          </div>
+          <div style={{ fontFamily: HEAD_FONT, fontSize: 20, color: theme.text }}>{formatCurrency(fixoMensal)}</div>
+        </div>
+        <div className="rounded-2xl p-4" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
+          <div className="text-xs uppercase tracking-wide mb-1" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+            Avulsos a pagar
+          </div>
+          <div style={{ fontFamily: HEAD_FONT, fontSize: 20, color: theme.coral }}>{formatCurrency(avulsosPendentes)}</div>
+        </div>
+        <div className="rounded-2xl p-4" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
+          <div className="text-xs uppercase tracking-wide mb-1" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+            Previsto (12 meses)
+          </div>
+          <div style={{ fontFamily: HEAD_FONT, fontSize: 20, color: theme.amber }}>{formatCurrency(previsto12Meses)}</div>
+        </div>
+      </div>
+
+      <div className="rounded-2xl p-4 mb-4" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
+        <h3 style={{ fontFamily: HEAD_FONT, fontSize: 16, color: theme.text }} className="mb-3">
+          Previsão de gastos por mês
+        </h3>
+        {futuros.length === 0 ? (
+          <div className="text-xs" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+            Cadastre uma conta futura pra ver a previsão aqui.
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {projecao.map((m) => (
+              <div key={m.key}>
+                <div className="flex justify-between text-xs mb-1" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+                  <span>{m.mes}</span>
+                  <span>{formatCurrency(m.total)}</span>
+                </div>
+                <div style={{ height: 6, borderRadius: 3, background: theme.bg, overflow: "hidden" }}>
+                  <div style={{ height: "100%", width: `${(m.total / maxProjecao) * 100}%`, background: theme.amber }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {recorrentes.length > 0 && (
+        <div className="mb-4">
+          <div className="text-xs uppercase tracking-wide mb-2" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+            Mensalidades fixas
+          </div>
+          <div className="flex flex-col gap-2">
+            {recorrentes.map((f) => (
+              <div
+                key={f.id}
+                onClick={() => setModal(f)}
+                className="flex items-center justify-between px-4 py-3 rounded-2xl cursor-pointer"
+                style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}
+              >
+                <div>
+                  <div style={{ color: theme.text, fontFamily: BODY_FONT, fontWeight: 600 }}>{f.descricao || "Sem descrição"}</div>
+                  <div style={{ color: theme.textMuted, fontFamily: BODY_FONT, fontSize: 12 }}>
+                    Todo mês · a partir de {formatDate(f.vencimento)}
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span style={{ color: theme.coral, fontFamily: HEAD_FONT, fontSize: 16 }}>{formatCurrency(f.valor)}</span>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      excluir(f.id);
+                    }}
+                    className="mbr-hover-grow"
+                    style={{ color: theme.textMuted }}
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div>
+        <div className="text-xs uppercase tracking-wide mb-2" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+          Contas avulsas
+        </div>
+        {avulsos.length === 0 ? (
+          <div className="rounded-2xl p-6 text-center" style={{ background: theme.card, color: theme.textMuted, fontFamily: BODY_FONT, border: `1px solid ${theme.cardBorder}` }}>
+            Nenhuma conta avulsa cadastrada.
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {avulsos.map((f) => (
+              <div
+                key={f.id}
+                onClick={() => setModal(f)}
+                className="flex items-center justify-between px-4 py-3 rounded-2xl cursor-pointer"
+                style={{ background: theme.card, border: `1px solid ${theme.cardBorder}`, opacity: f.pago ? 0.55 : 1 }}
+              >
+                <div>
+                  <div style={{ color: theme.text, fontFamily: BODY_FONT, fontWeight: 600, textDecoration: f.pago ? "line-through" : "none" }}>
+                    {f.descricao || "Sem descrição"}
+                  </div>
+                  <div style={{ color: theme.textMuted, fontFamily: BODY_FONT, fontSize: 12 }}>
+                    Vence em {formatDate(f.vencimento)} {f.pago && "· Pago"}
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span style={{ color: theme.coral, fontFamily: HEAD_FONT, fontSize: 16 }}>{formatCurrency(f.valor)}</span>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      excluir(f.id);
+                    }}
+                    className="mbr-hover-grow"
+                    style={{ color: theme.textMuted }}
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {modal && (
+        <FuturoModal
+          futuro={modal}
+          editando={futuros.some((x) => x.id === modal.id)}
+          onClose={() => setModal(null)}
+          onSave={salvar}
+          onDelete={() => {
+            excluir(modal.id);
+            setModal(null);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function FluxoCaixaView({ lancamentos, persist, motos, futuros, persistFuturos }) {
   const [modal, setModal] = useState(null);
 
   const salvar = async (l) => {
@@ -2215,20 +2527,47 @@ function FluxoCaixaView({ lancamentos, persist, motos }) {
   const mesesOrdenados = Object.keys(porMes).sort((a, b) => (a < b ? 1 : -1));
 
   const [expandido, setExpandido] = useState(mesesOrdenados[0] || null);
+  const [view, setView] = useState("lancado");
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
         <h2 style={{ fontFamily: HEAD_FONT, fontSize: 22, fontWeight: 800, color: theme.mint }}>Fluxo de caixa</h2>
-        <button
-          onClick={() => setModal(emptyLancamento())}
-          className="flex items-center gap-1 rounded-xl px-3 py-2 text-sm font-semibold"
-          style={{ background: theme.mint, color: theme.mintText }}
-        >
-          <Plus size={16} /> Novo
-        </button>
+        <div className="flex items-center gap-2">
+          <div className="flex rounded-xl p-1" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
+            {[
+              { id: "lancado", label: "Lançado" },
+              { id: "futuros", label: "Futuros" },
+            ].map((v) => (
+              <button
+                key={v.id}
+                onClick={() => setView(v.id)}
+                className="rounded-lg px-3 py-1.5 text-sm font-semibold"
+                style={{
+                  background: view === v.id ? theme.mint : "transparent",
+                  color: view === v.id ? theme.mintText : theme.textMuted,
+                }}
+              >
+                {v.label}
+              </button>
+            ))}
+          </div>
+          {view === "lancado" && (
+            <button
+              onClick={() => setModal(emptyLancamento())}
+              className="flex items-center gap-1 rounded-xl px-3 py-2 text-sm font-semibold"
+              style={{ background: theme.mint, color: theme.mintText }}
+            >
+              <Plus size={16} /> Novo
+            </button>
+          )}
+        </div>
       </div>
 
+      {view === "futuros" ? (
+        <FuturosView futuros={futuros || []} persist={persistFuturos} />
+      ) : (
+        <>
       {ordenados.length === 0 && (
         <div className="rounded-2xl p-6 text-center" style={{ background: theme.card, color: theme.textMuted, fontFamily: BODY_FONT, border: `1px solid ${theme.cardBorder}` }}>
           Nenhum lançamento ainda.
@@ -2324,6 +2663,8 @@ function FluxoCaixaView({ lancamentos, persist, motos }) {
           motos={motos}
         />
       )}
+        </>
+      )}
     </div>
   );
 }
@@ -2372,7 +2713,7 @@ function HeroStat({ label, value, icon: Icon, accent, deltaPercent, deltaLabel }
   return (
     <div
       className="rounded-2xl p-5 flex flex-col gap-2 min-w-0"
-      style={{ background: theme.card, border: `1px solid ${theme.cardBorder}`, boxShadow: "0 1px 2px rgba(0,0,0,0.18)" }}
+      style={{ background: theme.card, border: `1px solid ${accent}55`, boxShadow: "0 2px 12px rgba(0,0,0,0.22)" }}
     >
       <div className="flex items-center justify-between gap-2 min-w-0">
         <span className="text-xs uppercase tracking-wide truncate" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
@@ -2448,7 +2789,7 @@ function RadialStat({ label, percent, color, sublabel, bare }) {
   );
 }
 
-function DashboardView({ motos, lancamentos, clientes }) {
+function DashboardView({ motos, lancamentos, clientes, futuros }) {
   const alugadas = motos.filter((m) => m.status === "alugada").length;
   const disponiveis = motos.filter((m) => m.status === "disponivel").length;
   const motosVencidas = motos.filter((m) => m.status === "alugada" && isOverdue(m.contratoAtual?.dataVencimento));
@@ -2544,7 +2885,7 @@ function DashboardView({ motos, lancamentos, clientes }) {
   // valor mensal do contrato x meses decorridos) vs quanto custou (compra + custos extras + manutenção)
   const retornoPorMoto = motos
     .map((m) => {
-      const custosExtrasTotal = (m.custosExtras || []).reduce((s, c) => s + Number(c.valorGasto || 0), 0);
+      const custosExtrasTotal = custosDaMoto(m, lancamentos).reduce((s, c) => s + Number(c.valorGasto || 0), 0);
       const manutencaoTotal = (m.manutencoes || []).reduce((s, x) => s + Number(x.valorGasto || 0), 0);
       const investimentoTotal = Number(m.valorCompra || 0) + custosExtrasTotal + manutencaoTotal;
       const receitaMensal = m.contratoAtual ? Number(m.contratoAtual.valorMensal || 0) : 0;
@@ -2802,6 +3143,43 @@ function DashboardView({ motos, lancamentos, clientes }) {
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+        </Reveal>
+      )}
+
+      {(futuros || []).length > 0 && (
+        <Reveal delay={50}>
+          <div className="rounded-2xl p-4 mb-4" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
+            <h3 style={{ fontFamily: HEAD_FONT, fontSize: 16, color: theme.text }} className="mb-3">
+              Contas futuras
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {(() => {
+                const { fixoMensal, avulsosPendentes, previsto12Meses } = totaisFuturos(futuros);
+                return (
+                  <>
+                    <div>
+                      <div className="text-xs uppercase tracking-wide mb-1" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+                        Fixo por mês
+                      </div>
+                      <div style={{ fontFamily: HEAD_FONT, fontSize: 18, color: theme.text }}>{formatCurrency(fixoMensal)}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs uppercase tracking-wide mb-1" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+                        Avulsos a pagar
+                      </div>
+                      <div style={{ fontFamily: HEAD_FONT, fontSize: 18, color: theme.coral }}>{formatCurrency(avulsosPendentes)}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs uppercase tracking-wide mb-1" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+                        Previsto (12 meses)
+                      </div>
+                      <div style={{ fontFamily: HEAD_FONT, fontSize: 18, color: theme.amber }}>{formatCurrency(previsto12Meses)}</div>
+                    </div>
+                  </>
+                );
+              })()}
             </div>
           </div>
         </Reveal>
@@ -3217,6 +3595,7 @@ export default function MobirelliApp() {
   const motosState = useSharedList("mobirelli-motos");
   const clientesState = useSharedList("mobirelli-clientes");
   const fluxoState = useSharedList("mobirelli-fluxo-caixa");
+  const futurosState = useSharedList("mobirelli-fluxo-futuro");
   const configState = useSharedObject("mobirelli-config", {});
 
   // recalcula o tema ativo (mutando o objeto compartilhado) a partir das configurações salvas —
@@ -3327,7 +3706,7 @@ export default function MobirelliApp() {
         ) : (
           <div key={tab} className="mbr-fade-in" style={tab === "rastreio" ? { height: "100%" } : undefined}>
             {tab === "dashboard" ? (
-              <DashboardView motos={motosState.items} lancamentos={fluxoState.items} clientes={clientesState.items} />
+              <DashboardView motos={motosState.items} lancamentos={fluxoState.items} clientes={clientesState.items} futuros={futurosState.items} />
             ) : tab === "motos" ? (
               <MotosView
                 motos={motosState.items}
@@ -3345,7 +3724,13 @@ export default function MobirelliApp() {
                 persistMotos={motosState.persist}
               />
             ) : tab === "fluxo" ? (
-              <FluxoCaixaView lancamentos={fluxoState.items} persist={fluxoState.persist} motos={motosState.items} />
+              <FluxoCaixaView
+                lancamentos={fluxoState.items}
+                persist={fluxoState.persist}
+                motos={motosState.items}
+                futuros={futurosState.items}
+                persistFuturos={futurosState.persist}
+              />
             ) : tab === "rastreio" ? (
               <RastreioView config={configState.value} motos={motosState.items} clientes={clientesState.items} />
             ) : (
