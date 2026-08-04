@@ -320,6 +320,26 @@ const isOverdue = (dateStr) => {
   return new Date(dateStr + "T00:00:00") < today;
 };
 
+// dia do mês em que o cliente paga a mensalidade — contratos antigos guardavam uma
+// data completa (dataVencimento), então aproveita o dia dela se o campo novo (diaVencimento)
+// ainda não tiver sido preenchido
+function diaVencimentoDoContrato(contrato) {
+  if (!contrato) return null;
+  if (contrato.diaVencimento) return Number(contrato.diaVencimento);
+  if (contrato.dataVencimento) return Number(contrato.dataVencimento.slice(8, 10));
+  return null;
+}
+
+// vencido = já passou o dia de pagamento deste mês
+const isContratoVencido = (contrato) => {
+  const dia = diaVencimentoDoContrato(contrato);
+  if (!dia) return false;
+  const hoje = new Date();
+  const hojeZero = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate());
+  const vencimentoDoMes = new Date(hoje.getFullYear(), hoje.getMonth(), dia);
+  return hojeZero > vencimentoDoMes;
+};
+
 const monthLabel = (key) => {
   const [y, m] = key.split("-");
   const names = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
@@ -930,7 +950,7 @@ function VincularMotoModal({ cliente, motosDisponiveis, onClose, onSave }) {
     valorMensal: "",
     formaPagamento: "Boleto Bancário",
     dataInicio: todayISO(),
-    dataVencimento: "",
+    diaVencimento: "",
     dataTermino: "",
     contratoLink: "",
     contratoArquivo: "",
@@ -971,8 +991,15 @@ function VincularMotoModal({ cliente, motosDisponiveis, onClose, onSave }) {
           <input type="date" style={inputStyle} value={contrato.dataInicio} onChange={setC("dataInicio")} />
         </div>
         <div>
-          <FieldLabel>Vencimento</FieldLabel>
-          <input type="date" style={inputStyle} value={contrato.dataVencimento} onChange={setC("dataVencimento")} />
+          <FieldLabel>Dia de vencimento</FieldLabel>
+          <SelectField
+            value={contrato.diaVencimento || ""}
+            onChange={setC("diaVencimento")}
+            options={[
+              { value: "", label: "Selecione o dia" },
+              ...Array.from({ length: 31 }, (_, i) => ({ value: String(i + 1), label: `Dia ${i + 1}` })),
+            ]}
+          />
         </div>
       </Row2>
       <FieldLabel>Data de término (opcional)</FieldLabel>
@@ -1118,7 +1145,8 @@ function ClientesView({ clientes, persistClientes, motos, persistMotos }) {
                         </span>
                       </div>
                       <div style={{ color: theme.textMuted, fontSize: 12 }}>
-                        Contrato nº {motoVinculada.contratoAtual.numeroContrato} · vence em {formatDate(motoVinculada.contratoAtual.dataVencimento)}
+                        Contrato nº {motoVinculada.contratoAtual.numeroContrato}
+                        {diaVencimentoDoContrato(motoVinculada.contratoAtual) && ` · vence todo dia ${diaVencimentoDoContrato(motoVinculada.contratoAtual)}`}
                         {motoVinculada.contratoAtual.dataTermino && ` · até ${formatDate(motoVinculada.contratoAtual.dataTermino)}`}
                       </div>
                       <div className="flex items-center gap-3 mt-2">
@@ -1657,14 +1685,14 @@ function ContratoModal({ moto, clientes, onClose, onSave, editando }) {
   const nContratoDefault = (moto.historicoContratos?.length || 0) + 1;
   const [contrato, setContrato] = useState(
     editando
-      ? { dataTermino: "", ...moto.contratoAtual }
+      ? { dataTermino: "", ...moto.contratoAtual, diaVencimento: diaVencimentoDoContrato(moto.contratoAtual) || "" }
       : {
           numeroContrato: nContratoDefault,
           numeroClienteMoto: nContratoDefault,
           valorMensal: "",
           formaPagamento: "Boleto Bancário",
           dataInicio: todayISO(),
-          dataVencimento: "",
+          diaVencimento: "",
           dataTermino: "",
           contratoLink: "",
           contratoArquivo: "",
@@ -1816,8 +1844,15 @@ function ContratoModal({ moto, clientes, onClose, onSave, editando }) {
           <input type="date" style={inputStyle} value={contrato.dataInicio} onChange={setC("dataInicio")} />
         </div>
         <div>
-          <FieldLabel>Vencimento</FieldLabel>
-          <input type="date" style={inputStyle} value={contrato.dataVencimento} onChange={setC("dataVencimento")} />
+          <FieldLabel>Dia de vencimento</FieldLabel>
+          <SelectField
+            value={contrato.diaVencimento || ""}
+            onChange={setC("diaVencimento")}
+            options={[
+              { value: "", label: "Selecione o dia" },
+              ...Array.from({ length: 31 }, (_, i) => ({ value: String(i + 1), label: `Dia ${i + 1}` })),
+            ]}
+          />
         </div>
       </Row2>
       <FieldLabel>Data de término (opcional)</FieldLabel>
@@ -2124,7 +2159,7 @@ function MotosView({ motos, persist, clientes, persistClientes, config, lancamen
 
       <div className="flex flex-col gap-2">
         {filtradas.map((moto) => {
-          const vencido = moto.status === "alugada" && isOverdue(moto.contratoAtual?.dataVencimento);
+          const vencido = moto.status === "alugada" && isContratoVencido(moto.contratoAtual);
           const cliente = clientes.find((c) => c.id === moto.contratoAtual?.clienteId);
           const pagamentos = pagamentosDaMoto(moto, lancamentos);
           const aberto = expandido === moto.id;
@@ -2191,9 +2226,8 @@ function MotosView({ motos, persist, clientes, persistClientes, config, lancamen
                         </span>
                       </div>
                       <div style={{ color: theme.textMuted, fontSize: 12 }}>
-                        {moto.contratoAtual.numeroClienteMoto}º cliente · contrato nº {moto.contratoAtual.numeroContrato} · vence em{" "}
-                        {formatDate(moto.contratoAtual.dataVencimento)}
-                        {moto.contratoAtual.dataVencimento && ` (todo dia ${moto.contratoAtual.dataVencimento.slice(8, 10)})`}
+                        {moto.contratoAtual.numeroClienteMoto}º cliente · contrato nº {moto.contratoAtual.numeroContrato}
+                        {diaVencimentoDoContrato(moto.contratoAtual) && ` · vence todo dia ${diaVencimentoDoContrato(moto.contratoAtual)}`}
                         {moto.contratoAtual.dataTermino && ` · até ${formatDate(moto.contratoAtual.dataTermino)}`}
                       </div>
                       {moto.contratoAtual.contratoLink && (
@@ -3069,7 +3103,7 @@ function RadialStat({ label, percent, color, sublabel, bare }) {
 function DashboardView({ motos, lancamentos, clientes, futuros }) {
   const alugadas = motos.filter((m) => m.status === "alugada").length;
   const disponiveis = motos.filter((m) => m.status === "disponivel").length;
-  const motosVencidas = motos.filter((m) => m.status === "alugada" && isOverdue(m.contratoAtual?.dataVencimento));
+  const motosVencidas = motos.filter((m) => m.status === "alugada" && isContratoVencido(m.contratoAtual));
   const vencidas = motosVencidas.length;
 
   const todasManutencoes = motos.flatMap((m) => m.manutencoes || []);
@@ -3220,7 +3254,7 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
                 <span>
                   {formatPlaca(m.placa)} · {clienteNome(m.contratoAtual.clienteId)}
                 </span>
-                <span style={{ color: theme.coral }}>venceu em {formatDate(m.contratoAtual.dataVencimento)}</span>
+                <span style={{ color: theme.coral }}>vence todo dia {diaVencimentoDoContrato(m.contratoAtual)}</span>
               </div>
             ))}
           </div>
