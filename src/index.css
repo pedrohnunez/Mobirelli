@@ -23,6 +23,9 @@ body {
 .mbr-map .maplibregl-ctrl-group button:hover {
   background: #1E3F2A;
 }
+.mbr-map .maplibregl-ctrl-group button .maplibregl-ctrl-icon {
+  filter: invert(1) brightness(1.6);
+}
 .mbr-map .maplibregl-ctrl-attrib {
   background: rgba(14, 33, 22, 0.75);
   color: #8AA894;

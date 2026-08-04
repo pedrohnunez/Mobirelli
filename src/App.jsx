@@ -1902,7 +1902,7 @@ function MotosView({ motos, persist, clientes, persistClientes, config, lancamen
           return (
             <div key={moto.id} className="rounded-2xl overflow-hidden" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
               <button className="w-full flex items-center justify-between px-4 py-3 text-left" onClick={() => setExpandido(aberto ? null : moto.id)}>
-                <div className="flex flex-col gap-1.5">
+                <div className="flex flex-col gap-3">
                   <MotoPlate placa={moto.placa} />
                   <StatusBadge status={moto.status} vencido={vencido} />
                 </div>
@@ -2281,7 +2281,8 @@ function FluxoCaixaView({ lancamentos, persist, motos }) {
                         <div>
                           <div style={{ color: theme.text, fontFamily: BODY_FONT, fontWeight: 600 }}>{l.categoria || "Sem categoria"}</div>
                           <div style={{ color: theme.textMuted, fontFamily: BODY_FONT, fontSize: 12 }}>
-                            {formatDate(l.data)} · {l.natureza} {l.descricao ? `· ${l.descricao}` : ""}
+                            {formatDate(l.data)}
+                            {l.descricao ? ` · ${l.descricao}` : ""}
                             {motoLigada && ` · ${formatPlaca(motoLigada.placa)}`}
                           </div>
                         </div>
@@ -2371,7 +2372,7 @@ function HeroStat({ label, value, icon: Icon, accent, deltaPercent, deltaLabel }
   return (
     <div
       className="rounded-2xl p-5 flex flex-col gap-2 min-w-0"
-      style={{ background: theme.card, border: `1px solid ${accent}55`, boxShadow: "0 2px 12px rgba(0,0,0,0.22)" }}
+      style={{ background: theme.card, border: `1px solid ${theme.cardBorder}`, boxShadow: "0 1px 2px rgba(0,0,0,0.18)" }}
     >
       <div className="flex items-center justify-between gap-2 min-w-0">
         <span className="text-xs uppercase tracking-wide truncate" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
@@ -2764,9 +2765,6 @@ function DashboardView({ motos, lancamentos, clientes }) {
             </ComposedChart>
           </ResponsiveContainer>
         </div>
-        <div className="text-xs mt-2" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
-          O lucro (linha âmbar) usa uma escala própria à direita, pra não ficar "invisível" perto de valores maiores como investimentos.
-        </div>
       </div>
       </Reveal>
 
@@ -2776,10 +2774,7 @@ function DashboardView({ motos, lancamentos, clientes }) {
             <h3 style={{ fontFamily: HEAD_FONT, fontSize: 16, color: theme.text }} className="mb-1">
               Retorno do investimento por moto
             </h3>
-            <div className="text-xs mb-3" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
-              Compra + custos extras + manutenção, comparado ao que já foi recebido de verdade no fluxo de caixa (pela placa).
-            </div>
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-3 mt-3">
               {retornoPorMoto.map((r) => (
                 <div key={r.placa}>
                   <div className="flex justify-between items-baseline text-xs mb-1" style={{ fontFamily: BODY_FONT }}>
