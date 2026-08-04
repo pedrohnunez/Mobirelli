@@ -1196,21 +1196,8 @@ const RASTREIO_LEGENDA = [
   { cor: "red", label: "Offline" },
 ];
 
-const BIKE_ICON_PATHS =
-  '<circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/>';
-
-function rastreioMarkerHtml(placa, corHex, estilo) {
+function rastreioMarkerHtml(placa, corHex) {
   const rotulo = `<div style="background:${theme.bg};border:1.5px solid ${corHex};border-radius:6px;padding:2px 7px;font-family:monospace;font-weight:700;font-size:11px;letter-spacing:0.5px;color:${theme.text};white-space:nowrap;">${formatPlaca(placa)}</div>`;
-  if (estilo === "moto") {
-    return `
-      <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
-        <div style="width:30px;height:30px;border-radius:50%;background:${corHex};display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,0.5);border:2px solid ${theme.bg};">
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="${theme.bg}" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">${BIKE_ICON_PATHS}</svg>
-        </div>
-        ${rotulo}
-      </div>
-    `;
-  }
   return `
     <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
       <div style="width:13px;height:13px;border-radius:50%;background:${corHex};box-shadow:0 0 0 5px ${corHex}33,0 1px 3px rgba(0,0,0,0.5);"></div>
@@ -1268,12 +1255,10 @@ function TrackingMap({ link, filterPlaca, height = 320, rounded = true, motos, c
   const popupRef = useRef(null);
   const tickRef = useRef(null);
   const mostrarRastroRef = useRef(false);
-  const estiloMarcadorRef = useRef("moto");
   const motosRef = useRef(motos);
   const clientesRef = useRef(clientes);
   const [status, setStatus] = useState("carregando"); // carregando | ok | erro
   const [mostrarRastro, setMostrarRastro] = useState(false);
-  const [estiloMarcador, setEstiloMarcador] = useState("moto"); // "moto" | "ponto"
 
   useEffect(() => {
     mostrarRastroRef.current = mostrarRastro;
@@ -1286,13 +1271,6 @@ function TrackingMap({ link, filterPlaca, height = 320, rounded = true, motos, c
   useEffect(() => {
     clientesRef.current = clientes;
   }, [clientes]);
-
-  useEffect(() => {
-    estiloMarcadorRef.current = estiloMarcador;
-    Object.values(markersRef.current).forEach(({ marker, placa, cor }) => {
-      marker.getElement().innerHTML = rastreioMarkerHtml(placa, cor, estiloMarcador);
-    });
-  }, [estiloMarcador]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -1338,7 +1316,7 @@ function TrackingMap({ link, filterPlaca, height = 320, rounded = true, motos, c
           } else {
             const el = document.createElement("div");
             el.className = "mbr-map-marker";
-            el.innerHTML = rastreioMarkerHtml(placa, cor, estiloMarcadorRef.current);
+            el.innerHTML = rastreioMarkerHtml(placa, cor);
             const marker = new maplibregl.Marker({ element: el, anchor: "bottom" }).setLngLat([lng, lat]).addTo(map);
             markersRef.current[chave] = { marker, placa, cor, device: d };
 
@@ -1460,12 +1438,6 @@ function TrackingMap({ link, filterPlaca, height = 320, rounded = true, motos, c
       <div className="absolute left-3 flex gap-3 z-10" style={{ top: 12 + topInset }}>
         <MapToolButton icon={Crosshair} label="Centralizar" onClick={centralizar} />
         <MapToolButton icon={Route} label="Mostrar rastro" active={mostrarRastro} onClick={alternarRastro} />
-        <MapToolButton
-          icon={Bike}
-          label={estiloMarcador === "moto" ? "Usar marcador de pontinho" : "Usar marcador de moto"}
-          active={estiloMarcador === "moto"}
-          onClick={() => setEstiloMarcador((v) => (v === "moto" ? "ponto" : "moto"))}
-        />
         <MapToolButton icon={RefreshCw} label="Atualizar agora" onClick={() => tickRef.current?.()} />
       </div>
 
@@ -3805,7 +3777,7 @@ export default function MobirelliApp() {
           gridTemplateColumns: "1fr auto 1fr",
           background:
             tab === "rastreio"
-              ? `linear-gradient(to bottom, ${hexToRgba(theme.panel, 0.82)} 0%, ${hexToRgba(theme.panel, 0.82)} 50%, ${hexToRgba(theme.panel, 0)} 100%)`
+              ? `linear-gradient(to bottom, ${theme.panel} 0%, ${theme.panel} 50%, ${hexToRgba(theme.panel, 0)} 62%, ${hexToRgba(theme.panel, 0)} 100%)`
               : hexToRgba(theme.panel, 0.82),
           borderBottom: tab === "rastreio" ? "none" : `1px solid ${theme.cardBorder}`,
           backdropFilter: tab === "rastreio" ? "none" : "saturate(1.6) blur(16px)",
@@ -3891,7 +3863,7 @@ export default function MobirelliApp() {
         style={{
           background:
             tab === "rastreio"
-              ? `linear-gradient(to bottom, ${hexToRgba(theme.panel, 0)} 0%, ${hexToRgba(theme.panel, 0.82)} 50%, ${hexToRgba(theme.panel, 0.82)} 100%)`
+              ? `linear-gradient(to bottom, ${hexToRgba(theme.panel, 0)} 0%, ${hexToRgba(theme.panel, 0)} 38%, ${theme.panel} 50%, ${theme.panel} 100%)`
               : hexToRgba(theme.panel, 0.82),
           borderTop: tab === "rastreio" ? "none" : `1px solid ${theme.cardBorder}`,
           paddingBottom: "calc(6px + env(safe-area-inset-bottom, 0px))",
