@@ -3777,7 +3777,7 @@ export default function MobirelliApp() {
           gridTemplateColumns: "1fr auto 1fr",
           background:
             tab === "rastreio"
-              ? `linear-gradient(to bottom, ${theme.panel} 0%, ${theme.panel} 50%, ${hexToRgba(theme.panel, 0)} 62%, ${hexToRgba(theme.panel, 0)} 100%)`
+              ? `linear-gradient(to bottom, ${hexToRgba(theme.panel, 0.9)} 0%, ${hexToRgba(theme.panel, 0.9)} 50%, ${hexToRgba(theme.panel, 0)} 100%)`
               : hexToRgba(theme.panel, 0.82),
           borderBottom: tab === "rastreio" ? "none" : `1px solid ${theme.cardBorder}`,
           backdropFilter: tab === "rastreio" ? "none" : "saturate(1.6) blur(16px)",
@@ -3863,7 +3863,7 @@ export default function MobirelliApp() {
         style={{
           background:
             tab === "rastreio"
-              ? `linear-gradient(to bottom, ${hexToRgba(theme.panel, 0)} 0%, ${hexToRgba(theme.panel, 0)} 38%, ${theme.panel} 50%, ${theme.panel} 100%)`
+              ? `linear-gradient(to bottom, ${hexToRgba(theme.panel, 0)} 0%, ${hexToRgba(theme.panel, 0.9)} 50%, ${hexToRgba(theme.panel, 0.9)} 100%)`
               : hexToRgba(theme.panel, 0.82),
           borderTop: tab === "rastreio" ? "none" : `1px solid ${theme.cardBorder}`,
           paddingBottom: "calc(6px + env(safe-area-inset-bottom, 0px))",
