@@ -342,6 +342,47 @@ function futurosProximosDias(futuros, motos, dias = 7) {
   return { entrada, saida };
 }
 
+// detalha item a item o que compõe o total de "a receber"/"a pagar" (12 meses) — mesma
+// lógica de projecaoFuturosPorMes, só que soma por item (moto/categoria) em vez de somar
+// tudo junto, pra poder mostrar "de onde vem" esse valor ao passar o mouse
+function detalheFuturosPorTipo(futuros, motos, tipo, meses = 12) {
+  const todos = [...(futuros || []), ...contratosComoFuturos(motos)];
+  const hoje = new Date();
+  const inicio = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+  const porItem = new Map();
+
+  const rotulo = (f) => {
+    const moto = motos?.find((m) => m.id === f.motoId);
+    const base = f.descricao || f.categoria || "Item";
+    if (!moto) return base;
+    const placa = formatPlaca(moto.placa);
+    return base.includes(placa) ? base : `${base} (${placa})`;
+  };
+
+  for (let i = 0; i < meses; i++) {
+    const d = new Date(inicio.getFullYear(), inicio.getMonth() + i, 1);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    todos.forEach((f) => {
+      if (f.tipo !== tipo || !f.vencimento) return;
+      const valor = Number(f.valor) || 0;
+      const vd = new Date(`${f.vencimento}T00:00:00`);
+      if (f.recorrente) {
+        const inicioRecorrencia = new Date(vd.getFullYear(), vd.getMonth(), 1);
+        const fimRecorrencia = f.dataTermino ? new Date(`${f.dataTermino}T00:00:00`) : null;
+        if (d >= inicioRecorrencia && (!fimRecorrencia || d <= fimRecorrencia)) {
+          const label = rotulo(f);
+          porItem.set(label, (porItem.get(label) || 0) + valor);
+        }
+      } else if (!f.pago && f.vencimento.slice(0, 7) === key) {
+        const label = rotulo(f);
+        porItem.set(label, (porItem.get(label) || 0) + valor);
+      }
+    });
+  }
+
+  return [...porItem.entries()].map(([label, total]) => ({ label, total })).sort((a, b) => b.total - a.total);
+}
+
 // consulta o CEP no ViaCEP (serviço público, gratuito, sem chave) e devolve o endereço
 // pra preencher os campos sozinho — só chama quando o CEP tem os 8 dígitos
 async function buscarEnderecoPorCEP(cep) {
@@ -921,6 +962,40 @@ function ContratoAnexosButton({ anexos, label = "Contrato", tituloPreview, onAbr
         </>
       )}
     </div>
+  );
+}
+
+// passa o mouse por cima de um valor (ex: "A receber") e mostra de onde ele vem, item a
+// item — sem isso, um total de vários meses somados não dizia se era 1 moto ou várias
+function ValorComDetalhe({ children, itens, fmt }) {
+  const [aberto, setAberto] = useState(false);
+  if (!itens || itens.length === 0) return children;
+  return (
+    <span
+      className="relative inline-block"
+      onMouseEnter={() => setAberto(true)}
+      onMouseLeave={() => setAberto(false)}
+      style={{ cursor: "help" }}
+    >
+      {children}
+      {aberto && (
+        <div
+          className="absolute z-30 mt-1 left-0 rounded-xl overflow-hidden mbr-fade-in"
+          style={{ background: theme.panel, border: `1px solid ${theme.cardBorder}`, minWidth: 220, boxShadow: "0 6px 20px rgba(0,0,0,0.4)", padding: 10 }}
+        >
+          {itens.map((it, i) => (
+            <div
+              key={i}
+              className="flex items-center justify-between gap-3 text-xs py-1"
+              style={{ color: theme.text, fontFamily: BODY_FONT, borderBottom: i < itens.length - 1 ? `1px solid ${theme.cardBorder}` : "none" }}
+            >
+              <span className="truncate">{it.label}</span>
+              <span style={{ fontWeight: 700, flexShrink: 0 }}>{fmt(it.total)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </span>
   );
 }
 
@@ -4107,13 +4182,17 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
                       <div className="text-xs uppercase tracking-wide mb-1" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
                         A receber (12 meses)
                       </div>
-                      <div style={{ fontFamily: HEAD_FONT, fontSize: 18, color: theme.mint }}>{fmt(previstoEntrada12Meses)}</div>
+                      <ValorComDetalhe itens={detalheFuturosPorTipo(futuros, motos, "entrada")} fmt={fmt}>
+                        <div style={{ fontFamily: HEAD_FONT, fontSize: 18, color: theme.mint }}>{fmt(previstoEntrada12Meses)}</div>
+                      </ValorComDetalhe>
                     </div>
                     <div>
                       <div className="text-xs uppercase tracking-wide mb-1" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
                         A pagar (12 meses)
                       </div>
-                      <div style={{ fontFamily: HEAD_FONT, fontSize: 18, color: theme.coral }}>{fmt(previstoSaida12Meses)}</div>
+                      <ValorComDetalhe itens={detalheFuturosPorTipo(futuros, motos, "saida")} fmt={fmt}>
+                        <div style={{ fontFamily: HEAD_FONT, fontSize: 18, color: theme.coral }}>{fmt(previstoSaida12Meses)}</div>
+                      </ValorComDetalhe>
                     </div>
                     <div>
                       <div className="text-xs uppercase tracking-wide mb-1" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
