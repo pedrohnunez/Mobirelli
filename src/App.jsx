@@ -984,6 +984,7 @@ function ClientesView({ clientes, persistClientes, motos, persistMotos }) {
   const [busca, setBusca] = useState("");
   const [modal, setModal] = useState(null);
   const [expandido, setExpandido] = useState(null);
+  const [preview, setPreview] = useState(null);
 
   const salvar = async (cliente) => {
     const existe = clientes.find((c) => c.id === cliente.id);
@@ -999,6 +1000,11 @@ function ClientesView({ clientes, persistClientes, motos, persistMotos }) {
     if (!moto) return;
     const atualizada = { ...moto, status: "alugada", contratoAtual: { ...dados.contrato, clienteId: cliente.id } };
     await persistMotos(motos.map((m) => (m.id === moto.id ? atualizada : m)));
+    setModal(null);
+  };
+
+  const atualizarContrato = async (moto, dados) => {
+    await persistMotos(motos.map((m) => (m.id === moto.id ? { ...m, contratoAtual: { ...m.contratoAtual, ...dados.contrato } } : m)));
     setModal(null);
   };
 
@@ -1084,6 +1090,26 @@ function ClientesView({ clientes, persistClientes, motos, persistMotos }) {
                       <div style={{ color: theme.textMuted, fontSize: 12 }}>
                         Contrato nº {motoVinculada.contratoAtual.numeroContrato} · vence em {formatDate(motoVinculada.contratoAtual.dataVencimento)}
                       </div>
+                      <div className="flex items-center gap-3 mt-2">
+                        {motoVinculada.contratoAtual.contratoLink && (
+                          <button
+                            onClick={() =>
+                              setPreview({ url: motoVinculada.contratoAtual.contratoLink, title: `Contrato — ${formatPlaca(motoVinculada.placa)}` })
+                            }
+                            className="inline-flex items-center gap-1 text-xs mbr-hover-grow"
+                            style={{ color: theme.blue }}
+                          >
+                            <FileText size={12} /> Ver contrato
+                          </button>
+                        )}
+                        <button
+                          onClick={() => setModal({ type: "contrato", moto: motoVinculada })}
+                          className="inline-flex items-center gap-1 text-xs mbr-hover-grow"
+                          style={{ color: theme.text }}
+                        >
+                          <Pencil size={12} /> Editar contrato
+                        </button>
+                      </div>
                     </div>
                   )}
 
@@ -1138,6 +1164,16 @@ function ClientesView({ clientes, persistClientes, motos, persistMotos }) {
           onSave={(dados) => vincularMoto(modal.cliente, dados)}
         />
       )}
+      {modal?.type === "contrato" && (
+        <ContratoModal
+          moto={modal.moto}
+          clientes={clientes}
+          editando
+          onClose={() => setModal(null)}
+          onSave={(dados) => atualizarContrato(modal.moto, dados)}
+        />
+      )}
+      {preview && <PdfViewer url={preview.url} title={preview.title} onClose={() => setPreview(null)} />}
     </div>
   );
 }
@@ -1583,21 +1619,25 @@ function MotoFormModal({ moto, onClose, onSave, title }) {
   );
 }
 
-function ContratoModal({ moto, clientes, onClose, onSave }) {
-  const [contratoId] = useState(uid());
+function ContratoModal({ moto, clientes, onClose, onSave, editando }) {
+  const [contratoId] = useState(moto.contratoAtual?.id || uid());
   const [clienteId, setClienteId] = useState("novo");
   const [novoCliente, setNovoCliente] = useState(emptyCliente());
   const nContratoDefault = (moto.historicoContratos?.length || 0) + 1;
-  const [contrato, setContrato] = useState({
-    numeroContrato: nContratoDefault,
-    numeroClienteMoto: nContratoDefault,
-    valorMensal: "",
-    formaPagamento: "Boleto Bancário",
-    dataInicio: todayISO(),
-    dataVencimento: "",
-    contratoLink: "",
-    contratoArquivo: "",
-  });
+  const [contrato, setContrato] = useState(
+    editando
+      ? { ...moto.contratoAtual }
+      : {
+          numeroContrato: nContratoDefault,
+          numeroClienteMoto: nContratoDefault,
+          valorMensal: "",
+          formaPagamento: "Boleto Bancário",
+          dataInicio: todayISO(),
+          dataVencimento: "",
+          contratoLink: "",
+          contratoArquivo: "",
+        }
+  );
 
   const [cepStatus, setCepStatus] = useState(""); // "" | "buscando" | "ok" | "nao-encontrado"
   const setNC = (k) => (e) => setNovoCliente({ ...novoCliente, [k]: e.target.value });
@@ -1622,8 +1662,23 @@ function ContratoModal({ moto, clientes, onClose, onSave }) {
     setCepStatus("ok");
   };
 
+  const clienteAtual = editando ? clientes.find((c) => c.id === moto.contratoAtual?.clienteId) : null;
+
   return (
-    <Modal title={`Novo contrato — ${moto.placa ? formatPlaca(moto.placa) : moto.modelo}`} onClose={onClose}>
+    <Modal
+      title={editando ? `Editar contrato — ${moto.placa ? formatPlaca(moto.placa) : moto.modelo}` : `Novo contrato — ${moto.placa ? formatPlaca(moto.placa) : moto.modelo}`}
+      onClose={onClose}
+    >
+      {editando ? (
+        <div className="rounded-xl p-3 mb-3" style={{ background: theme.card2 }}>
+          <FieldLabel>Cliente</FieldLabel>
+          <div style={{ color: theme.text, fontFamily: BODY_FONT }}>{clienteAtual?.nome || "Cliente"}</div>
+          <div className="text-xs mt-1" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+            Pra trocar de cliente, encerre este contrato e cadastre um novo aluguel.
+          </div>
+        </div>
+      ) : (
+        <>
       <FieldLabel>Cliente</FieldLabel>
       <SelectField
         value={clienteId}
@@ -1710,6 +1765,8 @@ function ContratoModal({ moto, clientes, onClose, onSave }) {
           </Row2>
         </div>
       ) : null}
+        </>
+      )}
 
       <Row2>
         <div>
@@ -1761,7 +1818,7 @@ function ContratoModal({ moto, clientes, onClose, onSave }) {
         className="w-full rounded-xl py-2 font-semibold mt-1"
         style={{ background: theme.mint, color: theme.mintText }}
       >
-        Confirmar aluguel
+        {editando ? "Salvar contrato" : "Confirmar aluguel"}
       </button>
     </Modal>
   );
@@ -1954,6 +2011,11 @@ function MotosView({ motos, persist, clientes, persistClientes, config, lancamen
     setModal(null);
   };
 
+  const atualizarContrato = async (moto, dados) => {
+    await salvarMoto({ ...moto, contratoAtual: { ...moto.contratoAtual, ...dados.contrato } });
+    setModal(null);
+  };
+
   const encerrarContrato = async (moto) => {
     if (!moto.contratoAtual) return;
     const encerrado = { ...moto.contratoAtual, encerradoEm: todayISO() };
@@ -2107,13 +2169,22 @@ function MotosView({ motos, persist, clientes, persistClientes, config, lancamen
                           <FileText size={12} /> Contrato
                         </button>
                       )}
-                      <button
-                        onClick={() => encerrarContrato(moto)}
-                        className="text-xs font-semibold rounded-xl px-3 py-1.5 mt-2"
-                        style={{ border: `1px solid ${theme.cardBorder}`, color: theme.text }}
-                      >
-                        Encerrar contrato
-                      </button>
+                      <div className="flex gap-2 mt-2">
+                        <button
+                          onClick={() => setModal({ type: "contrato", mode: "editar", moto })}
+                          className="text-xs font-semibold rounded-xl px-3 py-1.5 flex items-center gap-1"
+                          style={{ border: `1px solid ${theme.cardBorder}`, color: theme.text }}
+                        >
+                          <Pencil size={12} /> Editar contrato
+                        </button>
+                        <button
+                          onClick={() => encerrarContrato(moto)}
+                          className="text-xs font-semibold rounded-xl px-3 py-1.5"
+                          style={{ border: `1px solid ${theme.cardBorder}`, color: theme.text }}
+                        >
+                          Encerrar contrato
+                        </button>
+                      </div>
                     </div>
                   ) : null}
 
@@ -2231,7 +2302,13 @@ function MotosView({ motos, persist, clientes, persistClientes, config, lancamen
         />
       )}
       {modal?.type === "contrato" && (
-        <ContratoModal moto={modal.moto} clientes={clientes} onClose={() => setModal(null)} onSave={(dados) => confirmarContrato(modal.moto, dados)} />
+        <ContratoModal
+          moto={modal.moto}
+          clientes={clientes}
+          editando={modal.mode === "editar"}
+          onClose={() => setModal(null)}
+          onSave={(dados) => (modal.mode === "editar" ? atualizarContrato(modal.moto, dados) : confirmarContrato(modal.moto, dados))}
+        />
       )}
       {modal?.type === "manutencao" && (
         <ManutencaoModal onClose={() => setModal(null)} onSave={(m) => salvarManutencao(modal.moto, m)} />
