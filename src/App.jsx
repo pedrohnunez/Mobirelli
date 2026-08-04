@@ -1004,6 +1004,7 @@ function emptyMoto() {
     contratoAtual: null,
     historicoContratos: [],
     manutencoes: [],
+    custosExtras: [],
   };
 }
 
@@ -1057,6 +1058,27 @@ function rastreioMarkerHtml(placa, corHex, estilo) {
   `;
 }
 
+function rastreioPopupHtml(placa, device, moto, clienteNome) {
+  const cor = RASTREIO_STATUS_COR[device?.icon_color] || theme.mint;
+  const velocidade = Number(device?.speed) || 0;
+  const statusTxt = device?.online === "offline" ? "Offline" : velocidade > 0 ? `Em movimento · ${Math.round(velocidade)} km/h` : "Parada";
+  const modelo = moto?.modelo ? `<div style="font-size:12px;color:${theme.textMuted};margin-top:2px;">${moto.modelo}</div>` : "";
+  const contrato = moto?.contratoAtual
+    ? `<div style="margin-top:6px;padding-top:6px;border-top:1px solid ${theme.cardBorder};font-size:12px;color:${theme.textMuted};">
+         ${clienteNome ? `Cliente: <b style="color:${theme.text}">${clienteNome}</b><br/>` : ""}
+         <span style="color:${theme.amber};font-weight:700;">${new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(moto.contratoAtual.valorMensal || 0)}</span>/mês
+       </div>`
+    : "";
+  return `
+    <div style="font-family:${BODY_FONT};min-width:150px;">
+      <div style="font-family:monospace;font-weight:700;font-size:14px;letter-spacing:1px;color:${theme.text};">${placa}</div>
+      ${modelo}
+      <div style="font-size:12px;margin-top:4px;color:${cor};font-weight:600;">${statusTxt}</div>
+      ${contrato}
+    </div>
+  `;
+}
+
 function MapToolButton({ icon: Icon, label, onClick, active }) {
   return (
     <button
@@ -1078,13 +1100,16 @@ function MapToolButton({ icon: Icon, label, onClick, active }) {
   );
 }
 
-function TrackingMap({ link, filterPlaca, height = 320, rounded = true }) {
+function TrackingMap({ link, filterPlaca, height = 320, rounded = true, motos, clientes }) {
   const containerRef = useRef(null);
   const mapObjRef = useRef(null);
   const markersRef = useRef({});
+  const popupRef = useRef(null);
   const tickRef = useRef(null);
   const mostrarRastroRef = useRef(false);
   const estiloMarcadorRef = useRef("moto");
+  const motosRef = useRef(motos);
+  const clientesRef = useRef(clientes);
   const [status, setStatus] = useState("carregando"); // carregando | ok | erro
   const [mostrarRastro, setMostrarRastro] = useState(false);
   const [estiloMarcador, setEstiloMarcador] = useState("moto"); // "moto" | "ponto"
@@ -1092,6 +1117,14 @@ function TrackingMap({ link, filterPlaca, height = 320, rounded = true }) {
   useEffect(() => {
     mostrarRastroRef.current = mostrarRastro;
   }, [mostrarRastro]);
+
+  useEffect(() => {
+    motosRef.current = motos;
+  }, [motos]);
+
+  useEffect(() => {
+    clientesRef.current = clientes;
+  }, [clientes]);
 
   useEffect(() => {
     estiloMarcadorRef.current = estiloMarcador;
@@ -1140,12 +1173,30 @@ function TrackingMap({ link, filterPlaca, height = 320, rounded = true }) {
             markersRef.current[chave].marker.setLngLat([lng, lat]);
             markersRef.current[chave].placa = placa;
             markersRef.current[chave].cor = cor;
+            markersRef.current[chave].device = d;
           } else {
             const el = document.createElement("div");
             el.className = "mbr-map-marker";
             el.innerHTML = rastreioMarkerHtml(placa, cor, estiloMarcadorRef.current);
             const marker = new maplibregl.Marker({ element: el, anchor: "bottom" }).setLngLat([lng, lat]).addTo(map);
-            markersRef.current[chave] = { marker, placa, cor };
+            markersRef.current[chave] = { marker, placa, cor, device: d };
+
+            el.addEventListener("click", (ev) => {
+              ev.stopPropagation();
+              const entry = markersRef.current[chave];
+              if (!entry) return;
+              const ll = entry.marker.getLngLat();
+              map.flyTo({ center: ll, zoom: 16, duration: 600 });
+
+              const moto = motosRef.current?.find((m) => (m.placa || "").toUpperCase() === entry.placa.toUpperCase());
+              const cliente = moto?.contratoAtual ? clientesRef.current?.find((c) => c.id === moto.contratoAtual.clienteId) : null;
+
+              if (popupRef.current) popupRef.current.remove();
+              popupRef.current = new maplibregl.Popup({ closeButton: true, offset: 28, className: "mbr-map-popup" })
+                .setLngLat(ll)
+                .setHTML(rastreioPopupHtml(entry.placa, entry.device, moto, cliente?.nome))
+                .addTo(map);
+            });
           }
           bounds.extend([lng, lat]);
 
@@ -1201,6 +1252,8 @@ function TrackingMap({ link, filterPlaca, height = 320, rounded = true }) {
       clearInterval(interval);
       Object.values(markersRef.current).forEach(({ marker }) => marker.remove());
       markersRef.current = {};
+      popupRef.current?.remove();
+      popupRef.current = null;
       map.remove();
       mapObjRef.current = null;
     };
@@ -1562,6 +1615,33 @@ function emptyManutencao() {
   return { id: uid(), data: todayISO(), tipo: "", valorGasto: "", local: "", garantia: false };
 }
 
+function emptyCustoExtra() {
+  return { id: uid(), data: todayISO(), descricao: "", valorGasto: "" };
+}
+
+function CustoExtraModal({ onClose, onSave }) {
+  const [form, setForm] = useState(emptyCustoExtra());
+  const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
+
+  return (
+    <Modal title="Novo custo da moto" onClose={onClose}>
+      <FieldLabel>Data</FieldLabel>
+      <input type="date" style={inputStyle} value={form.data} onChange={set("data")} />
+      <FieldLabel>Descrição</FieldLabel>
+      <input style={inputStyle} value={form.descricao} onChange={set("descricao")} placeholder="Despachante, documentação, comissão..." />
+      <FieldLabel>Valor gasto</FieldLabel>
+      <input type="number" step="0.01" style={inputStyle} value={form.valorGasto} onChange={set("valorGasto")} />
+      <button
+        onClick={() => onSave({ ...form, valorGasto: Number(form.valorGasto) || 0 })}
+        className="w-full rounded-xl py-2 font-semibold mt-1"
+        style={{ background: theme.mint, color: theme.mintText }}
+      >
+        Salvar
+      </button>
+    </Modal>
+  );
+}
+
 function ManutencaoModal({ onClose, onSave }) {
   const [form, setForm] = useState(emptyManutencao());
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
@@ -1733,6 +1813,11 @@ function MotosView({ motos, persist, clientes, persistClientes, config }) {
     setModal(null);
   };
 
+  const salvarCustoExtra = async (moto, custo) => {
+    await salvarMoto({ ...moto, custosExtras: [...(moto.custosExtras || []), custo] });
+    setModal(null);
+  };
+
   const filtradas = motos.filter((m) => {
     const q = busca.toLowerCase();
     return !q || [m.placa, m.chassi, m.renavam, m.modelo].some((f) => f?.toLowerCase().includes(q));
@@ -1881,6 +1966,29 @@ function MotosView({ motos, persist, clientes, persistClientes, config }) {
                     )}
                   </div>
 
+                  <div className="mb-2">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs uppercase tracking-wide" style={{ color: theme.textMuted }}>
+                        Custos extras (despachante, doc. etc.)
+                      </span>
+                      <button onClick={() => setModal({ type: "custoExtra", moto })} style={{ color: theme.blue }}>
+                        <Plus size={14} />
+                      </button>
+                    </div>
+                    {(moto.custosExtras || []).length === 0 ? (
+                      <div style={{ color: theme.textMuted, fontSize: 12 }}>Nenhum registrado.</div>
+                    ) : (
+                      [...moto.custosExtras].reverse().map((c) => (
+                        <div key={c.id} className="flex items-center justify-between text-xs py-1" style={{ borderTop: `1px solid ${theme.cardBorder}` }}>
+                          <span style={{ color: theme.text }}>
+                            {formatDate(c.data)} · {c.descricao || "Sem descrição"}
+                          </span>
+                          <span style={{ color: theme.textMuted }}>{formatCurrency(c.valorGasto)}</span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+
                   <div className="flex gap-2 mt-2">
                     <button
                       onClick={() => setModal({ type: "moto", mode: "editar", moto })}
@@ -1917,6 +2025,9 @@ function MotosView({ motos, persist, clientes, persistClientes, config }) {
       )}
       {modal?.type === "manutencao" && (
         <ManutencaoModal onClose={() => setModal(null)} onSave={(m) => salvarManutencao(modal.moto, m)} />
+      )}
+      {modal?.type === "custoExtra" && (
+        <CustoExtraModal onClose={() => setModal(null)} onSave={(c) => salvarCustoExtra(modal.moto, c)} />
       )}
       {modal?.type === "consulta" && <ConsultaPlacaModal onClose={() => setModal(null)} />}
     </div>
@@ -2304,6 +2415,31 @@ function DashboardView({ motos, lancamentos, clientes }) {
     .slice(0, 5);
   const maxFaturamentoMoto = Math.max(1, ...rankingFaturamento.map((m) => m.total));
 
+  // retorno do investimento por moto — quanto já foi "recuperado" (estimado a partir do
+  // valor mensal do contrato x meses decorridos) vs quanto custou (compra + custos extras + manutenção)
+  const retornoPorMoto = motos
+    .map((m) => {
+      const custosExtrasTotal = (m.custosExtras || []).reduce((s, c) => s + Number(c.valorGasto || 0), 0);
+      const manutencaoTotal = (m.manutencoes || []).reduce((s, x) => s + Number(x.valorGasto || 0), 0);
+      const investimentoTotal = Number(m.valorCompra || 0) + custosExtrasTotal + manutencaoTotal;
+      const receitaMensal = m.contratoAtual ? Number(m.contratoAtual.valorMensal || 0) : 0;
+
+      let mesesDecorridos = 0;
+      if (m.contratoAtual?.dataInicio) {
+        const inicio = new Date(m.contratoAtual.dataInicio + "T00:00:00");
+        const hoje = new Date();
+        mesesDecorridos = Math.max(0, (hoje.getFullYear() - inicio.getFullYear()) * 12 + (hoje.getMonth() - inicio.getMonth()));
+      }
+      const recebidoEstimado = Math.min(investimentoTotal, mesesDecorridos * receitaMensal);
+      const restante = Math.max(0, investimentoTotal - recebidoEstimado);
+      const mesesRestantes = receitaMensal > 0 ? Math.ceil(restante / receitaMensal) : null;
+      const percentPago = investimentoTotal > 0 ? Math.min(100, (recebidoEstimado / investimentoTotal) * 100) : 0;
+
+      return { placa: m.placa, investimentoTotal, receitaMensal, percentPago, mesesRestantes, jaPagou: restante <= 0 && investimentoTotal > 0 };
+    })
+    .filter((r) => r.investimentoTotal > 0)
+    .sort((a, b) => b.percentPago - a.percentPago);
+
   // mês anterior ao mês de referência — usado só pra calcular a variação (%) dos KPIs principais
   const mesAnteriorKey = (() => {
     const d = new Date(refAno, refMesNum - 2, 1);
@@ -2515,6 +2651,49 @@ function DashboardView({ motos, lancamentos, clientes }) {
       </div>
       </Reveal>
 
+      {retornoPorMoto.length > 0 && (
+        <Reveal delay={40}>
+          <div className="rounded-2xl p-4 mb-4" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
+            <h3 style={{ fontFamily: HEAD_FONT, fontSize: 16, color: theme.text }} className="mb-1">
+              Retorno do investimento por moto
+            </h3>
+            <div className="text-xs mb-3" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+              Estimativa: compra + custos extras + manutenção, comparado ao que a mensalidade já deveria ter coberto.
+            </div>
+            <div className="flex flex-col gap-3">
+              {retornoPorMoto.map((r) => (
+                <div key={r.placa}>
+                  <div className="flex justify-between items-baseline text-xs mb-1" style={{ fontFamily: BODY_FONT }}>
+                    <span style={{ color: theme.text, fontWeight: 700, fontFamily: "monospace" }}>{r.placa}</span>
+                    <span style={{ color: theme.textMuted }}>
+                      {formatCurrency(r.investimentoTotal)} investido
+                      {r.receitaMensal > 0 && ` · ${formatCurrency(r.receitaMensal)}/mês`}
+                    </span>
+                  </div>
+                  <div style={{ height: 8, borderRadius: 4, background: theme.bg, overflow: "hidden" }}>
+                    <div
+                      style={{
+                        height: "100%",
+                        width: `${r.percentPago}%`,
+                        background: r.jaPagou ? theme.mint : theme.amber,
+                        transition: "width 0.6s ease",
+                      }}
+                    />
+                  </div>
+                  <div className="text-xs mt-1" style={{ fontFamily: BODY_FONT, color: r.jaPagou ? theme.mint : theme.textMuted }}>
+                    {r.jaPagou
+                      ? "Já se pagou — a partir de agora é lucro 🎉"
+                      : r.mesesRestantes != null
+                      ? `${r.percentPago.toFixed(0)}% recuperado · faltam ~${r.mesesRestantes} ${r.mesesRestantes === 1 ? "mês" : "meses"}`
+                      : "Sem contrato ativo pra estimar o prazo"}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </Reveal>
+      )}
+
       <Reveal>
       <div className="grid gap-4 mb-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
         <div className="rounded-2xl p-4" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
@@ -2592,9 +2771,9 @@ function DashboardView({ motos, lancamentos, clientes }) {
 =========================================================== */
 const LINK_RASTREIO_PADRAO = "https://web.melocaliza.com.br/sharing/126b3fd40579524296cf586b7625cd97";
 
-function RastreioView({ config }) {
+function RastreioView({ config, motos, clientes }) {
   const link = config?.linkRastreioGeral || LINK_RASTREIO_PADRAO;
-  return <TrackingMap link={link} height="100%" rounded={false} />;
+  return <TrackingMap link={link} height="100%" rounded={false} motos={motos} clientes={clientes} />;
 }
 
 function ConfiguracoesView({ config, persist }) {
@@ -3043,7 +3222,7 @@ export default function MobirelliApp() {
             ) : tab === "fluxo" ? (
               <FluxoCaixaView lancamentos={fluxoState.items} persist={fluxoState.persist} />
             ) : tab === "rastreio" ? (
-              <RastreioView config={configState.value} />
+              <RastreioView config={configState.value} motos={motosState.items} clientes={clientesState.items} />
             ) : (
               <ConfiguracoesView config={configState.value} persist={configState.persist} />
             )}

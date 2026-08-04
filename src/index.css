@@ -36,3 +36,19 @@ body {
 .mbr-map-marker {
   cursor: pointer;
 }
+.mbr-map-popup .maplibregl-popup-content {
+  background: #183524;
+  border: 1px solid #2C4D38;
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  padding: 10px 12px;
+}
+.mbr-map-popup .maplibregl-popup-tip {
+  border-top-color: #183524 !important;
+  border-bottom-color: #183524 !important;
+}
+.mbr-map-popup .maplibregl-popup-close-button {
+  color: #8AA894;
+  font-size: 16px;
+  padding: 2px 6px;
+}
