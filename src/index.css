@@ -19,6 +19,29 @@ body {
 .mbr-map .maplibregl-ctrl-bottom-right {
   bottom: var(--mbr-bottom-inset, 0px);
 }
+/* dilui o mapa (só o "terreno", não os controles) perto do topo/base, tipo o
+   minimapa do GTA — revela a cor sólida por baixo em vez de deixar a barra
+   translúcida */
+.mbr-map-fade .maplibregl-canvas-container {
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent var(--mbr-top-inset, 0px),
+    black calc(var(--mbr-top-inset, 0px) + 70px),
+    black calc(100% - (var(--mbr-bottom-inset, 0px) + 70px)),
+    transparent calc(100% - var(--mbr-bottom-inset, 0px)),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent var(--mbr-top-inset, 0px),
+    black calc(var(--mbr-top-inset, 0px) + 70px),
+    black calc(100% - (var(--mbr-bottom-inset, 0px) + 70px)),
+    transparent calc(100% - var(--mbr-bottom-inset, 0px)),
+    transparent 100%
+  );
+}
 .mbr-map .maplibregl-ctrl-group {
   background: #183524;
   border: 1px solid #2C4D38;
