@@ -172,6 +172,16 @@ const maskTelefone = (v) => {
 
 const maskCep = (v) => (v || "").replace(/\D/g, "").slice(0, 8).replace(/(\d{5})(\d{1,3})$/, "$1-$2");
 
+// liga lançamentos de entrada à moto pela placa (categoria/descrição), tipo "Mensalidade URB5I50" —
+// é assim que o fluxo de caixa já é lançado, então usamos isso pra saber o que essa moto já recebeu de verdade
+function pagamentosDaMoto(placa, lancamentos) {
+  const p = (placa || "").toUpperCase().trim();
+  if (!p) return [];
+  return (lancamentos || [])
+    .filter((l) => l.tipo === "entrada" && (`${l.categoria || ""} ${l.descricao || ""}`.toUpperCase().includes(p)))
+    .sort((a, b) => (a.data < b.data ? 1 : -1));
+}
+
 // consulta o CEP no ViaCEP (serviço público, gratuito, sem chave) e devolve o endereço
 // pra preencher os campos sozinho — só chama quando o CEP tem os 8 dígitos
 async function buscarEnderecoPorCEP(cep) {
@@ -592,7 +602,7 @@ function AnexoField({ label, linkValue, onLinkChange, storageKey, fileName, onFi
             >
               <FileText size={12} /> {fileName}
             </a>
-            <button type="button" onClick={handleRemove} style={{ color: theme.coral }}>
+            <button type="button" onClick={handleRemove} className="mbr-hover-grow" style={{ color: theme.coral }}>
               <Trash2 size={14} />
             </button>
           </>
@@ -1085,7 +1095,7 @@ function MapToolButton({ icon: Icon, label, onClick, active }) {
       type="button"
       onClick={onClick}
       title={label}
-      className="flex items-center justify-center rounded-full"
+      className="flex items-center justify-center rounded-full mbr-hover-grow"
       style={{
         width: 34,
         height: 34,
@@ -1768,7 +1778,7 @@ function ConsultaPlacaModal({ onClose }) {
   );
 }
 
-function MotosView({ motos, persist, clientes, persistClientes, config }) {
+function MotosView({ motos, persist, clientes, persistClientes, config, lancamentos }) {
   const [busca, setBusca] = useState("");
   const [expandido, setExpandido] = useState(null);
   const [modal, setModal] = useState(null);
@@ -1865,15 +1875,16 @@ function MotosView({ motos, persist, clientes, persistClientes, config }) {
         {filtradas.map((moto) => {
           const vencido = moto.status === "alugada" && isOverdue(moto.contratoAtual?.dataVencimento);
           const cliente = clientes.find((c) => c.id === moto.contratoAtual?.clienteId);
+          const pagamentos = pagamentosDaMoto(moto.placa, lancamentos);
           const aberto = expandido === moto.id;
           return (
             <div key={moto.id} className="rounded-2xl overflow-hidden" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
-              <button className="w-full flex items-center justify-between px-4 py-4 text-left" onClick={() => setExpandido(aberto ? null : moto.id)}>
-                <div className="flex items-center gap-3">
-                  <MotoPlate placa={moto.placa} size="grande" />
+              <button className="w-full flex items-center justify-between px-4 py-3 text-left" onClick={() => setExpandido(aberto ? null : moto.id)}>
+                <div className="flex items-center gap-2">
+                  <MotoPlate placa={moto.placa} />
                   <StatusBadge status={moto.status} vencido={vencido} />
                 </div>
-                {aberto ? <ChevronUp size={20} color={theme.textMuted} /> : <ChevronDown size={20} color={theme.textMuted} />}
+                {aberto ? <ChevronUp size={18} color={theme.textMuted} /> : <ChevronDown size={18} color={theme.textMuted} />}
               </button>
 
               <Collapse open={aberto}>
@@ -1913,6 +1924,7 @@ function MotosView({ motos, persist, clientes, persistClientes, config }) {
                       <div style={{ color: theme.textMuted, fontSize: 12 }}>
                         {moto.contratoAtual.numeroClienteMoto}º cliente · contrato nº {moto.contratoAtual.numeroContrato} · vence em{" "}
                         {formatDate(moto.contratoAtual.dataVencimento)}
+                        {moto.contratoAtual.dataVencimento && ` (todo dia ${moto.contratoAtual.dataVencimento.slice(8, 10)})`}
                       </div>
                       {(moto.contratoAtual.contratoLink || moto.contratoAtual.contratoArquivo) && (
                         <a
@@ -1933,7 +1945,35 @@ function MotosView({ motos, persist, clientes, persistClientes, config }) {
                         Encerrar contrato
                       </button>
                     </div>
-                  ) : (
+                  ) : null}
+
+                  <div className="mb-2">
+                    <span className="text-xs uppercase tracking-wide" style={{ color: theme.textMuted }}>
+                      Pagamentos recebidos (fluxo de caixa)
+                    </span>
+                    {pagamentos.length === 0 ? (
+                      <div style={{ color: theme.textMuted, fontSize: 12 }} className="mt-1">
+                        Nenhum pagamento com "{moto.placa}" na categoria/descrição ainda.
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex justify-between text-xs mt-1 mb-1" style={{ color: theme.mint, fontWeight: 700 }}>
+                          <span>Total recebido</span>
+                          <span>{formatCurrency(pagamentos.reduce((s, p) => s + Number(p.valor), 0))}</span>
+                        </div>
+                        {pagamentos.map((p) => (
+                          <div key={p.id} className="flex items-center justify-between text-xs py-1" style={{ borderTop: `1px solid ${theme.cardBorder}` }}>
+                            <span style={{ color: theme.text }}>
+                              {formatDate(p.data)} · {p.categoria || "Sem categoria"}
+                            </span>
+                            <span style={{ color: theme.textMuted }}>{formatCurrency(p.valor)}</span>
+                          </div>
+                        ))}
+                      </>
+                    )}
+                  </div>
+
+                  {!moto.contratoAtual && (
                     <button
                       onClick={() => setModal({ type: "contrato", moto })}
                       className="text-xs font-semibold rounded-xl px-3 py-1.5 mb-3"
@@ -1948,7 +1988,7 @@ function MotosView({ motos, persist, clientes, persistClientes, config }) {
                       <span className="text-xs uppercase tracking-wide" style={{ color: theme.textMuted }}>
                         Manutenções
                       </span>
-                      <button onClick={() => setModal({ type: "manutencao", moto })} style={{ color: theme.blue }}>
+                      <button onClick={() => setModal({ type: "manutencao", moto })} className="mbr-hover-grow" style={{ color: theme.blue }}>
                         <Plus size={14} />
                       </button>
                     </div>
@@ -1971,7 +2011,7 @@ function MotosView({ motos, persist, clientes, persistClientes, config }) {
                       <span className="text-xs uppercase tracking-wide" style={{ color: theme.textMuted }}>
                         Custos extras (despachante, doc. etc.)
                       </span>
-                      <button onClick={() => setModal({ type: "custoExtra", moto })} style={{ color: theme.blue }}>
+                      <button onClick={() => setModal({ type: "custoExtra", moto })} className="mbr-hover-grow" style={{ color: theme.blue }}>
                         <Plus size={14} />
                       </button>
                     </div>
@@ -2185,7 +2225,7 @@ function FluxoCaixaView({ lancamentos, persist }) {
                         <span style={{ color: l.tipo === "entrada" ? theme.mint : theme.coral, fontFamily: HEAD_FONT, fontSize: 16 }}>
                           {l.tipo === "entrada" ? "+" : "-"} {formatCurrency(l.valor)}
                         </span>
-                        <button onClick={() => excluir(l.id)} style={{ color: theme.textMuted }}>
+                        <button onClick={() => excluir(l.id)} className="mbr-hover-grow" style={{ color: theme.textMuted }}>
                           <Trash2 size={14} />
                         </button>
                       </div>
@@ -2247,7 +2287,7 @@ function HeroStat({ label, value, icon: Icon, accent, deltaPercent, deltaLabel }
   return (
     <div
       className="rounded-2xl p-5 flex flex-col gap-2 min-w-0"
-      style={{ background: theme.card2, border: `1px solid ${accent}55`, boxShadow: "0 2px 12px rgba(0,0,0,0.22)" }}
+      style={{ background: theme.card, border: `1px solid ${accent}55`, boxShadow: "0 2px 12px rgba(0,0,0,0.22)" }}
     >
       <div className="flex items-center justify-between gap-2 min-w-0">
         <span className="text-xs uppercase tracking-wide truncate" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
@@ -2424,18 +2464,14 @@ function DashboardView({ motos, lancamentos, clientes }) {
       const investimentoTotal = Number(m.valorCompra || 0) + custosExtrasTotal + manutencaoTotal;
       const receitaMensal = m.contratoAtual ? Number(m.contratoAtual.valorMensal || 0) : 0;
 
-      let mesesDecorridos = 0;
-      if (m.contratoAtual?.dataInicio) {
-        const inicio = new Date(m.contratoAtual.dataInicio + "T00:00:00");
-        const hoje = new Date();
-        mesesDecorridos = Math.max(0, (hoje.getFullYear() - inicio.getFullYear()) * 12 + (hoje.getMonth() - inicio.getMonth()));
-      }
-      const recebidoEstimado = Math.min(investimentoTotal, mesesDecorridos * receitaMensal);
-      const restante = Math.max(0, investimentoTotal - recebidoEstimado);
+      // recebido de verdade — soma os lançamentos de entrada que citam a placa dessa moto
+      // (é assim que o fluxo de caixa já é lançado, ex: "Mensalidade URB5I50")
+      const recebidoReal = pagamentosDaMoto(m.placa, lancamentos).reduce((s, p) => s + Number(p.valor), 0);
+      const restante = Math.max(0, investimentoTotal - recebidoReal);
       const mesesRestantes = receitaMensal > 0 ? Math.ceil(restante / receitaMensal) : null;
-      const percentPago = investimentoTotal > 0 ? Math.min(100, (recebidoEstimado / investimentoTotal) * 100) : 0;
+      const percentPago = investimentoTotal > 0 ? Math.min(100, (recebidoReal / investimentoTotal) * 100) : 0;
 
-      return { placa: m.placa, investimentoTotal, receitaMensal, percentPago, mesesRestantes, jaPagou: restante <= 0 && investimentoTotal > 0 };
+      return { placa: m.placa, investimentoTotal, recebidoReal, receitaMensal, percentPago, mesesRestantes, jaPagou: restante <= 0 && investimentoTotal > 0 };
     })
     .filter((r) => r.investimentoTotal > 0)
     .sort((a, b) => b.percentPago - a.percentPago);
@@ -2658,7 +2694,7 @@ function DashboardView({ motos, lancamentos, clientes }) {
               Retorno do investimento por moto
             </h3>
             <div className="text-xs mb-3" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
-              Estimativa: compra + custos extras + manutenção, comparado ao que a mensalidade já deveria ter coberto.
+              Compra + custos extras + manutenção, comparado ao que já foi recebido de verdade no fluxo de caixa (pela placa).
             </div>
             <div className="flex flex-col gap-3">
               {retornoPorMoto.map((r) => (
@@ -2666,8 +2702,7 @@ function DashboardView({ motos, lancamentos, clientes }) {
                   <div className="flex justify-between items-baseline text-xs mb-1" style={{ fontFamily: BODY_FONT }}>
                     <span style={{ color: theme.text, fontWeight: 700, fontFamily: "monospace" }}>{r.placa}</span>
                     <span style={{ color: theme.textMuted }}>
-                      {formatCurrency(r.investimentoTotal)} investido
-                      {r.receitaMensal > 0 && ` · ${formatCurrency(r.receitaMensal)}/mês`}
+                      {formatCurrency(r.recebidoReal)} de {formatCurrency(r.investimentoTotal)}
                     </span>
                   </div>
                   <div style={{ height: 8, borderRadius: 4, background: theme.bg, overflow: "hidden" }}>
@@ -3142,8 +3177,12 @@ export default function MobirelliApp() {
       <style>{`
         ${fontImport}
         * { -webkit-tap-highlight-color: transparent; }
-        button { transition: opacity 0.15s ease, transform 0.1s ease; cursor: pointer; }
+        button { transition: opacity 0.15s ease, transform 0.1s ease, filter 0.15s ease; cursor: pointer; }
         button:active { transform: scale(0.97); opacity: 0.85; }
+        @media (hover: hover) and (pointer: fine) {
+          button:hover { filter: brightness(1.22); }
+          .mbr-hover-grow:hover { transform: scale(1.12); }
+        }
         input, select, textarea, button { font-family: ${BODY_FONT}; }
         input:focus, select:focus, textarea:focus, button:focus-visible {
           outline: 2px solid ${theme.mint}; outline-offset: 1px;
@@ -3211,6 +3250,7 @@ export default function MobirelliApp() {
                 clientes={clientesState.items}
                 persistClientes={clientesState.persist}
                 config={configState.value}
+                lancamentos={fluxoState.items}
               />
             ) : tab === "clientes" ? (
               <ClientesView
