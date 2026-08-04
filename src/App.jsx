@@ -783,7 +783,7 @@ function AnexoField({ label, linkValue, storageKey, fileName, onChange }) {
         placeholder="Cole o link (Drive, etc.)"
       />
       <div className="flex items-center gap-2 flex-wrap -mt-1">
-        <input ref={inputRef} type="file" accept="application/pdf,image/*" onChange={handleFile} style={{ display: "none" }} />
+        <input ref={inputRef} type="file" onChange={handleFile} style={{ display: "none" }} />
         <button
           type="button"
           onClick={() => inputRef.current?.click()}
@@ -892,7 +892,7 @@ function AnexoMultiField({ label, anexos, storageKey, onChange }) {
           +
         </button>
       </div>
-      <input ref={inputRef} type="file" accept="application/pdf,image/*" multiple onChange={handleFiles} style={{ display: "none" }} />
+      <input ref={inputRef} type="file" multiple onChange={handleFiles} style={{ display: "none" }} />
       <button
         type="button"
         onClick={() => inputRef.current?.click()}
