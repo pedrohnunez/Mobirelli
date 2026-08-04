@@ -818,6 +818,118 @@ function AnexoField({ label, linkValue, storageKey, fileName, onChange }) {
   );
 }
 
+// contratos antigos guardavam só 1 arquivo (contratoLink/contratoArquivo) — contratos novos
+// guardam uma lista em "anexos". Isso lê os dois formatos pra não perder nada já salvo.
+function contratoAnexosOf(contrato) {
+  if (!contrato) return [];
+  if (Array.isArray(contrato.anexos)) return contrato.anexos;
+  if (contrato.contratoLink) return [{ link: contrato.contratoLink, fileName: contrato.contratoArquivo || "Contrato" }];
+  return [];
+}
+
+// igual ao AnexoField, mas permite anexar vários arquivos (ou vários links) no mesmo campo —
+// útil pro contrato que às vezes vem em várias páginas/fotos separadas
+function AnexoMultiField({ label, anexos, storageKey, onChange }) {
+  const [status, setStatus] = useState("");
+  const [linkInput, setLinkInput] = useState("");
+  const inputRef = useRef(null);
+  const lista = anexos || [];
+
+  const handleFiles = (e) => {
+    const files = Array.from(e.target.files || []);
+    e.target.value = "";
+    if (files.length === 0) return;
+    const validos = files.filter((f) => f.size <= 20 * 1024 * 1024);
+    const grandesDemais = files.length - validos.length;
+    if (validos.length === 0) {
+      setStatus("Arquivo(s) acima de 20MB — use o link do Drive acima para arquivos maiores.");
+      return;
+    }
+    setStatus(`Enviando ${validos.length > 1 ? `${validos.length} arquivos` : "arquivo"}...`);
+    (async () => {
+      const enviados = [];
+      for (const file of validos) {
+        const path = `${storageKey}-${Date.now()}-${file.name}`;
+        const url = await uploadArquivo(path, file);
+        if (url) enviados.push({ link: url, fileName: file.name });
+      }
+      onChange([...lista, ...enviados]);
+      if (enviados.length < validos.length || grandesDemais > 0) {
+        setStatus("Algum arquivo não pôde ser enviado — tente de novo ou use o link do Drive.");
+      } else {
+        setStatus("");
+      }
+    })();
+  };
+
+  const adicionarLink = () => {
+    const link = linkInput.trim();
+    if (!link) return;
+    onChange([...lista, { link, fileName: link.split("/").pop()?.split("?")[0] || "Link" }]);
+    setLinkInput("");
+  };
+
+  const remover = (idx) => onChange(lista.filter((_, i) => i !== idx));
+
+  return (
+    <div className="mb-3">
+      <FieldLabel>{label}</FieldLabel>
+      <div className="flex gap-2 -mt-1 mb-2">
+        <input
+          style={{ ...inputStyle, marginBottom: 0 }}
+          value={linkInput}
+          onChange={(e) => setLinkInput(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), adicionarLink())}
+          placeholder="Cole o link (Drive, etc.) e toque em +"
+        />
+        <button
+          type="button"
+          onClick={adicionarLink}
+          className="rounded-xl px-3 text-sm font-semibold flex-shrink-0"
+          style={{ border: `1px solid ${theme.cardBorder}`, color: theme.text }}
+        >
+          +
+        </button>
+      </div>
+      <input ref={inputRef} type="file" accept="application/pdf,image/*" multiple onChange={handleFiles} style={{ display: "none" }} />
+      <button
+        type="button"
+        onClick={() => inputRef.current?.click()}
+        className="text-xs font-semibold rounded-xl px-3 py-1.5 mb-2"
+        style={{ border: `1px solid ${theme.cardBorder}`, color: theme.text }}
+      >
+        Anexar arquivo(s)
+      </button>
+      {lista.length > 0 && (
+        <div className="flex flex-col gap-1.5 mb-1">
+          {lista.map((a, i) => (
+            <div key={i} className="flex items-center justify-between gap-2 rounded-xl px-3 py-1.5" style={{ background: theme.card2 }}>
+              <a
+                href={a.link}
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs font-semibold flex items-center gap-1 min-w-0"
+                style={{ color: theme.mint }}
+              >
+                <FileText size={12} className="flex-shrink-0" />
+                <span className="truncate">{a.fileName || `Anexo ${i + 1}`}</span>
+              </a>
+              <button type="button" onClick={() => remover(i)} className="mbr-hover-grow flex-shrink-0" style={{ color: theme.coral }}>
+                <Trash2 size={13} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      {status && (
+        <div className="text-xs mt-1" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+          {status}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ===========================================================
    CLIENTES
 =========================================================== */
@@ -960,8 +1072,7 @@ function VincularMotoModal({ cliente, motosDisponiveis, onClose, onSave }) {
     dataInicio: todayISO(),
     diaVencimento: "",
     dataTermino: "",
-    contratoLink: "",
-    contratoArquivo: "",
+    anexos: [],
   });
   const setC = (k) => (e) => setContrato({ ...contrato, [k]: e.target.value });
 
@@ -1025,12 +1136,11 @@ function VincularMotoModal({ cliente, motosDisponiveis, onClose, onSave }) {
           <input style={inputStyle} value={contrato.formaPagamento} onChange={setC("formaPagamento")} />
         </div>
       </Row2>
-      <AnexoField
+      <AnexoMultiField
         label="Contrato assinado"
-        linkValue={contrato.contratoLink}
+        anexos={contrato.anexos}
         storageKey={`mobirelli-arquivo-contrato-${contratoId}`}
-        fileName={contrato.contratoArquivo}
-        onChange={(v) => setContrato({ ...contrato, contratoLink: v.link, contratoArquivo: v.fileName })}
+        onChange={(anexos) => setContrato({ ...contrato, anexos })}
       />
       <button
         onClick={() =>
@@ -1157,18 +1267,17 @@ function ClientesView({ clientes, persistClientes, motos, persistMotos }) {
                         {diaVencimentoDoContrato(motoVinculada.contratoAtual) && ` · vence todo dia ${diaVencimentoDoContrato(motoVinculada.contratoAtual)}`}
                         {motoVinculada.contratoAtual.dataTermino && ` · até ${formatDate(motoVinculada.contratoAtual.dataTermino)}`}
                       </div>
-                      <div className="flex items-center gap-3 mt-2">
-                        {motoVinculada.contratoAtual.contratoLink && (
+                      <div className="flex items-center gap-3 mt-2 flex-wrap">
+                        {contratoAnexosOf(motoVinculada.contratoAtual).map((a, i) => (
                           <button
-                            onClick={() =>
-                              setPreview({ url: motoVinculada.contratoAtual.contratoLink, title: `Contrato — ${formatPlaca(motoVinculada.placa)}` })
-                            }
+                            key={i}
+                            onClick={() => setPreview({ url: a.link, title: `Contrato — ${formatPlaca(motoVinculada.placa)}` })}
                             className="inline-flex items-center gap-1 text-xs mbr-hover-grow"
                             style={{ color: theme.blue }}
                           >
-                            <FileText size={12} /> Ver contrato
+                            <FileText size={12} /> {a.fileName || `Anexo ${i + 1}`}
                           </button>
-                        )}
+                        ))}
                         <button
                           onClick={() => setModal({ type: "contrato", moto: motoVinculada })}
                           className="inline-flex items-center gap-1 text-xs mbr-hover-grow"
@@ -1708,7 +1817,12 @@ function ContratoModal({ moto, clientes, onClose, onSave, editando }) {
   const nContratoDefault = (moto.historicoContratos?.length || 0) + 1;
   const [contrato, setContrato] = useState(
     editando
-      ? { dataTermino: "", ...moto.contratoAtual, diaVencimento: diaVencimentoDoContrato(moto.contratoAtual) || "" }
+      ? {
+          dataTermino: "",
+          ...moto.contratoAtual,
+          diaVencimento: diaVencimentoDoContrato(moto.contratoAtual) || "",
+          anexos: contratoAnexosOf(moto.contratoAtual),
+        }
       : {
           numeroContrato: nContratoDefault,
           numeroClienteMoto: nContratoDefault,
@@ -1717,8 +1831,7 @@ function ContratoModal({ moto, clientes, onClose, onSave, editando }) {
           dataInicio: todayISO(),
           diaVencimento: "",
           dataTermino: "",
-          contratoLink: "",
-          contratoArquivo: "",
+          anexos: [],
         }
   );
 
@@ -1894,12 +2007,11 @@ function ContratoModal({ moto, clientes, onClose, onSave, editando }) {
         </div>
       </Row2>
 
-      <AnexoField
+      <AnexoMultiField
         label="Contrato assinado"
-        linkValue={contrato.contratoLink}
+        anexos={contrato.anexos}
         storageKey={`mobirelli-arquivo-contrato-${contratoId}`}
-        fileName={contrato.contratoArquivo}
-        onChange={(v) => setContrato({ ...contrato, contratoLink: v.link, contratoArquivo: v.fileName })}
+        onChange={(anexos) => setContrato({ ...contrato, anexos })}
       />
 
       <button
@@ -2253,16 +2365,19 @@ function MotosView({ motos, persist, clientes, persistClientes, config, lancamen
                         {diaVencimentoDoContrato(moto.contratoAtual) && ` · vence todo dia ${diaVencimentoDoContrato(moto.contratoAtual)}`}
                         {moto.contratoAtual.dataTermino && ` · até ${formatDate(moto.contratoAtual.dataTermino)}`}
                       </div>
-                      {moto.contratoAtual.contratoLink && (
-                        <button
-                          onClick={() =>
-                            setPreview({ url: moto.contratoAtual.contratoLink, title: `Contrato — ${formatPlaca(moto.placa)}` })
-                          }
-                          className="inline-flex items-center gap-1 text-xs mt-1 mbr-hover-grow"
-                          style={{ color: theme.blue }}
-                        >
-                          <FileText size={12} /> Contrato
-                        </button>
+                      {contratoAnexosOf(moto.contratoAtual).length > 0 && (
+                        <div className="flex items-center gap-3 mt-1 flex-wrap">
+                          {contratoAnexosOf(moto.contratoAtual).map((a, i) => (
+                            <button
+                              key={i}
+                              onClick={() => setPreview({ url: a.link, title: `Contrato — ${formatPlaca(moto.placa)}` })}
+                              className="inline-flex items-center gap-1 text-xs mbr-hover-grow"
+                              style={{ color: theme.blue }}
+                            >
+                              <FileText size={12} /> {a.fileName || `Anexo ${i + 1}`}
+                            </button>
+                          ))}
+                        </div>
                       )}
                       <div className="flex gap-2 mt-2">
                         <button
@@ -4253,7 +4368,7 @@ const SEED_MOTOS = [
   {
     id: "moto-urb5i50", modelo: "JTZ/NK150", placa: "URB5I50", chassi: "99KJCK4PKVM128207", renavam: "1492671867",
     dataCompra: "2026-05-08", nfNumero: "000009496", valorCompra: 17372.64, notaFiscalLink: "", notaFiscalArquivo: "", status: "alugada",
-    contratoAtual: { id: "ctr-urb-1", clienteId: "cli-avant", numeroContrato: 1, numeroClienteMoto: 1, dataInicio: "", dataVencimento: "", valorMensal: 1590, formaPagamento: "Boleto Bancário", contratoLink: "", contratoArquivo: "" },
+    contratoAtual: { id: "ctr-urb-1", clienteId: "cli-avant", numeroContrato: 1, numeroClienteMoto: 1, dataInicio: "", dataVencimento: "", valorMensal: 1590, formaPagamento: "Boleto Bancário", anexos: [] },
     historicoContratos: [],
     manutencoes: [
       { id: "mnt-urb-1", data: "2026-06-05", tipo: "Troca de Óleo", valorGasto: 55, local: "Turella Com. Motopeças", garantia: false },
@@ -4266,30 +4381,30 @@ const SEED_MOTOS = [
   {
     id: "moto-uoi5d36", modelo: "JTZ/DK160 S", placa: "UOI5D36", chassi: "99KPCKBCJVM218308", renavam: "1498255997",
     dataCompra: "2026-06-11", nfNumero: "000009841", valorCompra: 15880.31, notaFiscalLink: "", notaFiscalArquivo: "", status: "alugada",
-    contratoAtual: { id: "ctr-uoi-2", clienteId: "cli-andre", numeroContrato: 2, numeroClienteMoto: 2, dataInicio: "", dataVencimento: "", valorMensal: 1428, formaPagamento: "Boleto Bancário", contratoLink: "", contratoArquivo: "" },
+    contratoAtual: { id: "ctr-uoi-2", clienteId: "cli-andre", numeroContrato: 2, numeroClienteMoto: 2, dataInicio: "", dataVencimento: "", valorMensal: 1428, formaPagamento: "Boleto Bancário", anexos: [] },
     historicoContratos: [
-      { id: "ctr-uoi-1", clienteId: "cli-maicon", numeroContrato: 1, numeroClienteMoto: 1, dataInicio: "", dataVencimento: "", valorMensal: 1600, formaPagamento: "Boleto Bancário", contratoLink: "", contratoArquivo: "", encerradoEm: "" },
+      { id: "ctr-uoi-1", clienteId: "cli-maicon", numeroContrato: 1, numeroClienteMoto: 1, dataInicio: "", dataVencimento: "", valorMensal: 1600, formaPagamento: "Boleto Bancário", anexos: [], encerradoEm: "" },
     ],
     manutencoes: [{ id: "mnt-uoi-1", data: "2026-07-01", tipo: "Troca de Óleo", valorGasto: 60, local: "F. M. Basses Motopeças", garantia: false }],
   },
   {
     id: "moto-uou1d13", modelo: "JTZ/DK160 S", placa: "UOU1D13", chassi: "99KPCKBCJVM220650", renavam: "1501043355",
     dataCompra: "2026-06-27", nfNumero: "000009981", valorCompra: 15810.31, notaFiscalLink: "", notaFiscalArquivo: "", status: "alugada",
-    contratoAtual: { id: "ctr-uou-1", clienteId: "cli-celio", numeroContrato: 1, numeroClienteMoto: 1, dataInicio: "", dataVencimento: "", valorMensal: 1600, formaPagamento: "Boleto Bancário", contratoLink: "", contratoArquivo: "" },
+    contratoAtual: { id: "ctr-uou-1", clienteId: "cli-celio", numeroContrato: 1, numeroClienteMoto: 1, dataInicio: "", dataVencimento: "", valorMensal: 1600, formaPagamento: "Boleto Bancário", anexos: [] },
     historicoContratos: [],
     manutencoes: [],
   },
   {
     id: "moto-uon6i43", modelo: "JTZ/DK160 S", placa: "UON6I43", chassi: "99KPCKBCJVM220655", renavam: "1501070379",
     dataCompra: "2026-06-27", nfNumero: "000009982", valorCompra: 15810.31, notaFiscalLink: "", notaFiscalArquivo: "", status: "alugada",
-    contratoAtual: { id: "ctr-uon-1", clienteId: "cli-luciano", numeroContrato: 1, numeroClienteMoto: 1, dataInicio: "", dataVencimento: "", valorMensal: 1440, formaPagamento: "Boleto Bancário", contratoLink: "", contratoArquivo: "" },
+    contratoAtual: { id: "ctr-uon-1", clienteId: "cli-luciano", numeroContrato: 1, numeroClienteMoto: 1, dataInicio: "", dataVencimento: "", valorMensal: 1440, formaPagamento: "Boleto Bancário", anexos: [] },
     historicoContratos: [],
     manutencoes: [{ id: "mnt-uon-1", data: "2026-07-08", tipo: "Pneu", valorGasto: 160, local: "Turella Com. Motopeças", garantia: false }],
   },
   {
     id: "moto-uoo1a56", modelo: "JTZ/DK160 S", placa: "UOO1A56", chassi: "99KPCKBCJVM220675", renavam: "1503860997",
     dataCompra: "2026-07-16", nfNumero: "000010159", valorCompra: 15810.31, notaFiscalLink: "", notaFiscalArquivo: "", status: "alugada",
-    contratoAtual: { id: "ctr-uoo-1", clienteId: "cli-thiago", numeroContrato: 1, numeroClienteMoto: 1, dataInicio: "", dataVencimento: "", valorMensal: 1400, formaPagamento: "Boleto Bancário", contratoLink: "", contratoArquivo: "" },
+    contratoAtual: { id: "ctr-uoo-1", clienteId: "cli-thiago", numeroContrato: 1, numeroClienteMoto: 1, dataInicio: "", dataVencimento: "", valorMensal: 1400, formaPagamento: "Boleto Bancário", anexos: [] },
     historicoContratos: [],
     manutencoes: [],
   },
