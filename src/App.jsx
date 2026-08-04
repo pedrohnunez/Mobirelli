@@ -985,51 +985,36 @@ function ContratoAnexosButton({ anexos, label = "Contrato", tituloPreview, onAbr
   );
 }
 
-// mostra de onde vem um valor (ex: "A receber"), item a item — no computador funciona
-// passando o mouse; no celular não existe hover de verdade, então também abre/fecha ao
-// tocar (com uma camada invisível atrás pra fechar se tocar em outro lugar)
-function ValorComDetalhe({ children, itens, fmt }) {
+// mostra de onde vem um valor (ex: "A receber"), item a item — um botão simples que
+// expande a lista embaixo, mesmo jeito que já funciona nos cards de moto/cliente e no
+// acordeão de meses do Caixa (sem popup flutuante, sem depender de hover)
+function DetalheExpandivel({ itens, fmt }) {
   const [aberto, setAberto] = useState(false);
-  if (!itens || itens.length === 0) return children;
+  if (!itens || itens.length === 0) return null;
   return (
-    <span
-      className="relative inline-block"
-      onMouseEnter={() => setAberto(true)}
-      onMouseLeave={() => setAberto(false)}
-      onClick={(e) => {
-        e.stopPropagation();
-        setAberto((v) => !v);
-      }}
-      style={{ cursor: "help" }}
-    >
-      {children}
-      {aberto && (
-        <>
-          <div
-            className="fixed inset-0 z-20"
-            onClick={(e) => {
-              e.stopPropagation();
-              setAberto(false);
-            }}
-          />
-          <div
-            className="absolute z-30 mt-1 left-0 rounded-xl overflow-hidden mbr-fade-in"
-            style={{ background: theme.panel, border: `1px solid ${theme.cardBorder}`, minWidth: 220, boxShadow: "0 6px 20px rgba(0,0,0,0.4)", padding: 10 }}
-          >
-            {itens.map((it, i) => (
-              <div
-                key={i}
-                className="flex items-center justify-between gap-3 text-xs py-1"
-                style={{ color: theme.text, fontFamily: BODY_FONT, borderBottom: i < itens.length - 1 ? `1px solid ${theme.cardBorder}` : "none" }}
-              >
-                <span className="truncate">{it.label}</span>
-                <span style={{ fontWeight: 700, flexShrink: 0 }}>{fmt(it.total)}</span>
-              </div>
-            ))}
-          </div>
-        </>
-      )}
-    </span>
+    <div className="mt-1.5">
+      <button
+        type="button"
+        onClick={() => setAberto((v) => !v)}
+        className="flex items-center gap-1 text-xs font-semibold"
+        style={{ color: theme.blue, fontFamily: BODY_FONT }}
+      >
+        {aberto ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+        {aberto ? "Ocultar detalhes" : "Ver detalhes"}
+      </button>
+      <Collapse open={aberto}>
+        <div className="flex flex-col gap-1 mt-2 pt-2" style={{ borderTop: `1px solid ${theme.cardBorder}` }}>
+          {itens.map((it, i) => (
+            <div key={i} className="flex items-center justify-between gap-3 text-xs" style={{ fontFamily: BODY_FONT }}>
+              <span className="truncate" style={{ color: theme.textMuted }}>
+                {it.label}
+              </span>
+              <span style={{ fontWeight: 700, color: theme.text, flexShrink: 0 }}>{fmt(it.total)}</span>
+            </div>
+          ))}
+        </div>
+      </Collapse>
+    </div>
   );
 }
 
@@ -4209,17 +4194,15 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
                       <div className="text-xs uppercase tracking-wide mb-1" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
                         A receber (12 meses)
                       </div>
-                      <ValorComDetalhe itens={detalheFuturosPorTipo(futuros, motos, "entrada")} fmt={fmt}>
-                        <div style={{ fontFamily: HEAD_FONT, fontSize: 18, color: theme.mint }}>{fmt(previstoEntrada12Meses)}</div>
-                      </ValorComDetalhe>
+                      <div style={{ fontFamily: HEAD_FONT, fontSize: 18, color: theme.mint }}>{fmt(previstoEntrada12Meses)}</div>
+                      <DetalheExpandivel itens={detalheFuturosPorTipo(futuros, motos, "entrada")} fmt={fmt} />
                     </div>
                     <div>
                       <div className="text-xs uppercase tracking-wide mb-1" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
                         A pagar (12 meses)
                       </div>
-                      <ValorComDetalhe itens={detalheFuturosPorTipo(futuros, motos, "saida")} fmt={fmt}>
-                        <div style={{ fontFamily: HEAD_FONT, fontSize: 18, color: theme.coral }}>{fmt(previstoSaida12Meses)}</div>
-                      </ValorComDetalhe>
+                      <div style={{ fontFamily: HEAD_FONT, fontSize: 18, color: theme.coral }}>{fmt(previstoSaida12Meses)}</div>
+                      <DetalheExpandivel itens={detalheFuturosPorTipo(futuros, motos, "saida")} fmt={fmt} />
                     </div>
                     <div>
                       <div className="text-xs uppercase tracking-wide mb-1" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
@@ -4233,23 +4216,23 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
                 );
               })()}
             </div>
-            <div className="flex gap-4 flex-wrap mt-3 pt-3" style={{ borderTop: `1px solid ${theme.cardBorder}` }}>
+            <div className="mt-3 pt-3" style={{ borderTop: `1px solid ${theme.cardBorder}` }}>
               {(() => {
                 const { entrada: entrada7d, saida: saida7d, itensEntrada: itensEntrada7d, itensSaida: itensSaida7d } = futurosProximosDias(futuros, motos, 7);
                 return (
                   <>
-                    <span className="text-xs" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
-                      Próximos 7 dias — a receber:{" "}
-                      <ValorComDetalhe itens={itensEntrada7d} fmt={fmt}>
-                        <span style={{ color: theme.mint, fontWeight: 700, cursor: itensEntrada7d.length > 0 ? "help" : "default" }}>{fmt(entrada7d)}</span>
-                      </ValorComDetalhe>
-                    </span>
-                    <span className="text-xs" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
-                      a pagar:{" "}
-                      <ValorComDetalhe itens={itensSaida7d} fmt={fmt}>
-                        <span style={{ color: theme.coral, fontWeight: 700, cursor: itensSaida7d.length > 0 ? "help" : "default" }}>{fmt(saida7d)}</span>
-                      </ValorComDetalhe>
-                    </span>
+                    <div className="flex gap-4 flex-wrap">
+                      <span className="text-xs" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+                        Próximos 7 dias — a receber: <span style={{ color: theme.mint, fontWeight: 700 }}>{fmt(entrada7d)}</span>
+                      </span>
+                      <span className="text-xs" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+                        a pagar: <span style={{ color: theme.coral, fontWeight: 700 }}>{fmt(saida7d)}</span>
+                      </span>
+                    </div>
+                    <div className="flex gap-6 flex-wrap">
+                      <DetalheExpandivel itens={itensEntrada7d} fmt={fmt} />
+                      <DetalheExpandivel itens={itensSaida7d} fmt={fmt} />
+                    </div>
                   </>
                 );
               })()}
