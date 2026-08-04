@@ -1301,7 +1301,7 @@ const RASTREIO_LEGENDA = [
 ];
 
 function rastreioMarkerHtml(placa, corHex) {
-  const rotulo = `<div style="background:${theme.bg};border:1.5px solid ${corHex};border-radius:6px;padding:2px 7px;font-family:monospace;font-weight:700;font-size:11px;letter-spacing:0.5px;color:${theme.text};white-space:nowrap;">${formatPlaca(placa)}</div>`;
+  const rotulo = `<div style="background:${theme.bg};border:1.5px solid ${corHex};border-radius:6px;padding:2px 7px;display:flex;align-items:center;gap:5px;white-space:nowrap;"><div style="width:5px;height:12px;background:${theme.blue};border-radius:2px;flex-shrink:0;"></div><span style="font-family:monospace;font-weight:700;font-size:11px;letter-spacing:0.5px;color:${theme.text};">${formatPlaca(placa)}</span></div>`;
   return `
     <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
       <div style="width:13px;height:13px;border-radius:50%;background:${corHex};box-shadow:0 0 0 5px ${corHex}33,0 1px 3px rgba(0,0,0,0.5);"></div>
@@ -1323,7 +1323,7 @@ function rastreioPopupHtml(placa, device, moto, clienteNome) {
     : "";
   return `
     <div style="font-family:${BODY_FONT};min-width:150px;">
-      <div style="font-family:monospace;font-weight:700;font-size:14px;letter-spacing:1px;color:${theme.text};">${formatPlaca(placa)}</div>
+      <div style="display:flex;align-items:center;gap:6px;"><div style="width:6px;height:14px;background:${theme.blue};border-radius:2px;flex-shrink:0;"></div><span style="font-family:monospace;font-weight:700;font-size:14px;letter-spacing:1px;color:${theme.text};">${formatPlaca(placa)}</span></div>
       ${modelo}
       <div style="font-size:12px;margin-top:4px;color:${cor};font-weight:600;">${statusTxt}</div>
       ${contrato}
