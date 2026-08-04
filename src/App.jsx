@@ -836,6 +836,60 @@ const contratoAnexosOf = (contrato) => anexosDe(contrato?.anexos, contrato?.cont
 const notaFiscalAnexosOf = (moto) => anexosDe(moto?.notaFiscalAnexos, moto?.notaFiscalLink, moto?.notaFiscalArquivo);
 const notaFiscalFabricaAnexosOf = (moto) => anexosDe(moto?.notaFiscalFabricaAnexos, null, null);
 
+// botão único "Contrato" — se tiver só 1 anexo, abre direto; se tiver mais (várias
+// páginas/fotos do mesmo contrato), abre uma listinha pra escolher qual página ver
+function ContratoAnexosButton({ anexos, label = "Contrato", tituloPreview, onAbrir }) {
+  const [aberto, setAberto] = useState(false);
+  if (!anexos || anexos.length === 0) return null;
+
+  if (anexos.length === 1) {
+    return (
+      <button
+        onClick={() => onAbrir(anexos[0].link, tituloPreview)}
+        className="inline-flex items-center gap-1 text-xs mbr-hover-grow"
+        style={{ color: theme.blue }}
+      >
+        <FileText size={12} /> {label}
+      </button>
+    );
+  }
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setAberto((v) => !v)}
+        className="inline-flex items-center gap-1 text-xs mbr-hover-grow"
+        style={{ color: theme.blue }}
+      >
+        <FileText size={12} /> {label} ({anexos.length})
+      </button>
+      {aberto && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setAberto(false)} />
+          <div
+            className="absolute z-20 mt-1 left-0 rounded-xl overflow-hidden flex flex-col mbr-fade-in"
+            style={{ background: theme.panel, border: `1px solid ${theme.cardBorder}`, minWidth: 150, boxShadow: "0 6px 20px rgba(0,0,0,0.4)" }}
+          >
+            {anexos.map((a, i) => (
+              <button
+                key={i}
+                onClick={() => {
+                  onAbrir(a.link, `${tituloPreview} (${i + 1}/${anexos.length})`);
+                  setAberto(false);
+                }}
+                className="flex items-center gap-2 px-3 py-2 text-xs text-left mbr-hover-grow"
+                style={{ color: theme.text, borderBottom: i < anexos.length - 1 ? `1px solid ${theme.cardBorder}` : "none" }}
+              >
+                <FileText size={12} /> Página {i + 1}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 // igual ao AnexoField, mas permite anexar vários arquivos (ou vários links) no mesmo campo —
 // útil pro contrato que às vezes vem em várias páginas/fotos separadas
 function AnexoMultiField({ label, anexos, storageKey, onChange }) {
@@ -1277,16 +1331,11 @@ function ClientesView({ clientes, persistClientes, motos, persistMotos }) {
                         {motoVinculada.contratoAtual.dataTermino && ` · até ${formatDate(motoVinculada.contratoAtual.dataTermino)}`}
                       </div>
                       <div className="flex items-center gap-3 mt-2 flex-wrap">
-                        {contratoAnexosOf(motoVinculada.contratoAtual).map((a, i) => (
-                          <button
-                            key={i}
-                            onClick={() => setPreview({ url: a.link, title: `Contrato — ${formatPlaca(motoVinculada.placa)}` })}
-                            className="inline-flex items-center gap-1 text-xs mbr-hover-grow"
-                            style={{ color: theme.blue }}
-                          >
-                            <FileText size={12} /> {a.fileName || `Anexo ${i + 1}`}
-                          </button>
-                        ))}
+                        <ContratoAnexosButton
+                          anexos={contratoAnexosOf(motoVinculada.contratoAtual)}
+                          tituloPreview={`Contrato — ${formatPlaca(motoVinculada.placa)}`}
+                          onAbrir={(url, title) => setPreview({ url, title })}
+                        />
                         <button
                           onClick={() => setModal({ type: "contrato", moto: motoVinculada })}
                           className="inline-flex items-center gap-1 text-xs mbr-hover-grow"
@@ -2397,16 +2446,11 @@ function MotosView({ motos, persist, clientes, persistClientes, config, lancamen
                       </div>
                       {contratoAnexosOf(moto.contratoAtual).length > 0 && (
                         <div className="flex items-center gap-3 mt-1 flex-wrap">
-                          {contratoAnexosOf(moto.contratoAtual).map((a, i) => (
-                            <button
-                              key={i}
-                              onClick={() => setPreview({ url: a.link, title: `Contrato — ${formatPlaca(moto.placa)}` })}
-                              className="inline-flex items-center gap-1 text-xs mbr-hover-grow"
-                              style={{ color: theme.blue }}
-                            >
-                              <FileText size={12} /> {a.fileName || `Anexo ${i + 1}`}
-                            </button>
-                          ))}
+                          <ContratoAnexosButton
+                            anexos={contratoAnexosOf(moto.contratoAtual)}
+                            tituloPreview={`Contrato — ${formatPlaca(moto.placa)}`}
+                            onAbrir={(url, title) => setPreview({ url, title })}
+                          />
                         </div>
                       )}
                       <div className="flex gap-2 mt-2">
