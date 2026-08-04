@@ -2641,9 +2641,12 @@ function DashboardView({ motos, lancamentos, clientes }) {
         </div>
       )}
 
-      {/* Indicadores secundários — uma faixa só, em vez de vários quadrados */}
+      {/* Indicadores secundários — grade fixa (2 colunas no celular), pra não quebrar torto */}
       <Reveal delay={80}>
-        <div className="rounded-2xl mb-3 flex flex-wrap overflow-hidden" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
+        <div
+          className="rounded-2xl mb-3 p-3 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3"
+          style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}
+        >
           {[
             { icon: TrendingUp, label: "Faturamento previsto/mês", value: formatCurrency(faturamentoPrevisto), accent: theme.blue },
             { icon: TrendingDown, label: `Gastos operacionais (${rotuloMes})`, value: formatCurrency(saidasMes), accent: theme.coral },
@@ -2653,12 +2656,8 @@ function DashboardView({ motos, lancamentos, clientes }) {
             { icon: Wallet, label: "Faturamento acumulado", value: formatCurrency(faturamentoAcumulado), accent: theme.mint },
             { icon: Wrench, label: "Manutenção acumulada", value: formatCurrency(manutencaoAcumulada), accent: theme.coral },
             { icon: FileText, label: "Contratos encerrados", value: contratosEncerrados, accent: theme.amber },
-          ].map((s, i) => (
-            <div
-              key={s.label}
-              className="flex items-center gap-2 py-3 px-3"
-              style={{ flex: "1 1 175px", borderLeft: i > 0 ? `1px solid ${theme.cardBorder}` : "none" }}
-            >
+          ].map((s) => (
+            <div key={s.label} className="flex items-center gap-2 min-w-0">
               <div
                 className="rounded-full flex items-center justify-center flex-shrink-0"
                 style={{ width: 30, height: 30, background: hexToRgba(s.accent, 0.16) }}
