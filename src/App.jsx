@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import * as maplibregl from "maplibre-gl";
-import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url";
 import mapStyle from "./mapStyle.json";
 
-// o Vite não empacota o worker do MapLibre automaticamente (ele monta a URL em
-// tempo de execução) — sem isso, o mapa carrega só o fundo, sem ruas/rótulos.
-maplibregl.setWorkerUrl(maplibreWorkerUrl);
+// o worker do MapLibre importa um chunk interno ("maplibre-gl-shared.mjs") que o
+// Vite não empacota quando o arquivo é copiado como asset cru — o worker falhava
+// ao carregar e nenhuma rua/rótulo aparecia. Por isso usamos uma cópia pré-empacotada
+// (tudo em um arquivo só, sem imports externos) publicada em /public.
+maplibregl.setWorkerUrl("/maplibre-gl-worker.js");
 import { getKV, setKV, subscribeKV, uploadArquivo } from "./lib/storage";
 import {
   Bike,
@@ -147,6 +148,29 @@ const formatDate = (d) => {
   const [y, m, day] = d.split("-");
   return `${day}/${m}/${y}`;
 };
+
+// máscaras — sempre a partir dos dígitos puros, refeitas a cada tecla (não acumulam erro)
+const maskCpfCnpj = (v) => {
+  const d = (v || "").replace(/\D/g, "").slice(0, 14);
+  if (d.length <= 11) {
+    return d.replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d{1,2})$/, "$1-$2");
+  }
+  return d
+    .replace(/(\d{2})(\d)/, "$1.$2")
+    .replace(/(\d{3})(\d)/, "$1.$2")
+    .replace(/(\d{3})(\d)/, "$1/$2")
+    .replace(/(\d{4})(\d{1,2})$/, "$1-$2");
+};
+
+const maskTelefone = (v) => {
+  const d = (v || "").replace(/\D/g, "").slice(0, 11);
+  if (d.length <= 10) {
+    return d.replace(/(\d{2})(\d)/, "($1) $2").replace(/(\d{4})(\d{1,4})$/, "$1-$2");
+  }
+  return d.replace(/(\d{2})(\d)/, "($1) $2").replace(/(\d{5})(\d{1,4})$/, "$1-$2");
+};
+
+const maskCep = (v) => (v || "").replace(/\D/g, "").slice(0, 8).replace(/(\d{5})(\d{1,3})$/, "$1-$2");
 
 // consulta o CEP no ViaCEP (serviço público, gratuito, sem chave) e devolve o endereço
 // pra preencher os campos sozinho — só chama quando o CEP tem os 8 dígitos
@@ -343,21 +367,30 @@ function WordmarkFallback({ compact }) {
   );
 }
 
-function MotoPlate({ placa }) {
+function MotoPlate({ placa, size = "normal" }) {
+  const grande = size === "grande";
   return (
     <div
       style={{
         background: theme.bg,
-        border: `2px solid ${theme.amber}`,
-        borderRadius: 6,
-        padding: "3px 9px",
+        border: `${grande ? 3 : 2}px solid ${theme.amber}`,
+        borderRadius: grande ? 9 : 6,
+        padding: grande ? "6px 14px" : "3px 9px",
         display: "inline-flex",
         alignItems: "center",
-        gap: 6,
+        gap: grande ? 9 : 6,
       }}
     >
-      <div style={{ width: 6, height: 14, background: theme.blue, borderRadius: 2 }} />
-      <span style={{ fontFamily: "monospace", fontWeight: 700, letterSpacing: 1.5, fontSize: 14, color: theme.text }}>
+      <div style={{ width: grande ? 9 : 6, height: grande ? 22 : 14, background: theme.blue, borderRadius: 2 }} />
+      <span
+        style={{
+          fontFamily: "monospace",
+          fontWeight: 700,
+          letterSpacing: grande ? 2 : 1.5,
+          fontSize: grande ? 22 : 14,
+          color: theme.text,
+        }}
+      >
         {placa || "SEM PLACA"}
       </span>
     </div>
@@ -624,11 +657,23 @@ function ClienteFormModal({ cliente, onClose, onSave, title }) {
       <FieldLabel>Nome completo</FieldLabel>
       <input style={inputStyle} value={form.nome} onChange={set("nome")} />
       <FieldLabel>CPF ou CNPJ</FieldLabel>
-      <input style={inputStyle} value={form.cpfCnpj} onChange={set("cpfCnpj")} />
+      <input
+        style={inputStyle}
+        value={form.cpfCnpj}
+        onChange={(e) => setForm({ ...form, cpfCnpj: maskCpfCnpj(e.target.value) })}
+        inputMode="numeric"
+        placeholder="000.000.000-00"
+      />
       <Row2>
         <div>
           <FieldLabel>Telefone</FieldLabel>
-          <input style={inputStyle} value={form.telefone} onChange={set("telefone")} />
+          <input
+            style={inputStyle}
+            value={form.telefone}
+            onChange={(e) => setForm({ ...form, telefone: maskTelefone(e.target.value) })}
+            inputMode="numeric"
+            placeholder="(11) 90000-0000"
+          />
         </div>
         <div>
           <FieldLabel>E-mail</FieldLabel>
@@ -639,7 +684,7 @@ function ClienteFormModal({ cliente, onClose, onSave, title }) {
       <input
         style={inputStyle}
         value={form.cep}
-        onChange={set("cep")}
+        onChange={(e) => setForm({ ...form, cep: maskCep(e.target.value) })}
         onBlur={handleCepBlur}
         placeholder="00000-000"
         inputMode="numeric"
@@ -983,11 +1028,31 @@ const RASTREIO_STATUS_COR = {
   black: theme.textMuted,
 };
 
-function rastreioMarkerHtml(placa, corHex) {
+const RASTREIO_LEGENDA = [
+  { cor: "green", label: "Em movimento" },
+  { cor: "yellow", label: "Parada" },
+  { cor: "red", label: "Offline" },
+];
+
+const BIKE_ICON_PATHS =
+  '<circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/>';
+
+function rastreioMarkerHtml(placa, corHex, estilo) {
+  const rotulo = `<div style="background:${theme.bg};border:1.5px solid ${corHex};border-radius:6px;padding:2px 7px;font-family:monospace;font-weight:700;font-size:11px;letter-spacing:0.5px;color:${theme.text};white-space:nowrap;">${placa}</div>`;
+  if (estilo === "moto") {
+    return `
+      <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
+        <div style="width:30px;height:30px;border-radius:50%;background:${corHex};display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,0.5);border:2px solid ${theme.bg};">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="${theme.bg}" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">${BIKE_ICON_PATHS}</svg>
+        </div>
+        ${rotulo}
+      </div>
+    `;
+  }
   return `
     <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
       <div style="width:13px;height:13px;border-radius:50%;background:${corHex};box-shadow:0 0 0 5px ${corHex}33,0 1px 3px rgba(0,0,0,0.5);"></div>
-      <div style="background:${theme.bg};border:1.5px solid ${corHex};border-radius:6px;padding:2px 7px;font-family:monospace;font-weight:700;font-size:11px;letter-spacing:0.5px;color:${theme.text};white-space:nowrap;">${placa}</div>
+      ${rotulo}
     </div>
   `;
 }
@@ -1019,12 +1084,21 @@ function TrackingMap({ link, filterPlaca, height = 320, rounded = true }) {
   const markersRef = useRef({});
   const tickRef = useRef(null);
   const mostrarRastroRef = useRef(false);
+  const estiloMarcadorRef = useRef("moto");
   const [status, setStatus] = useState("carregando"); // carregando | ok | erro
   const [mostrarRastro, setMostrarRastro] = useState(false);
+  const [estiloMarcador, setEstiloMarcador] = useState("moto"); // "moto" | "ponto"
 
   useEffect(() => {
     mostrarRastroRef.current = mostrarRastro;
   }, [mostrarRastro]);
+
+  useEffect(() => {
+    estiloMarcadorRef.current = estiloMarcador;
+    Object.values(markersRef.current).forEach(({ marker, placa, cor }) => {
+      marker.getElement().innerHTML = rastreioMarkerHtml(placa, cor, estiloMarcador);
+    });
+  }, [estiloMarcador]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -1063,12 +1137,15 @@ function TrackingMap({ link, filterPlaca, height = 320, rounded = true }) {
           const cor = RASTREIO_STATUS_COR[d.icon_color] || theme.mint;
 
           if (markersRef.current[chave]) {
-            markersRef.current[chave].setLngLat([lng, lat]);
+            markersRef.current[chave].marker.setLngLat([lng, lat]);
+            markersRef.current[chave].placa = placa;
+            markersRef.current[chave].cor = cor;
           } else {
             const el = document.createElement("div");
             el.className = "mbr-map-marker";
-            el.innerHTML = rastreioMarkerHtml(placa, cor);
-            markersRef.current[chave] = new maplibregl.Marker({ element: el, anchor: "bottom" }).setLngLat([lng, lat]).addTo(map);
+            el.innerHTML = rastreioMarkerHtml(placa, cor, estiloMarcadorRef.current);
+            const marker = new maplibregl.Marker({ element: el, anchor: "bottom" }).setLngLat([lng, lat]).addTo(map);
+            markersRef.current[chave] = { marker, placa, cor };
           }
           bounds.extend([lng, lat]);
 
@@ -1096,7 +1173,7 @@ function TrackingMap({ link, filterPlaca, height = 320, rounded = true }) {
 
         Object.keys(markersRef.current).forEach((chave) => {
           if (!vistos.has(chave)) {
-            markersRef.current[chave].remove();
+            markersRef.current[chave].marker.remove();
             delete markersRef.current[chave];
           }
         });
@@ -1122,7 +1199,7 @@ function TrackingMap({ link, filterPlaca, height = 320, rounded = true }) {
     return () => {
       cancelled = true;
       clearInterval(interval);
-      Object.values(markersRef.current).forEach((mk) => mk.remove());
+      Object.values(markersRef.current).forEach(({ marker }) => marker.remove());
       markersRef.current = {};
       map.remove();
       mapObjRef.current = null;
@@ -1132,7 +1209,7 @@ function TrackingMap({ link, filterPlaca, height = 320, rounded = true }) {
 
   const centralizar = () => {
     const map = mapObjRef.current;
-    const marcadores = Object.values(markersRef.current);
+    const marcadores = Object.values(markersRef.current).map((m) => m.marker);
     if (!map || marcadores.length === 0) return;
     if (marcadores.length === 1) {
       map.flyTo({ center: marcadores[0].getLngLat(), zoom: 15 });
@@ -1164,8 +1241,30 @@ function TrackingMap({ link, filterPlaca, height = 320, rounded = true }) {
       <div className="absolute top-3 left-3 flex gap-2 z-10">
         <MapToolButton icon={Crosshair} label="Centralizar" onClick={centralizar} />
         <MapToolButton icon={Route} label="Mostrar rastro" active={mostrarRastro} onClick={alternarRastro} />
+        <MapToolButton
+          icon={Bike}
+          label={estiloMarcador === "moto" ? "Usar marcador de pontinho" : "Usar marcador de moto"}
+          active={estiloMarcador === "moto"}
+          onClick={() => setEstiloMarcador((v) => (v === "moto" ? "ponto" : "moto"))}
+        />
         <MapToolButton icon={RefreshCw} label="Atualizar agora" onClick={() => tickRef.current?.()} />
       </div>
+
+      <div
+        className="absolute bottom-3 left-3 rounded-xl px-3 py-2 flex flex-col gap-1 z-10"
+        style={{ background: hexToRgba(theme.card, 0.92), border: `1px solid ${theme.cardBorder}` }}
+      >
+        {RASTREIO_LEGENDA.map((l) => (
+          <div key={l.cor} className="flex items-center gap-1.5 text-xs" style={{ color: theme.text, fontFamily: BODY_FONT }}>
+            <span
+              className="rounded-full flex-shrink-0"
+              style={{ width: 9, height: 9, background: RASTREIO_STATUS_COR[l.cor] }}
+            />
+            {l.label}
+          </div>
+        ))}
+      </div>
+
       {status === "erro" && (
         <div
           className="absolute inset-0 flex items-center justify-center text-xs text-center px-4"
@@ -1327,11 +1426,23 @@ function ContratoModal({ moto, clientes, onClose, onSave }) {
           <FieldLabel>Nome completo</FieldLabel>
           <input style={inputStyle} value={novoCliente.nome} onChange={setNC("nome")} />
           <FieldLabel>CPF ou CNPJ</FieldLabel>
-          <input style={inputStyle} value={novoCliente.cpfCnpj} onChange={setNC("cpfCnpj")} />
+          <input
+            style={inputStyle}
+            value={novoCliente.cpfCnpj}
+            onChange={(e) => setNovoCliente({ ...novoCliente, cpfCnpj: maskCpfCnpj(e.target.value) })}
+            inputMode="numeric"
+            placeholder="000.000.000-00"
+          />
           <Row2>
             <div>
               <FieldLabel>Telefone</FieldLabel>
-              <input style={inputStyle} value={novoCliente.telefone} onChange={setNC("telefone")} />
+              <input
+                style={inputStyle}
+                value={novoCliente.telefone}
+                onChange={(e) => setNovoCliente({ ...novoCliente, telefone: maskTelefone(e.target.value) })}
+                inputMode="numeric"
+                placeholder="(11) 90000-0000"
+              />
             </div>
             <div>
               <FieldLabel>E-mail</FieldLabel>
@@ -1342,7 +1453,7 @@ function ContratoModal({ moto, clientes, onClose, onSave }) {
           <input
             style={inputStyle}
             value={novoCliente.cep}
-            onChange={setNC("cep")}
+            onChange={(e) => setNovoCliente({ ...novoCliente, cep: maskCep(e.target.value) })}
             onBlur={handleCepBlur}
             placeholder="00000-000"
             inputMode="numeric"
@@ -1672,12 +1783,12 @@ function MotosView({ motos, persist, clientes, persistClientes, config }) {
           const aberto = expandido === moto.id;
           return (
             <div key={moto.id} className="rounded-2xl overflow-hidden" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
-              <button className="w-full flex items-center justify-between px-4 py-3 text-left" onClick={() => setExpandido(aberto ? null : moto.id)}>
-                <div className="flex items-center gap-2">
-                  <MotoPlate placa={moto.placa} />
+              <button className="w-full flex items-center justify-between px-4 py-4 text-left" onClick={() => setExpandido(aberto ? null : moto.id)}>
+                <div className="flex items-center gap-3">
+                  <MotoPlate placa={moto.placa} size="grande" />
                   <StatusBadge status={moto.status} vencido={vencido} />
                 </div>
-                {aberto ? <ChevronUp size={18} color={theme.textMuted} /> : <ChevronDown size={18} color={theme.textMuted} />}
+                {aberto ? <ChevronUp size={20} color={theme.textMuted} /> : <ChevronDown size={20} color={theme.textMuted} />}
               </button>
 
               <Collapse open={aberto}>
@@ -2210,6 +2321,9 @@ function DashboardView({ motos, lancamentos, clientes }) {
   const rotuloMesAnterior = monthLabel(mesAnteriorKey);
 
   const totalClientes = clientes?.length || 0;
+  const faturamentoAcumulado = lancamentos.filter((l) => l.tipo === "entrada").reduce((s, l) => s + Number(l.valor), 0);
+  const manutencaoAcumulada = todasManutencoes.reduce((s, m) => s + Number(m.valorGasto || 0), 0);
+  const contratosEncerrados = motos.reduce((s, m) => s + (m.historicoContratos?.length || 0), 0);
 
   return (
     <div>
@@ -2280,6 +2394,9 @@ function DashboardView({ motos, lancamentos, clientes }) {
             { icon: Wallet, label: "Ticket médio", value: formatCurrency(ticketMedio), accent: theme.mint },
             { icon: Users, label: "Total de clientes", value: totalClientes, accent: theme.amber },
             { icon: TrendingUp, label: "Investido em frota", value: formatCurrency(investimentoFrota), accent: theme.blue },
+            { icon: Wallet, label: "Faturamento acumulado", value: formatCurrency(faturamentoAcumulado), accent: theme.mint },
+            { icon: Wrench, label: "Manutenção acumulada", value: formatCurrency(manutencaoAcumulada), accent: theme.coral },
+            { icon: FileText, label: "Contratos encerrados", value: contratosEncerrados, accent: theme.amber },
           ].map((s, i) => (
             <div
               key={s.label}
