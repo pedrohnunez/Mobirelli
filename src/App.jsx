@@ -2735,14 +2735,7 @@ function LancamentoModal({ lancamento, onClose, onSave, onDelete, motos, editand
   const [form, setForm] = useState({ motoId: "", parcelas: lancamento?.parcelasTotal || 1, ...lancamento });
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
 
-  const selecionarMoto = (id) => {
-    const moto = motos?.find((m) => m.id === id);
-    setForm((f) => ({
-      ...f,
-      motoId: id,
-      categoria: !f.categoria && moto && f.tipo === "entrada" ? `Mensalidade ${moto.placa}` : f.categoria,
-    }));
-  };
+  const selecionarMoto = (id) => setForm((f) => ({ ...f, motoId: id }));
 
   return (
     <Modal title={editando ? "Editar lançamento" : "Novo lançamento"} onClose={onClose}>
