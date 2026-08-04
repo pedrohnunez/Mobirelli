@@ -1474,9 +1474,17 @@ function TrackingMap({ link, filterPlaca, height = 320, rounded = true, motos, c
 
         if (!bounds.isEmpty()) {
           if (devices.length === 1) {
-            map.easeTo({ center: bounds.getCenter(), zoom: 13, duration: 500 });
+            map.easeTo({ center: bounds.getCenter(), zoom: 12, duration: 500 });
           } else {
-            map.fitBounds(bounds, { padding: 60, maxZoom: 13, duration: 500 });
+            // padding maior no topo/base — os pinos têm uma etiqueta desenhada por cima
+            // (não contabilizada pelo fitBounds, que só olha as coordenadas do ponto) e o
+            // cabeçalho/menu inferior "flutuam" sobre o mapa, então sem essa folga extra
+            // os marcadores das pontas ficavam escondidos atrás desses elementos
+            map.fitBounds(bounds, {
+              padding: { top: 90 + topInset, bottom: 50 + bottomInset, left: 60, right: 60 },
+              maxZoom: 12,
+              duration: 500,
+            });
           }
         }
 
@@ -1508,12 +1516,16 @@ function TrackingMap({ link, filterPlaca, height = 320, rounded = true, motos, c
     const marcadores = Object.values(markersRef.current).map((m) => m.marker);
     if (!map || marcadores.length === 0) return;
     if (marcadores.length === 1) {
-      map.flyTo({ center: marcadores[0].getLngLat(), zoom: 13 });
+      map.flyTo({ center: marcadores[0].getLngLat(), zoom: 12 });
       return;
     }
     const bounds = new maplibregl.LngLatBounds();
     marcadores.forEach((mk) => bounds.extend(mk.getLngLat()));
-    map.fitBounds(bounds, { padding: 60, maxZoom: 13, duration: 500 });
+    map.fitBounds(bounds, {
+      padding: { top: 90 + topInset, bottom: 50 + bottomInset, left: 60, right: 60 },
+      maxZoom: 12,
+      duration: 500,
+    });
   };
 
   const alternarRastro = () => {
@@ -3697,18 +3709,18 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
           <div className="rounded-2xl p-4 mbr-card-lift h-full flex flex-col" style={{ background: `linear-gradient(150deg, ${theme.card} 0%, ${theme.card2} 130%)`, border: `1px solid ${theme.cardBorder}` }}>
             <div className="flex items-center justify-between mb-1">
               <SectionTitle color={theme.amber} className="">Retorno do investimento por moto</SectionTitle>
-              {retornoPorMoto.length > 6 && (
+              {retornoPorMoto.length > 8 && (
                 <button
                   onClick={() => setVerTodasRetorno((v) => !v)}
                   className="text-xs font-semibold flex-shrink-0"
                   style={{ color: theme.amber, fontFamily: BODY_FONT }}
                 >
-                  {verTodasRetorno ? "Ver menos" : `Ver mais (${retornoPorMoto.length - 6})`}
+                  {verTodasRetorno ? "Ver menos" : `Ver mais (${retornoPorMoto.length - 8})`}
                 </button>
               )}
             </div>
             <div className="flex-1 flex flex-wrap content-center justify-center gap-6 mt-3">
-              {(verTodasRetorno ? retornoPorMoto : retornoPorMoto.slice(0, 6)).map((r) => {
+              {(verTodasRetorno ? retornoPorMoto : retornoPorMoto.slice(0, 8)).map((r) => {
                 const clamped = Math.max(0, Math.min(100, r.percentPago));
                 const raio = 34;
                 const c = 2 * Math.PI * raio;
