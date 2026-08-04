@@ -43,6 +43,7 @@ import {
   ResponsiveContainer,
   ComposedChart,
   Bar,
+  Area,
   Line,
   XAxis,
   YAxis,
@@ -3223,22 +3224,82 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
             <span style={{ color: theme.blue }}>Investido no período: {formatCurrency(chartData.reduce((s, d) => s + d.Investimentos, 0))}</span>
           )}
         </div>
-        <div style={{ width: "100%", height: 240 }}>
+        <div style={{ width: "100%", height: 260 }}>
           <ResponsiveContainer>
             <ComposedChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" stroke={theme.cardBorder} />
-              <XAxis dataKey="mes" stroke={theme.textMuted} fontSize={12} />
-              <YAxis yAxisId="left" stroke={theme.textMuted} fontSize={11} tickFormatter={formatCompact} width={56} />
-              <YAxis yAxisId="right" orientation="right" stroke={theme.amber} fontSize={11} tickFormatter={formatCompact} width={56} />
+              <defs>
+                <linearGradient id="mbrGradEntradas" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={theme.mint} stopOpacity={0.45} />
+                  <stop offset="100%" stopColor={theme.mint} stopOpacity={0} />
+                </linearGradient>
+                <linearGradient id="mbrGradSaidas" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={theme.coral} stopOpacity={0.4} />
+                  <stop offset="100%" stopColor={theme.coral} stopOpacity={0} />
+                </linearGradient>
+                <linearGradient id="mbrGradInvest" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={theme.blue} stopOpacity={0.35} />
+                  <stop offset="100%" stopColor={theme.blue} stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke={theme.cardBorder} vertical={false} />
+              <XAxis dataKey="mes" stroke={theme.textMuted} fontSize={12} axisLine={false} tickLine={false} />
+              <YAxis yAxisId="left" stroke={theme.textMuted} fontSize={11} tickFormatter={formatCompact} width={56} axisLine={false} tickLine={false} />
+              <YAxis
+                yAxisId="right"
+                orientation="right"
+                stroke={theme.amber}
+                fontSize={11}
+                tickFormatter={formatCompact}
+                width={56}
+                axisLine={false}
+                tickLine={false}
+              />
               <Tooltip
                 formatter={(value, name) => [formatCurrency(value), name]}
-                contentStyle={{ background: theme.panel, border: `1px solid ${theme.cardBorder}`, color: theme.text }}
+                contentStyle={{ background: theme.panel, border: `1px solid ${theme.cardBorder}`, borderRadius: 12, color: theme.text }}
               />
               <Legend />
-              <Bar yAxisId="left" dataKey="Entradas" fill={theme.mint} radius={[4, 4, 0, 0]} />
-              <Bar yAxisId="left" dataKey="Saídas" fill={theme.coral} radius={[4, 4, 0, 0]} />
-              {mostrarInvestimentos && <Bar yAxisId="left" dataKey="Investimentos" fill={theme.blue} radius={[4, 4, 0, 0]} />}
-              <Line yAxisId="right" type="monotone" dataKey="Lucro" stroke={theme.amber} strokeWidth={2.5} dot={{ r: 3, fill: theme.amber }} />
+              <Area
+                yAxisId="left"
+                type="monotone"
+                dataKey="Entradas"
+                stroke={theme.mint}
+                strokeWidth={2.5}
+                fill="url(#mbrGradEntradas)"
+                dot={false}
+                activeDot={{ r: 4 }}
+              />
+              <Area
+                yAxisId="left"
+                type="monotone"
+                dataKey="Saídas"
+                stroke={theme.coral}
+                strokeWidth={2.5}
+                fill="url(#mbrGradSaidas)"
+                dot={false}
+                activeDot={{ r: 4 }}
+              />
+              {mostrarInvestimentos && (
+                <Area
+                  yAxisId="left"
+                  type="monotone"
+                  dataKey="Investimentos"
+                  stroke={theme.blue}
+                  strokeWidth={2.5}
+                  fill="url(#mbrGradInvest)"
+                  dot={false}
+                  activeDot={{ r: 4 }}
+                />
+              )}
+              <Line
+                yAxisId="right"
+                type="monotone"
+                dataKey="Lucro"
+                stroke={theme.amber}
+                strokeWidth={2.5}
+                dot={{ r: 3, fill: theme.amber, strokeWidth: 0 }}
+                activeDot={{ r: 5 }}
+              />
             </ComposedChart>
           </ResponsiveContainer>
         </div>
