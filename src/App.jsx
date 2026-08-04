@@ -24,6 +24,7 @@ import {
   MapPin,
   Settings,
   Image as ImageIcon,
+  Navigation,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -406,6 +407,29 @@ function StatCard({ label, value, icon: Icon, accent }) {
       >
         {value}
       </span>
+    </div>
+  );
+}
+
+// substitui a técnica de grid-template-rows (0fr/1fr) — o Safari do iPhone não colapsa
+// esse truque de forma confiável, deixando o conteúdo "fechado" vazar por fora do card.
+// Aqui medimos a altura real do conteúdo (scrollHeight) e animamos max-height em pixels,
+// que funciona igual em qualquer navegador.
+function Collapse({ open, children }) {
+  const innerRef = useRef(null);
+  const [height, setHeight] = useState(0);
+
+  useEffect(() => {
+    if (open && innerRef.current) {
+      setHeight(innerRef.current.scrollHeight);
+    } else {
+      setHeight(0);
+    }
+  }, [open, children]);
+
+  return (
+    <div style={{ maxHeight: height, overflow: "hidden", transition: "max-height 0.28s ease" }}>
+      <div ref={innerRef}>{children}</div>
     </div>
   );
 }
@@ -801,7 +825,7 @@ function ClientesView({ clientes, persistClientes, motos, persistMotos }) {
   return (
     <div>
       <div className="flex items-center justify-between mb-3">
-        <h2 style={{ fontFamily: HEAD_FONT, fontSize: 22, color: theme.text }}>Clientes</h2>
+        <h2 style={{ fontFamily: HEAD_FONT, fontSize: 22, fontWeight: 800, color: theme.mint }}>Clientes</h2>
         <button
           onClick={() => setModal({ mode: "novo", cliente: emptyCliente() })}
           className="flex items-center gap-1 rounded-xl px-3 py-2 text-sm font-semibold"
@@ -843,15 +867,8 @@ function ClientesView({ clientes, persistClientes, motos, persistMotos }) {
                 {aberto ? <ChevronUp size={18} color={theme.textMuted} /> : <ChevronDown size={18} color={theme.textMuted} />}
               </button>
 
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateRows: aberto ? "1fr" : "0fr",
-                  transition: "grid-template-rows 0.28s ease",
-                  overflow: "hidden",
-                }}
-              >
-                <div className="px-4 pb-4 text-sm" style={{ fontFamily: BODY_FONT, minHeight: 0 }}>
+              <Collapse open={aberto}>
+                <div className="px-4 pb-4 text-sm" style={{ fontFamily: BODY_FONT }}>
                   <div className="flex flex-col gap-1 mb-3" style={{ color: theme.textMuted }}>
                     {c.cpfCnpj && <span>CPF/CNPJ: {c.cpfCnpj}</span>}
                     {c.telefone && (
@@ -912,7 +929,7 @@ function ClientesView({ clientes, persistClientes, motos, persistMotos }) {
                     )}
                   </div>
                 </div>
-              </div>
+              </Collapse>
             </div>
           );
         })}
@@ -974,23 +991,14 @@ function MotoTrackingBlock({ link }) {
       >
         <MapPin size={13} /> {aberto ? "Ocultar localização" : "Ver localização em tempo real"}
       </button>
-      <div
-        style={{
-          display: "grid",
-          gridTemplateRows: aberto ? "1fr" : "0fr",
-          transition: "grid-template-rows 0.3s ease",
-          overflow: "hidden",
-        }}
-      >
-        <div style={{ minHeight: 0 }}>
-          <iframe
-            src={aberto ? link : undefined}
-            title="Localização em tempo real"
-            className="rounded-xl mt-2"
-            style={{ width: "100%", height: 300, border: `1px solid ${theme.cardBorder}`, display: "block" }}
-          />
-        </div>
-      </div>
+      <Collapse open={aberto}>
+        <iframe
+          src={aberto ? link : undefined}
+          title="Localização em tempo real"
+          className="rounded-xl mt-2"
+          style={{ width: "100%", height: 300, border: `1px solid ${theme.cardBorder}`, display: "block" }}
+        />
+      </Collapse>
     </div>
   );
 }
@@ -1337,7 +1345,7 @@ function MotosView({ motos, persist, clientes, persistClientes }) {
   return (
     <div>
       <div className="flex items-center justify-between mb-3">
-        <h2 style={{ fontFamily: HEAD_FONT, fontSize: 22, color: theme.text }}>Motos</h2>
+        <h2 style={{ fontFamily: HEAD_FONT, fontSize: 22, fontWeight: 800, color: theme.mint }}>Motos</h2>
         <button
           onClick={() => setModal({ type: "moto", mode: "novo", moto: emptyMoto() })}
           className="flex items-center gap-1 rounded-xl px-3 py-2 text-sm font-semibold"
@@ -1375,15 +1383,8 @@ function MotosView({ motos, persist, clientes, persistClientes }) {
                 {aberto ? <ChevronUp size={18} color={theme.textMuted} /> : <ChevronDown size={18} color={theme.textMuted} />}
               </button>
 
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateRows: aberto ? "1fr" : "0fr",
-                  transition: "grid-template-rows 0.28s ease",
-                  overflow: "hidden",
-                }}
-              >
-                <div className="px-4 pb-4 text-sm" style={{ fontFamily: BODY_FONT, minHeight: 0 }}>
+              <Collapse open={aberto}>
+                <div className="px-4 pb-4 text-sm" style={{ fontFamily: BODY_FONT }}>
                   <div className="flex items-center justify-between mb-3">
                     <div style={{ fontFamily: HEAD_FONT, fontSize: 16, color: theme.text }}>{moto.modelo || "Modelo não informado"}</div>
                     <StatusBadge status={moto.status} vencido={vencido} />
@@ -1490,7 +1491,7 @@ function MotosView({ motos, persist, clientes, persistClientes }) {
                     </button>
                   </div>
                 </div>
-              </div>
+              </Collapse>
             </div>
           );
         })}
@@ -1599,7 +1600,7 @@ function FluxoCaixaView({ lancamentos, persist }) {
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <h2 style={{ fontFamily: HEAD_FONT, fontSize: 22, color: theme.text }}>Fluxo de caixa</h2>
+        <h2 style={{ fontFamily: HEAD_FONT, fontSize: 22, fontWeight: 800, color: theme.mint }}>Fluxo de caixa</h2>
         <button
           onClick={() => setModal(emptyLancamento())}
           className="flex items-center gap-1 rounded-xl px-3 py-2 text-sm font-semibold"
@@ -1644,15 +1645,8 @@ function FluxoCaixaView({ lancamentos, persist }) {
                 </div>
               </button>
 
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateRows: aberto ? "1fr" : "0fr",
-                  transition: "grid-template-rows 0.28s ease",
-                  overflow: "hidden",
-                }}
-              >
-                <div style={{ minHeight: 0, borderTop: `1px solid ${theme.cardBorder}` }}>
+              <Collapse open={aberto}>
+                <div style={{ borderTop: `1px solid ${theme.cardBorder}` }}>
                   {itens.map((l, i) => (
                     <div
                       key={l.id}
@@ -1679,7 +1673,7 @@ function FluxoCaixaView({ lancamentos, persist }) {
                     </div>
                   ))}
                 </div>
-              </div>
+              </Collapse>
             </div>
           );
         })}
@@ -1896,7 +1890,7 @@ function DashboardView({ motos, lancamentos, clientes }) {
 
   return (
     <div>
-      <h2 style={{ fontFamily: HEAD_FONT, fontSize: 22, color: theme.text }} className="mb-4">
+      <h2 style={{ fontFamily: HEAD_FONT, fontSize: 22, fontWeight: 800, color: theme.mint }} className="mb-4">
         Visão geral
       </h2>
 
@@ -2069,6 +2063,26 @@ function DashboardView({ motos, lancamentos, clientes }) {
 /* ===========================================================
    CONFIGURAÇÕES — logo própria + cores do site
 =========================================================== */
+const LINK_RASTREIO_PADRAO = "https://web.melocaliza.com.br/sharing/126b3fd40579524296cf586b7625cd97";
+
+function RastreioView({ config }) {
+  const link = config?.linkRastreioGeral || LINK_RASTREIO_PADRAO;
+  return (
+    <div>
+      <h2 style={{ fontFamily: HEAD_FONT, fontSize: 22, fontWeight: 800, color: theme.mint }} className="mb-4">
+        Rastreio
+      </h2>
+      <div className="rounded-2xl overflow-hidden" style={{ border: `1px solid ${theme.cardBorder}` }}>
+        <iframe
+          src={link}
+          title="Rastreio de todas as motos"
+          style={{ width: "100%", height: "calc(100vh - 220px)", minHeight: 420, border: "none", display: "block" }}
+        />
+      </div>
+    </div>
+  );
+}
+
 function ConfiguracoesView({ config, persist }) {
   const [local, setLocal] = useState(config);
   const [status, setStatus] = useState({ text: "", kind: "" }); // kind: "ok" | "erro" | ""
@@ -2129,7 +2143,7 @@ function ConfiguracoesView({ config, persist }) {
 
   return (
     <div>
-      <h2 style={{ fontFamily: HEAD_FONT, fontSize: 22, color: theme.text }} className="mb-4">
+      <h2 style={{ fontFamily: HEAD_FONT, fontSize: 22, fontWeight: 800, color: theme.mint }} className="mb-4">
         Configurações
       </h2>
 
@@ -2190,6 +2204,20 @@ function ConfiguracoesView({ config, persist }) {
             />
           </div>
         )}
+      </div>
+
+      <div className="rounded-2xl p-4 mb-4" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
+        <FieldLabel>Link de rastreio (aba Rastreio)</FieldLabel>
+        <input
+          style={inputStyle}
+          value={local.linkRastreioGeral || ""}
+          onChange={(e) => setLocal((l) => ({ ...l, linkRastreioGeral: e.target.value }))}
+          onBlur={() => salvarAgora(local)}
+          placeholder="https://web.melocaliza.com.br/sharing/..."
+        />
+        <div className="text-xs -mt-2" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+          Na Melocaliza: Compartilhar localização → Novo → selecione todas as motos → validade "Nenhum" → copie o link.
+        </div>
       </div>
 
       <div className="rounded-2xl p-4 mb-4" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
@@ -2390,6 +2418,7 @@ export default function MobirelliApp() {
     { id: "motos", label: "Motos", icon: Bike },
     { id: "clientes", label: "Clientes", icon: Users },
     { id: "fluxo", label: "Caixa", icon: Wallet },
+    { id: "rastreio", label: "Rastreio", icon: Navigation },
     { id: "config", label: "Ajustes", icon: Settings },
   ];
 
@@ -2463,6 +2492,8 @@ export default function MobirelliApp() {
               />
             ) : tab === "fluxo" ? (
               <FluxoCaixaView lancamentos={fluxoState.items} persist={fluxoState.persist} />
+            ) : tab === "rastreio" ? (
+              <RastreioView config={configState.value} />
             ) : (
               <ConfiguracoesView config={configState.value} persist={configState.persist} />
             )}
