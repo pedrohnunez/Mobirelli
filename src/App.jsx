@@ -2680,22 +2680,18 @@ function LancamentoModal({ lancamento, onClose, onSave, onDelete, motos, editand
       </Row2>
       <FieldLabel>Forma de pagamento (opcional)</FieldLabel>
       <input style={inputStyle} value={form.forma} onChange={set("forma")} placeholder="Pix, boleto, cartão..." />
-      {!editando && (
-        <>
-          <FieldLabel>Parcelas</FieldLabel>
-          <input
-            type="number"
-            min="1"
-            style={inputStyle}
-            value={form.parcelas}
-            onChange={(e) => setForm({ ...form, parcelas: Math.max(1, Number(e.target.value) || 1) })}
-          />
-          {Number(form.parcelas) > 1 && (
-            <div className="text-xs -mt-2 mb-3" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
-              Esse lançamento entra como a 1ª parcela — as outras {Number(form.parcelas) - 1} entram automaticamente em "Contas futuras", uma por mês.
-            </div>
-          )}
-        </>
+      <FieldLabel>Parcelas</FieldLabel>
+      <input
+        type="number"
+        min="1"
+        style={inputStyle}
+        value={form.parcelas}
+        onChange={(e) => setForm({ ...form, parcelas: Math.max(1, Number(e.target.value) || 1) })}
+      />
+      {Number(form.parcelas) > 1 && (
+        <div className="text-xs -mt-2 mb-3" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+          Esse lançamento entra como a 1ª parcela — as outras {Number(form.parcelas) - 1} entram automaticamente em "Contas futuras", uma por mês.
+        </div>
       )}
       <FieldLabel>Descrição (opcional)</FieldLabel>
       <input style={inputStyle} value={form.descricao} onChange={set("descricao")} />
@@ -3061,10 +3057,13 @@ function FluxoCaixaView({ lancamentos, persist, motos, futuros, persistFuturos }
     const next = existe ? lancamentos.map((x) => (x.id === lancamento.id ? lancamento : x)) : [...lancamentos, lancamento];
     await persist(next);
 
-    // compra parcelada — a 1ª parcela é o lançamento de hoje; as demais entram
-    // como contas futuras avulsas, uma por mês, pra aparecer na projeção
+    // compra parcelada — a 1ª parcela é o lançamento de hoje, as demais entram como
+    // contas futuras avulsas, uma por mês. Funciona tanto ao criar quanto ao editar (ex:
+    // lançou avulso e só depois percebeu que era parcelado); como "parcelas" nunca é
+    // salvo no lançamento (some no destructuring acima), reabrir pra editar sempre volta
+    // pro padrão 1, então isso só dispara de novo se a pessoa marcar >1 outra vez
     const n = Number(parcelas) || 1;
-    if (!existe && n > 1) {
+    if (n > 1) {
       const [ano, mes, dia] = lancamento.data.split("-").map(Number);
       const parcelasFuturas = Array.from({ length: n - 1 }, (_, i) => {
         const d = new Date(ano, mes - 1 + i + 1, dia);
