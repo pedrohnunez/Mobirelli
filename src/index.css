@@ -1,3 +1,4 @@
+@import "leaflet/dist/leaflet.css";
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -8,4 +9,20 @@ html, body, #root {
 
 body {
   margin: 0;
+}
+
+.mbr-map .leaflet-control-zoom a {
+  background: #183524;
+  color: #EDF5EF;
+  border-color: #2C4D38;
+}
+.mbr-map .leaflet-control-zoom a:hover {
+  background: #1E3F2A;
+}
+.mbr-map .leaflet-control-attribution {
+  background: rgba(14, 33, 22, 0.75);
+  color: #8AA894;
+}
+.mbr-map .leaflet-control-attribution a {
+  color: #8AA894;
 }

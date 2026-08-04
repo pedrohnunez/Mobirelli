@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
+import L from "leaflet";
 import { getKV, setKV, subscribeKV, uploadArquivo } from "./lib/storage";
 import {
   Bike,
@@ -978,9 +979,122 @@ function emptyMoto() {
   };
 }
 
-function MotoTrackingBlock({ link }) {
+/* ===========================================================
+   RASTREIO — mapa próprio (Leaflet + tiles em tons de cinza), sem
+   usar a tela da Melocaliza: só puxamos as coordenadas (endpoint público
+   por trás do link de "Compartilhar localização") e desenhamos com a
+   cara do nosso app.
+=========================================================== */
+const RASTREIO_HASH_PADRAO = "126b3fd40579524296cf586b7625cd97";
+
+function itemsUrlFromLink(link) {
+  const m = (link || "").match(/sharing\/([a-f0-9]+)/i);
+  const hash = m ? m[1] : RASTREIO_HASH_PADRAO;
+  return `https://web.melocaliza.com.br/sharing/${hash}/items`;
+}
+
+const RASTREIO_STATUS_COR = {
+  green: theme.mint,
+  yellow: theme.amber,
+  red: theme.coral,
+  black: theme.textMuted,
+};
+
+function rastreioMarkerHtml(placa, corHex) {
+  return `
+    <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
+      <div style="width:13px;height:13px;border-radius:50%;background:${corHex};box-shadow:0 0 0 5px ${corHex}33,0 1px 3px rgba(0,0,0,0.5);"></div>
+      <div style="background:${theme.bg};border:1.5px solid ${corHex};border-radius:6px;padding:2px 7px;font-family:monospace;font-weight:700;font-size:11px;letter-spacing:0.5px;color:${theme.text};white-space:nowrap;">${placa}</div>
+    </div>
+  `;
+}
+
+function TrackingMap({ link, filterPlaca, height = 320 }) {
+  const containerRef = useRef(null);
+  const mapObjRef = useRef(null);
+  const markersRef = useRef({});
+  const [status, setStatus] = useState("carregando"); // carregando | ok | erro
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    let cancelled = false;
+
+    const map = L.map(containerRef.current, { zoomControl: true, attributionControl: true }).setView([-22.9, -47.0], 6);
+    mapObjRef.current = map;
+
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+      attribution: "&copy; OpenStreetMap &copy; CARTO",
+      subdomains: "abcd",
+      maxZoom: 20,
+    }).addTo(map);
+
+    async function tick() {
+      try {
+        const res = await fetch(itemsUrlFromLink(link));
+        const data = await res.json();
+        if (cancelled) return;
+
+        const devices = Object.values(data).filter((d) =>
+          filterPlaca ? (d.name || "").toUpperCase().startsWith(filterPlaca.toUpperCase()) : true
+        );
+
+        const bounds = [];
+        devices.forEach((d) => {
+          const lat = parseFloat(d.lat);
+          const lng = parseFloat(d.lng);
+          if (!lat || !lng) return;
+          const placa = (d.name || "").split(" - ")[0].trim();
+          const cor = RASTREIO_STATUS_COR[d.icon_color] || theme.mint;
+          const icon = L.divIcon({ html: rastreioMarkerHtml(placa, cor), className: "mbr-map-marker", iconSize: [0, 0] });
+
+          if (markersRef.current[d.id]) {
+            markersRef.current[d.id].setLatLng([lat, lng]);
+            markersRef.current[d.id].setIcon(icon);
+          } else {
+            markersRef.current[d.id] = L.marker([lat, lng], { icon }).addTo(map);
+          }
+          bounds.push([lat, lng]);
+        });
+
+        if (bounds.length === 1) map.setView(bounds[0], 15);
+        else if (bounds.length > 1) map.fitBounds(bounds, { padding: [30, 30] });
+
+        setStatus("ok");
+      } catch {
+        if (!cancelled) setStatus("erro");
+      }
+    }
+
+    tick();
+    const interval = setInterval(tick, 20000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+      map.remove();
+      mapObjRef.current = null;
+      markersRef.current = {};
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [link, filterPlaca]);
+
+  return (
+    <div className="mbr-map rounded-2xl overflow-hidden relative" style={{ border: `1px solid ${theme.cardBorder}`, height }}>
+      <div ref={containerRef} style={{ width: "100%", height: "100%", background: theme.bg }} />
+      {status === "erro" && (
+        <div
+          className="absolute inset-0 flex items-center justify-center text-xs text-center px-4"
+          style={{ color: theme.textMuted, background: theme.card, fontFamily: BODY_FONT }}
+        >
+          Não foi possível carregar a localização agora.
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MotoTrackingBlock({ link, placa }) {
   const [aberto, setAberto] = useState(false);
-  if (!link) return null;
   return (
     <div className="mb-3">
       <button
@@ -992,12 +1106,7 @@ function MotoTrackingBlock({ link }) {
         <MapPin size={13} /> {aberto ? "Ocultar localização" : "Ver localização em tempo real"}
       </button>
       <Collapse open={aberto}>
-        <iframe
-          src={aberto ? link : undefined}
-          title="Localização em tempo real"
-          className="rounded-xl mt-2"
-          style={{ width: "100%", height: 300, border: `1px solid ${theme.cardBorder}`, display: "block" }}
-        />
+        <div className="mt-2">{aberto && <TrackingMap link={link} filterPlaca={placa} height={280} />}</div>
       </Collapse>
     </div>
   );
@@ -1292,7 +1401,98 @@ function ManutencaoModal({ onClose, onSave }) {
   );
 }
 
-function MotosView({ motos, persist, clientes, persistClientes }) {
+function ConsultaPlacaModal({ onClose }) {
+  const [placa, setPlaca] = useState("");
+  const [status, setStatus] = useState("idle"); // idle | carregando | ok | erro
+  const [resultado, setResultado] = useState(null);
+  const [erro, setErro] = useState("");
+
+  const consultar = async () => {
+    if (!placa.trim() || status === "carregando") return;
+    setStatus("carregando");
+    setErro("");
+    try {
+      const res = await fetch(`/api/consulta-placa?placa=${encodeURIComponent(placa)}`);
+      const data = await res.json();
+      if (!res.ok || data.erro) {
+        setErro(data.erro || "Não foi possível consultar essa placa agora.");
+        setStatus("erro");
+        return;
+      }
+      setResultado(data);
+      setStatus("ok");
+    } catch {
+      setErro("Falha de conexão. Tente de novo.");
+      setStatus("erro");
+    }
+  };
+
+  const dados = resultado?.dados || resultado?.data || resultado || {};
+  const pegar = (...chaves) => chaves.map((c) => dados[c]).find((v) => v != null && v !== "");
+
+  const Campo = ({ label, valor }) =>
+    valor ? (
+      <div className="flex justify-between text-sm py-1.5" style={{ borderBottom: `1px solid ${theme.cardBorder}` }}>
+        <span style={{ color: theme.textMuted }}>{label}</span>
+        <span style={{ color: theme.text, fontWeight: 600, textAlign: "right" }}>{String(valor)}</span>
+      </div>
+    ) : null;
+
+  return (
+    <Modal title="Consulta de placa" onClose={onClose}>
+      <FieldLabel>Placa</FieldLabel>
+      <div className="flex gap-2 mb-1">
+        <input
+          style={{ ...inputStyle, marginBottom: 0, textTransform: "uppercase" }}
+          value={placa}
+          onChange={(e) => setPlaca(e.target.value.toUpperCase())}
+          onKeyDown={(e) => e.key === "Enter" && consultar()}
+          placeholder="ABC1D23"
+          maxLength={8}
+        />
+        <button
+          onClick={consultar}
+          disabled={status === "carregando"}
+          className="rounded-xl px-4 font-semibold text-sm"
+          style={{ background: theme.mint, color: theme.mintText, opacity: status === "carregando" ? 0.6 : 1 }}
+        >
+          Consultar
+        </button>
+      </div>
+      <div className="text-xs mb-3" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+        Dados públicos de veículos (marca, modelo, ano, cor). Não substitui uma consulta oficial no Detran.
+      </div>
+
+      {status === "carregando" && (
+        <div className="text-sm" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+          Consultando...
+        </div>
+      )}
+
+      {status === "erro" && (
+        <div className="rounded-xl p-3 text-sm" style={{ background: `${theme.coral}1F`, color: theme.coral, fontFamily: BODY_FONT }}>
+          {erro}
+        </div>
+      )}
+
+      {status === "ok" && (
+        <div className="rounded-xl p-3" style={{ background: theme.card2, fontFamily: BODY_FONT }}>
+          <Campo label="Marca" valor={pegar("marca", "MARCA", "brand")} />
+          <Campo label="Modelo" valor={pegar("modelo", "MODELO", "model")} />
+          <Campo label="Ano fabricação" valor={pegar("ano", "anoFabricacao", "ANO", "year")} />
+          <Campo label="Ano modelo" valor={pegar("anoModelo", "ANO_MODELO", "modelYear")} />
+          <Campo label="Cor" valor={pegar("cor", "COR", "color")} />
+          <Campo label="Chassi" valor={pegar("chassi", "CHASSI", "chassis")} />
+          <Campo label="Município" valor={pegar("municipio", "MUNICIPIO", "city")} />
+          <Campo label="UF" valor={pegar("uf", "UF", "state")} />
+          <Campo label="Situação" valor={pegar("situacao", "SITUACAO", "status")} />
+        </div>
+      )}
+    </Modal>
+  );
+}
+
+function MotosView({ motos, persist, clientes, persistClientes, config }) {
   const [busca, setBusca] = useState("");
   const [expandido, setExpandido] = useState(null);
   const [modal, setModal] = useState(null);
@@ -1344,15 +1544,24 @@ function MotosView({ motos, persist, clientes, persistClientes }) {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
         <h2 style={{ fontFamily: HEAD_FONT, fontSize: 22, fontWeight: 800, color: theme.mint }}>Motos</h2>
-        <button
-          onClick={() => setModal({ type: "moto", mode: "novo", moto: emptyMoto() })}
-          className="flex items-center gap-1 rounded-xl px-3 py-2 text-sm font-semibold"
-          style={{ background: theme.mint, color: theme.mintText }}
-        >
-          <Plus size={16} /> Nova moto
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setModal({ type: "consulta" })}
+            className="flex items-center gap-1 rounded-xl px-3 py-2 text-sm font-semibold"
+            style={{ border: `1px solid ${theme.cardBorder}`, color: theme.text }}
+          >
+            <Search size={15} /> Consultar placa
+          </button>
+          <button
+            onClick={() => setModal({ type: "moto", mode: "novo", moto: emptyMoto() })}
+            className="flex items-center gap-1 rounded-xl px-3 py-2 text-sm font-semibold"
+            style={{ background: theme.mint, color: theme.mintText }}
+          >
+            <Plus size={16} /> Nova moto
+          </button>
+        </div>
       </div>
 
       <div className="relative mb-4">
@@ -1396,7 +1605,7 @@ function MotosView({ motos, persist, clientes, persistClientes }) {
                     <span>Valor: {formatCurrency(moto.valorCompra)}</span>
                   </div>
 
-                  <MotoTrackingBlock link={moto.linkRastreamento} />
+                  <MotoTrackingBlock link={moto.linkRastreamento || config?.linkRastreioGeral} placa={moto.placa} />
 
                   {(moto.notaFiscalLink || moto.notaFiscalArquivo) && (
                     <a
@@ -1511,6 +1720,7 @@ function MotosView({ motos, persist, clientes, persistClientes }) {
       {modal?.type === "manutencao" && (
         <ManutencaoModal onClose={() => setModal(null)} onSave={(m) => salvarManutencao(modal.moto, m)} />
       )}
+      {modal?.type === "consulta" && <ConsultaPlacaModal onClose={() => setModal(null)} />}
     </div>
   );
 }
@@ -2072,13 +2282,7 @@ function RastreioView({ config }) {
       <h2 style={{ fontFamily: HEAD_FONT, fontSize: 22, fontWeight: 800, color: theme.mint }} className="mb-4">
         Rastreio
       </h2>
-      <div className="rounded-2xl overflow-hidden" style={{ border: `1px solid ${theme.cardBorder}` }}>
-        <iframe
-          src={link}
-          title="Rastreio de todas as motos"
-          style={{ width: "100%", height: "calc(100vh - 220px)", minHeight: 420, border: "none", display: "block" }}
-        />
-      </div>
+      <TrackingMap link={link} height="calc(100vh - 220px)" />
     </div>
   );
 }
@@ -2482,7 +2686,13 @@ export default function MobirelliApp() {
             {tab === "dashboard" ? (
               <DashboardView motos={motosState.items} lancamentos={fluxoState.items} clientes={clientesState.items} />
             ) : tab === "motos" ? (
-              <MotosView motos={motosState.items} persist={motosState.persist} clientes={clientesState.items} persistClientes={clientesState.persist} />
+              <MotosView
+                motos={motosState.items}
+                persist={motosState.persist}
+                clientes={clientesState.items}
+                persistClientes={clientesState.persist}
+                config={configState.value}
+              />
             ) : tab === "clientes" ? (
               <ClientesView
                 clientes={clientesState.items}
