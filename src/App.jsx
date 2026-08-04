@@ -42,6 +42,7 @@ import {
   ExternalLink,
   Eye,
   EyeOff,
+  Undo2,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -111,6 +112,8 @@ function buildTheme(config) {
   const bg = (config && config.bg) || DEFAULT_THEME.bg;
   const accent = (config && config.accent) || DEFAULT_THEME.amber;
   const brand = (config && config.brand) || DEFAULT_THEME.mint;
+  const coral = (config && config.coral) || DEFAULT_THEME.coral;
+  const blue = (config && config.blue) || DEFAULT_THEME.blue;
   const text = contrastText(bg);
   return {
     bg,
@@ -124,8 +127,8 @@ function buildTheme(config) {
     mintText: contrastText(brand),
     sage: mixColors(brand, bg, 0.45),
     amber: accent,
-    coral: DEFAULT_THEME.coral,
-    blue: DEFAULT_THEME.blue,
+    coral,
+    blue,
   };
 }
 
@@ -458,7 +461,7 @@ function Wordmark({ compact, logoDataUrl, logoSize }) {
   const [erro, setErro] = useState(false);
   const src = logoDataUrl || "/logo-header.png";
   if (!erro) {
-    const height = logoDataUrl ? logoSize || (compact ? 28 : 38) : compact ? 28 : 38;
+    const height = logoSize || (compact ? 28 : 38);
     return (
       <img
         src={src}
@@ -1471,9 +1474,9 @@ function TrackingMap({ link, filterPlaca, height = 320, rounded = true, motos, c
 
         if (!bounds.isEmpty()) {
           if (devices.length === 1) {
-            map.easeTo({ center: bounds.getCenter(), zoom: 15, duration: 500 });
+            map.easeTo({ center: bounds.getCenter(), zoom: 13, duration: 500 });
           } else {
-            map.fitBounds(bounds, { padding: 60, maxZoom: 15, duration: 500 });
+            map.fitBounds(bounds, { padding: 60, maxZoom: 13, duration: 500 });
           }
         }
 
@@ -1505,12 +1508,12 @@ function TrackingMap({ link, filterPlaca, height = 320, rounded = true, motos, c
     const marcadores = Object.values(markersRef.current).map((m) => m.marker);
     if (!map || marcadores.length === 0) return;
     if (marcadores.length === 1) {
-      map.flyTo({ center: marcadores[0].getLngLat(), zoom: 15 });
+      map.flyTo({ center: marcadores[0].getLngLat(), zoom: 13 });
       return;
     }
     const bounds = new maplibregl.LngLatBounds();
     marcadores.forEach((mk) => bounds.extend(mk.getLngLat()));
-    map.fitBounds(bounds, { padding: 60, maxZoom: 15, duration: 500 });
+    map.fitBounds(bounds, { padding: 60, maxZoom: 13, duration: 500 });
   };
 
   const alternarRastro = () => {
@@ -3874,16 +3877,20 @@ function RastreioView({ config, motos, clientes, topInset, bottomInset }) {
   );
 }
 
+const CORES_CONFIGURAVEIS = ["bg", "accent", "brand", "coral", "blue"];
+
 function ConfiguracoesView({ config, persist }) {
   const [local, setLocal] = useState(config);
   const [status, setStatus] = useState({ text: "", kind: "" }); // kind: "ok" | "erro" | ""
+  const [historicoCores, setHistoricoCores] = useState([]);
+  const [novoPresetNome, setNovoPresetNome] = useState("");
   const logoInputRef = useRef(null);
 
   // se outra pessoa (ex. seu pai) mudar as configurações, reflete aqui
   useEffect(() => {
     setLocal(config);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [config.bg, config.accent, config.brand, config.logoDataUrl]);
+  }, [config.bg, config.accent, config.brand, config.coral, config.blue, config.logoDataUrl]);
 
   const salvarAgora = async (next) => {
     setStatus({ text: "Salvando...", kind: "" });
@@ -3924,10 +3931,55 @@ function ConfiguracoesView({ config, persist }) {
   // enquanto arrasta o seletor de cor, só atualiza a prévia local (sem gravar a cada pixel);
   // a gravação de verdade acontece ao soltar (onBlur) ou ao tocar em "Aplicar cores"
   const setCorLocal = (chave) => (e) => setLocal((l) => ({ ...l, [chave]: e.target.value }));
-  const aplicarCores = () => salvarAgora(local);
+
+  // guarda a combinação de cores anterior antes de aplicar uma nova — é o que
+  // o botão "Voltar" usa pra desfazer a última alteração
+  const snapshotCores = (fonte) => {
+    const snap = {};
+    CORES_CONFIGURAVEIS.forEach((c) => (snap[c] = fonte[c] || ""));
+    return snap;
+  };
+  const guardarHistorico = () => setHistoricoCores((h) => [...h.slice(-9), snapshotCores(config)]);
+
+  const aplicarCores = () => {
+    guardarHistorico();
+    salvarAgora(local);
+  };
 
   const restaurarCores = () => {
-    const next = { ...local, bg: "", accent: "", brand: "" };
+    guardarHistorico();
+    const next = { ...local, bg: "", accent: "", brand: "", coral: "", blue: "" };
+    setLocal(next);
+    salvarAgora(next);
+  };
+
+  const desfazerUltimaCor = () => {
+    if (historicoCores.length === 0) return;
+    const anterior = historicoCores[historicoCores.length - 1];
+    setHistoricoCores((h) => h.slice(0, -1));
+    const next = { ...local, ...anterior };
+    setLocal(next);
+    salvarAgora(next);
+  };
+
+  const salvarPresetAtual = () => {
+    const nome = novoPresetNome.trim() || `Preset ${(local.presetsCores?.length || 0) + 1}`;
+    const preset = { id: uid(), nome, ...snapshotCores(local) };
+    const next = { ...local, presetsCores: [...(local.presetsCores || []), preset] };
+    setLocal(next);
+    salvarAgora(next);
+    setNovoPresetNome("");
+  };
+
+  const aplicarPreset = (preset) => {
+    guardarHistorico();
+    const next = { ...local, ...snapshotCores(preset) };
+    setLocal(next);
+    salvarAgora(next);
+  };
+
+  const excluirPreset = (id) => {
+    const next = { ...local, presetsCores: (local.presetsCores || []).filter((p) => p.id !== id) };
     setLocal(next);
     salvarAgora(next);
   };
@@ -4033,7 +4085,7 @@ function ConfiguracoesView({ config, persist }) {
             style={{ width: 40, height: 30, background: "none", border: "none" }}
           />
         </div>
-        <div className="flex items-center justify-between py-2">
+        <div className="flex items-center justify-between py-2" style={{ borderBottom: `1px solid ${theme.cardBorder}` }}>
           <span style={{ color: theme.text, fontFamily: BODY_FONT, fontSize: 14 }}>Cor da marca (wordmark, links)</span>
           <input
             type="color"
@@ -4043,7 +4095,27 @@ function ConfiguracoesView({ config, persist }) {
             style={{ width: 40, height: 30, background: "none", border: "none" }}
           />
         </div>
-        <div className="flex gap-2 mt-3">
+        <div className="flex items-center justify-between py-2" style={{ borderBottom: `1px solid ${theme.cardBorder}` }}>
+          <span style={{ color: theme.text, fontFamily: BODY_FONT, fontSize: 14 }}>Cor de alerta (vencidos, saídas)</span>
+          <input
+            type="color"
+            value={local.coral || DEFAULT_THEME.coral}
+            onChange={setCorLocal("coral")}
+            onBlur={aplicarCores}
+            style={{ width: 40, height: 30, background: "none", border: "none" }}
+          />
+        </div>
+        <div className="flex items-center justify-between py-2">
+          <span style={{ color: theme.text, fontFamily: BODY_FONT, fontSize: 14 }}>Cor informativa (gráficos, contratos)</span>
+          <input
+            type="color"
+            value={local.blue || DEFAULT_THEME.blue}
+            onChange={setCorLocal("blue")}
+            onBlur={aplicarCores}
+            style={{ width: 40, height: 30, background: "none", border: "none" }}
+          />
+        </div>
+        <div className="flex gap-2 mt-3 flex-wrap">
           <button
             onClick={aplicarCores}
             className="text-xs font-semibold rounded-xl px-3 py-1.5"
@@ -4052,12 +4124,83 @@ function ConfiguracoesView({ config, persist }) {
             Aplicar cores
           </button>
           <button
+            onClick={desfazerUltimaCor}
+            disabled={historicoCores.length === 0}
+            className="flex items-center gap-1 text-xs font-semibold rounded-xl px-3 py-1.5"
+            style={{
+              border: `1px solid ${theme.cardBorder}`,
+              color: historicoCores.length === 0 ? theme.textMuted : theme.text,
+              opacity: historicoCores.length === 0 ? 0.5 : 1,
+              cursor: historicoCores.length === 0 ? "default" : "pointer",
+            }}
+          >
+            <Undo2 size={13} /> Voltar
+          </button>
+          <button
             onClick={restaurarCores}
             className="text-xs font-semibold rounded-xl px-3 py-1.5"
             style={{ border: `1px solid ${theme.cardBorder}`, color: theme.text }}
           >
             Restaurar padrão
           </button>
+        </div>
+
+        <div className="pt-3 mt-3" style={{ borderTop: `1px solid ${theme.cardBorder}` }}>
+          <span style={{ color: theme.text, fontFamily: BODY_FONT, fontSize: 13, fontWeight: 600 }}>Presets de cor</span>
+          <div className="text-xs mb-2" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+            Salve a combinação atual pra trocar de visual rapidamente depois.
+          </div>
+          {(local.presetsCores || []).length > 0 && (
+            <div className="flex flex-col gap-1.5 mb-2">
+              {local.presetsCores.map((p) => (
+                <div
+                  key={p.id}
+                  className="flex items-center justify-between rounded-xl px-2.5 py-1.5"
+                  style={{ background: theme.card2, border: `1px solid ${theme.cardBorder}` }}
+                >
+                  <button
+                    onClick={() => aplicarPreset(p)}
+                    className="flex items-center gap-2 flex-1 text-left"
+                    style={{ color: theme.text, fontFamily: BODY_FONT, fontSize: 13 }}
+                  >
+                    <span className="flex" style={{ gap: 2 }}>
+                      {CORES_CONFIGURAVEIS.map((c) => (
+                        <span
+                          key={c}
+                          style={{
+                            width: 12,
+                            height: 12,
+                            borderRadius: "50%",
+                            background: p[c] || DEFAULT_THEME[c === "accent" ? "amber" : c === "brand" ? "mint" : c] || "#888",
+                            border: `1px solid ${theme.cardBorder}`,
+                          }}
+                        />
+                      ))}
+                    </span>
+                    {p.nome}
+                  </button>
+                  <button onClick={() => excluirPreset(p.id)} className="mbr-hover-grow" style={{ color: theme.textMuted }}>
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="flex gap-2">
+            <input
+              style={{ ...inputStyle, flex: 1 }}
+              value={novoPresetNome}
+              onChange={(e) => setNovoPresetNome(e.target.value)}
+              placeholder="Nome do preset (opcional)"
+            />
+            <button
+              onClick={salvarPresetAtual}
+              className="text-xs font-semibold rounded-xl px-3 py-1.5 flex-shrink-0"
+              style={{ border: `1px solid ${theme.cardBorder}`, color: theme.text }}
+            >
+              Salvar preset atual
+            </button>
+          </div>
         </div>
       </div>
 
