@@ -1,6 +1,11 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import * as maplibregl from "maplibre-gl";
+import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url";
 import mapStyle from "./mapStyle.json";
+
+// o Vite não empacota o worker do MapLibre automaticamente (ele monta a URL em
+// tempo de execução) — sem isso, o mapa carrega só o fundo, sem ruas/rótulos.
+maplibregl.setWorkerUrl(maplibreWorkerUrl);
 import { getKV, setKV, subscribeKV, uploadArquivo } from "./lib/storage";
 import {
   Bike,
@@ -387,34 +392,6 @@ function Badge({ color, icon: Icon, label }) {
   );
 }
 
-function StatCard({ label, value, icon: Icon, accent }) {
-  return (
-    <div
-      className="rounded-2xl p-4 flex flex-col gap-2 min-w-0"
-      style={{ background: theme.card, border: `1px solid ${theme.cardBorder}`, boxShadow: "0 1px 2px rgba(0,0,0,0.18)" }}
-    >
-      <div className="flex items-center justify-between gap-2 min-w-0">
-        <span className="text-xs uppercase tracking-wide truncate" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
-          {label}
-        </span>
-        <Icon size={16} color={accent || theme.textMuted} style={{ flexShrink: 0 }} />
-      </div>
-      <span
-        style={{
-          fontFamily: HEAD_FONT,
-          fontSize: "clamp(15px, 5.2vw, 24px)",
-          fontWeight: 700,
-          color: theme.text,
-          lineHeight: 1.15,
-          wordBreak: "break-word",
-          fontVariantNumeric: "tabular-nums",
-        }}
-      >
-        {value}
-      </span>
-    </div>
-  );
-}
 
 // substitui a técnica de grid-template-rows (0fr/1fr) — o Safari do iPhone não colapsa
 // esse truque de forma confiável, deixando o conteúdo "fechado" vazar por fora do card.
@@ -1036,7 +1013,7 @@ function MapToolButton({ icon: Icon, label, onClick, active }) {
   );
 }
 
-function TrackingMap({ link, filterPlaca, height = 320 }) {
+function TrackingMap({ link, filterPlaca, height = 320, rounded = true }) {
   const containerRef = useRef(null);
   const mapObjRef = useRef(null);
   const markersRef = useRef({});
@@ -1179,7 +1156,10 @@ function TrackingMap({ link, filterPlaca, height = 320 }) {
   };
 
   return (
-    <div className="mbr-map rounded-2xl overflow-hidden relative" style={{ border: `1px solid ${theme.cardBorder}`, height }}>
+    <div
+      className={rounded ? "mbr-map rounded-2xl overflow-hidden relative" : "mbr-map overflow-hidden relative"}
+      style={{ border: rounded ? `1px solid ${theme.cardBorder}` : "none", height }}
+    >
       <div ref={containerRef} style={{ width: "100%", height: "100%" }} />
       <div className="absolute top-3 left-3 flex gap-2 z-10">
         <MapToolButton icon={Crosshair} label="Centralizar" onClick={centralizar} />
@@ -2076,15 +2056,17 @@ function HeroStat({ label, value, icon: Icon, accent, deltaPercent, deltaLabel }
   );
 }
 
-function RadialStat({ label, percent, color, sublabel }) {
+function RadialStat({ label, percent, color, sublabel, bare }) {
   const clamped = Math.max(0, Math.min(100, percent || 0));
   const r = 26;
   const c = 2 * Math.PI * r;
   const offset = c - (clamped / 100) * c;
   return (
     <div
-      className="rounded-2xl p-4 flex items-center gap-3 min-w-0"
-      style={{ background: theme.card, border: `1px solid ${theme.cardBorder}`, boxShadow: "0 1px 2px rgba(0,0,0,0.18)" }}
+      className={bare ? "flex items-center gap-3 min-w-0" : "rounded-2xl p-4 flex items-center gap-3 min-w-0"}
+      style={
+        bare ? {} : { background: theme.card, border: `1px solid ${theme.cardBorder}`, boxShadow: "0 1px 2px rgba(0,0,0,0.18)" }
+      }
     >
       <svg width={64} height={64} viewBox="0 0 64 64" style={{ flexShrink: 0 }}>
         <circle cx="32" cy="32" r={r} fill="none" stroke={theme.cardBorder} strokeWidth="7" />
@@ -2148,10 +2130,27 @@ function DashboardView({ motos, lancamentos, clientes }) {
   const margemLucro = entradasMes > 0 ? (lucroMes / entradasMes) * 100 : 0;
 
   const [refAno, refMesNum] = mesRef.split("-").map(Number);
+
+  // nunca mostra meses anteriores ao primeiro lançamento — a empresa não existia ainda
+  const mesesOrdenadosComDados = [...mesesComDados].sort();
+  const primeiroMesComDados = mesesOrdenadosComDados[0] || mesRef;
+  const [anoIni, mesIni] = primeiroMesComDados.split("-").map(Number);
+  const inicioAbs = anoIni * 12 + (mesIni - 1);
+  const fimAbs = refAno * 12 + (refMesNum - 1);
+  const mesesDisponiveis = fimAbs - inicioAbs + 1;
+
+  const [periodoGrafico, setPeriodoGrafico] = useState("tudo"); // "3m" | "6m" | "12m" | "tudo"
+  const [mostrarInvestimentos, setMostrarInvestimentos] = useState(false);
+
+  const qtdMesesAlvo = { "3m": 3, "6m": 6, "12m": 12, tudo: mesesDisponiveis }[periodoGrafico] || mesesDisponiveis;
+  const qtdMeses = Math.max(1, Math.min(qtdMesesAlvo, mesesDisponiveis));
+
   const meses = [];
-  for (let i = 5; i >= 0; i--) {
-    const d = new Date(refAno, refMesNum - 1 - i, 1);
-    meses.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+  for (let i = qtdMeses - 1; i >= 0; i--) {
+    const abs = fimAbs - i;
+    const ano = Math.floor(abs / 12);
+    const mesN = (abs % 12) + 1;
+    meses.push(`${ano}-${String(mesN).padStart(2, "0")}`);
   }
   const chartData = meses.map((key) => {
     const doMesX = lancamentos.filter((l) => l.data?.slice(0, 7) === key);
@@ -2186,6 +2185,13 @@ function DashboardView({ motos, lancamentos, clientes }) {
     .sort((a, b) => b.total - a.total)
     .slice(0, 3);
   const maxManutencao = Math.max(1, ...rankingManutencao.map((m) => m.total));
+
+  const rankingFaturamento = motos
+    .filter((m) => m.contratoAtual)
+    .map((m) => ({ placa: m.placa, total: Number(m.contratoAtual.valorMensal || 0) }))
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 5);
+  const maxFaturamentoMoto = Math.max(1, ...rankingFaturamento.map((m) => m.total));
 
   // mês anterior ao mês de referência — usado só pra calcular a variação (%) dos KPIs principais
   const mesAnteriorKey = (() => {
@@ -2265,73 +2271,160 @@ function DashboardView({ motos, lancamentos, clientes }) {
         </div>
       )}
 
-      {/* Indicadores secundários */}
+      {/* Indicadores secundários — uma faixa só, em vez de vários quadrados */}
       <Reveal delay={80}>
-        <div className="grid gap-3 mb-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))" }}>
-          <StatCard label="Faturamento previsto/mês" value={formatCurrency(faturamentoPrevisto)} icon={TrendingUp} accent={theme.blue} />
-          <StatCard label={`Gastos operacionais (${rotuloMes})`} value={formatCurrency(saidasMes)} icon={TrendingDown} accent={theme.coral} />
-          <StatCard label="Ticket médio" value={formatCurrency(ticketMedio)} icon={Wallet} accent={theme.mint} />
-          <StatCard label="Total de clientes" value={totalClientes} icon={Users} accent={theme.amber} />
-          <StatCard label="Investido em frota" value={formatCurrency(investimentoFrota)} icon={TrendingUp} accent={theme.blue} />
+        <div className="rounded-2xl mb-3 flex flex-wrap overflow-hidden" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
+          {[
+            { icon: TrendingUp, label: "Faturamento previsto/mês", value: formatCurrency(faturamentoPrevisto), accent: theme.blue },
+            { icon: TrendingDown, label: `Gastos operacionais (${rotuloMes})`, value: formatCurrency(saidasMes), accent: theme.coral },
+            { icon: Wallet, label: "Ticket médio", value: formatCurrency(ticketMedio), accent: theme.mint },
+            { icon: Users, label: "Total de clientes", value: totalClientes, accent: theme.amber },
+            { icon: TrendingUp, label: "Investido em frota", value: formatCurrency(investimentoFrota), accent: theme.blue },
+          ].map((s, i) => (
+            <div
+              key={s.label}
+              className="flex items-center gap-2 py-3 px-3"
+              style={{ flex: "1 1 175px", borderLeft: i > 0 ? `1px solid ${theme.cardBorder}` : "none" }}
+            >
+              <div
+                className="rounded-full flex items-center justify-center flex-shrink-0"
+                style={{ width: 30, height: 30, background: hexToRgba(s.accent, 0.16) }}
+              >
+                <s.icon size={14} color={s.accent} />
+              </div>
+              <div className="flex flex-col min-w-0">
+                <span className="text-xs truncate" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+                  {s.label}
+                </span>
+                <span style={{ fontFamily: HEAD_FONT, fontWeight: 700, fontSize: 14, color: theme.text }}>{s.value}</span>
+              </div>
+            </div>
+          ))}
         </div>
       </Reveal>
 
-      {/* Status da frota */}
+      {/* Status da frota — anel + números, um card só */}
       <Reveal delay={140}>
-        <div className="grid gap-3 mb-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))" }}>
-          <RadialStat label="Taxa de ocupação" percent={taxaOcupacao} color={theme.amber} sublabel={`${alugadas} de ${motos.length} motos`} />
-          <StatCard label="Motos" value={motos.length} icon={Bike} />
-          <StatCard label="Alugadas" value={alugadas} icon={Bike} accent={theme.amber} />
-          <StatCard label="Disponíveis" value={disponiveis} icon={CheckCircle2} accent={theme.mint} />
-          <StatCard label="Vencidos" value={vencidas} icon={AlertTriangle} accent={vencidas > 0 ? theme.coral : theme.textMuted} />
+        <div
+          className="rounded-2xl p-4 mb-4 flex items-center gap-5 flex-wrap"
+          style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}
+        >
+          <RadialStat bare label="Taxa de ocupação" percent={taxaOcupacao} color={theme.amber} sublabel={`${alugadas} de ${motos.length} motos`} />
+          <div className="flex-1 grid grid-cols-4 gap-2 min-w-[220px]" style={{ borderLeft: `1px solid ${theme.cardBorder}`, paddingLeft: 16 }}>
+            {[
+              { label: "Motos", value: motos.length, color: theme.text },
+              { label: "Alugadas", value: alugadas, color: theme.amber },
+              { label: "Disponíveis", value: disponiveis, color: theme.mint },
+              { label: "Vencidos", value: vencidas, color: vencidas > 0 ? theme.coral : theme.textMuted },
+            ].map((it) => (
+              <div key={it.label} className="min-w-0">
+                <div style={{ fontFamily: HEAD_FONT, fontSize: 19, fontWeight: 700, color: it.color }}>{it.value}</div>
+                <div className="text-xs truncate" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+                  {it.label}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </Reveal>
 
       <Reveal delay={0}>
       <div className="rounded-2xl p-4 mb-4" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
-        <div className="flex items-center justify-between flex-wrap gap-1 mb-1">
-          <h3 style={{ fontFamily: HEAD_FONT, fontSize: 16, color: theme.text }}>Entradas, saídas e lucro (últimos 6 meses)</h3>
+        <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
+          <h3 style={{ fontFamily: HEAD_FONT, fontSize: 16, color: theme.text }}>Entradas, saídas e lucro</h3>
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex rounded-full overflow-hidden" style={{ border: `1px solid ${theme.cardBorder}` }}>
+              {[
+                { id: "3m", label: "3m" },
+                { id: "6m", label: "6m" },
+                { id: "12m", label: "12m" },
+                { id: "tudo", label: "Tudo" },
+              ].map((op) => (
+                <button
+                  key={op.id}
+                  onClick={() => setPeriodoGrafico(op.id)}
+                  className="text-xs font-semibold px-2.5 py-1"
+                  style={{
+                    background: periodoGrafico === op.id ? theme.mint : "transparent",
+                    color: periodoGrafico === op.id ? theme.mintText : theme.textMuted,
+                  }}
+                >
+                  {op.label}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => setMostrarInvestimentos((v) => !v)}
+              className="text-xs font-semibold rounded-full px-2.5 py-1"
+              style={{
+                border: `1px solid ${theme.cardBorder}`,
+                background: mostrarInvestimentos ? hexToRgba(theme.blue, 0.18) : "transparent",
+                color: mostrarInvestimentos ? theme.blue : theme.textMuted,
+              }}
+            >
+              Investimentos
+            </button>
+          </div>
         </div>
         <div className="flex gap-4 mb-3 text-xs flex-wrap" style={{ fontFamily: BODY_FONT }}>
           <span style={{ color: theme.mint }}>Entradas no período: {formatCurrency(chartData.reduce((s, d) => s + d.Entradas, 0))}</span>
           <span style={{ color: theme.coral }}>Saídas no período: {formatCurrency(chartData.reduce((s, d) => s + d.Saídas, 0))}</span>
-          <span style={{ color: theme.blue }}>Investido no período: {formatCurrency(chartData.reduce((s, d) => s + d.Investimentos, 0))}</span>
+          {mostrarInvestimentos && (
+            <span style={{ color: theme.blue }}>Investido no período: {formatCurrency(chartData.reduce((s, d) => s + d.Investimentos, 0))}</span>
+          )}
         </div>
         <div style={{ width: "100%", height: 240 }}>
           <ResponsiveContainer>
             <ComposedChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" stroke={theme.cardBorder} />
               <XAxis dataKey="mes" stroke={theme.textMuted} fontSize={12} />
-              <YAxis stroke={theme.textMuted} fontSize={11} tickFormatter={formatCompact} width={64} />
+              <YAxis yAxisId="left" stroke={theme.textMuted} fontSize={11} tickFormatter={formatCompact} width={56} />
+              <YAxis yAxisId="right" orientation="right" stroke={theme.amber} fontSize={11} tickFormatter={formatCompact} width={56} />
               <Tooltip
                 formatter={(value, name) => [formatCurrency(value), name]}
                 contentStyle={{ background: theme.panel, border: `1px solid ${theme.cardBorder}`, color: theme.text }}
               />
               <Legend />
-              <Bar dataKey="Entradas" fill={theme.mint} radius={[4, 4, 0, 0]} />
-              <Bar dataKey="Saídas" fill={theme.coral} radius={[4, 4, 0, 0]} />
-              <Bar dataKey="Investimentos" fill={theme.blue} radius={[4, 4, 0, 0]} />
-              <Line type="monotone" dataKey="Lucro" stroke={theme.amber} strokeWidth={2.5} dot={{ r: 3, fill: theme.amber }} />
+              <Bar yAxisId="left" dataKey="Entradas" fill={theme.mint} radius={[4, 4, 0, 0]} />
+              <Bar yAxisId="left" dataKey="Saídas" fill={theme.coral} radius={[4, 4, 0, 0]} />
+              {mostrarInvestimentos && <Bar yAxisId="left" dataKey="Investimentos" fill={theme.blue} radius={[4, 4, 0, 0]} />}
+              <Line yAxisId="right" type="monotone" dataKey="Lucro" stroke={theme.amber} strokeWidth={2.5} dot={{ r: 3, fill: theme.amber }} />
             </ComposedChart>
           </ResponsiveContainer>
         </div>
-        <div className="flex flex-col gap-1.5 mt-3 pt-3" style={{ borderTop: `1px solid ${theme.cardBorder}` }}>
-          {chartData.map((m) => (
-            <div key={m.mes} className="flex items-center justify-between text-xs" style={{ fontFamily: BODY_FONT }}>
-              <span style={{ color: theme.textMuted }}>{m.mes}</span>
-              <span>
-                <span style={{ color: theme.mint }}>+{formatCurrency(m.Entradas)}</span>{" "}
-                <span style={{ color: theme.coral }}>-{formatCurrency(m.Saídas)}</span>
-                {m.Investimentos > 0 && <span style={{ color: theme.blue }}> · inv. {formatCurrency(m.Investimentos)}</span>}
-              </span>
-            </div>
-          ))}
+        <div className="text-xs mt-2" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+          O lucro (linha âmbar) usa uma escala própria à direita, pra não ficar "invisível" perto de valores maiores como investimentos.
         </div>
       </div>
       </Reveal>
 
       <Reveal>
       <div className="grid gap-4 mb-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
+        <div className="rounded-2xl p-4" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
+          <h3 style={{ fontFamily: HEAD_FONT, fontSize: 16, color: theme.text }} className="mb-3">
+            Motos que mais faturam/mês
+          </h3>
+          {rankingFaturamento.length === 0 ? (
+            <div className="text-xs" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+              Nenhuma moto alugada no momento.
+            </div>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {rankingFaturamento.map((m) => (
+                <div key={m.placa}>
+                  <div className="flex justify-between text-xs mb-1" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+                    <span>{m.placa}</span>
+                    <span>{formatCurrency(m.total)}</span>
+                  </div>
+                  <div style={{ height: 6, borderRadius: 3, background: theme.bg, overflow: "hidden" }}>
+                    <div style={{ height: "100%", width: `${(m.total / maxFaturamentoMoto) * 100}%`, background: theme.mint }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         <div className="rounded-2xl p-4" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
           <h3 style={{ fontFamily: HEAD_FONT, fontSize: 16, color: theme.text }} className="mb-3">
             Gastos por natureza (total)
@@ -2384,14 +2477,7 @@ const LINK_RASTREIO_PADRAO = "https://web.melocaliza.com.br/sharing/126b3fd40579
 
 function RastreioView({ config }) {
   const link = config?.linkRastreioGeral || LINK_RASTREIO_PADRAO;
-  return (
-    <div>
-      <h2 style={{ fontFamily: HEAD_FONT, fontSize: 22, fontWeight: 800, color: theme.mint }} className="mb-4">
-        Rastreio
-      </h2>
-      <TrackingMap link={link} height="calc(100vh - 220px)" />
-    </div>
-  );
+  return <TrackingMap link={link} height="100%" rounded={false} />;
 }
 
 function ConfiguracoesView({ config, persist }) {
@@ -2697,6 +2783,28 @@ const SEED_FLUXO = [
 =========================================================== */
 export default function MobirelliApp() {
   const [tab, setTab] = useState("dashboard");
+  const headerRef = useRef(null);
+  const navRef = useRef(null);
+  const [chromeHeights, setChromeHeights] = useState({ header: 64, nav: 76 });
+
+  useEffect(() => {
+    const medir = () => {
+      setChromeHeights({
+        header: headerRef.current?.offsetHeight || 64,
+        nav: navRef.current?.offsetHeight || 76,
+      });
+    };
+    medir();
+    const ro = new ResizeObserver(medir);
+    if (headerRef.current) ro.observe(headerRef.current);
+    if (navRef.current) ro.observe(navRef.current);
+    window.addEventListener("resize", medir);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", medir);
+    };
+  }, []);
+
   const motosState = useSharedList("mobirelli-motos");
   const clientesState = useSharedList("mobirelli-clientes");
   const fluxoState = useSharedList("mobirelli-fluxo-caixa");
@@ -2756,6 +2864,7 @@ export default function MobirelliApp() {
       `}</style>
 
       <header
+        ref={headerRef}
         className="px-4 sm:px-8 py-3 grid items-center sticky top-0 z-40"
         style={{
           gridTemplateColumns: "1fr auto 1fr",
@@ -2778,7 +2887,14 @@ export default function MobirelliApp() {
         </div>
       </header>
 
-      <main className="px-4 sm:px-8 pt-5 max-w-5xl mx-auto" style={{ paddingBottom: "calc(84px + env(safe-area-inset-bottom, 0px))" }}>
+      <main
+        className={tab === "rastreio" ? "" : "px-4 sm:px-8 pt-5 max-w-5xl mx-auto"}
+        style={
+          tab === "rastreio"
+            ? { height: `calc(100vh - ${chromeHeights.header}px - ${chromeHeights.nav}px)`, overflow: "hidden" }
+            : { paddingBottom: "calc(84px + env(safe-area-inset-bottom, 0px))" }
+        }
+      >
         {loading ? (
           <div className="flex flex-col gap-3">
             <div className="mbr-skel" style={{ height: 90 }} />
@@ -2789,7 +2905,7 @@ export default function MobirelliApp() {
             <div className="mbr-skel" style={{ height: 220 }} />
           </div>
         ) : (
-          <div key={tab} className="mbr-fade-in">
+          <div key={tab} className="mbr-fade-in" style={tab === "rastreio" ? { height: "100%" } : undefined}>
             {tab === "dashboard" ? (
               <DashboardView motos={motosState.items} lancamentos={fluxoState.items} clientes={clientesState.items} />
             ) : tab === "motos" ? (
