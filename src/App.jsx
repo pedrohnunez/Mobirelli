@@ -40,6 +40,8 @@ import {
   Route,
   RefreshCw,
   ExternalLink,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -2888,6 +2890,34 @@ function FluxoCaixaView({ lancamentos, persist, motos, futuros, persistFuturos }
         </div>
       )}
 
+      {ordenados.length > 0 && (
+        <div
+          className="rounded-2xl p-4 mb-3"
+          style={{ background: `linear-gradient(150deg, ${theme.card} 0%, ${theme.card2} 130%)`, border: `1px solid ${theme.cardBorder}` }}
+        >
+          <SectionTitle color={theme.blue} className="mb-2">Resumo mensal</SectionTitle>
+          <div className="flex flex-col gap-2">
+            {mesesOrdenados.slice(0, 4).map((mesKey) => {
+              const itensResumo = porMes[mesKey];
+              const entradaResumo = itensResumo.filter((l) => l.tipo === "entrada").reduce((s, l) => s + Number(l.valor), 0);
+              const saidaResumo = itensResumo.filter((l) => l.tipo === "saida").reduce((s, l) => s + Number(l.valor), 0);
+              return (
+                <div key={mesKey} className="flex items-center justify-between gap-2 flex-wrap text-xs" style={{ fontFamily: BODY_FONT }}>
+                  <span style={{ color: theme.text, fontWeight: 700, minWidth: 64 }}>
+                    {mesKey === "sem-data" ? "Sem data" : monthLabel(mesKey)}
+                  </span>
+                  <span style={{ color: theme.mint }}>▲ {formatCurrency(entradaResumo)}</span>
+                  <span style={{ color: theme.coral }}>▼ {formatCurrency(saidaResumo)}</span>
+                  <span style={{ color: entradaResumo - saidaResumo >= 0 ? theme.mint : theme.coral, fontWeight: 700 }}>
+                    {formatCurrency(entradaResumo - saidaResumo)}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-col gap-2">
         {mesesOrdenados.map((mesKey) => {
           const itens = porMes[mesKey];
@@ -3246,6 +3276,10 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
 
   const [periodoGrafico, setPeriodoGrafico] = useState("tudo"); // "3m" | "6m" | "12m" | "tudo"
   const [mostrarInvestimentos, setMostrarInvestimentos] = useState(false);
+  const [verTodasRetorno, setVerTodasRetorno] = useState(false);
+  const [valoresOcultos, setValoresOcultos] = useState(false);
+  const fmt = valoresOcultos ? () => "R$ ••••••" : formatCurrency;
+  const fmtCompact = valoresOcultos ? () => "•••" : formatCompact;
 
   const qtdMesesAlvo = { "3m": 3, "6m": 6, "12m": 12, tudo: mesesDisponiveis }[periodoGrafico] || mesesDisponiveis;
   const qtdMeses = Math.max(1, Math.min(qtdMesesAlvo, mesesDisponiveis));
@@ -3356,33 +3390,43 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
     <div>
       <div className="flex items-center justify-between gap-2 mb-4 flex-wrap">
         <h2 style={{ fontFamily: HEAD_FONT, fontSize: 22, fontWeight: 800, color: theme.mint }}>Visão geral</h2>
-        <div className="flex items-center gap-1 rounded-full px-1.5 py-1" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
-          <button onClick={irParaMesAnteriorRef} className="mbr-hover-grow flex items-center justify-center rounded-full" style={{ width: 26, height: 26, color: theme.text }}>
-            <ChevronLeft size={16} />
-          </button>
-          <span
-            className="text-xs font-semibold text-center"
-            style={{ color: theme.text, fontFamily: BODY_FONT, minWidth: 74 }}
-          >
-            {rotuloMes}
-          </span>
+        <div className="flex items-center gap-2 flex-wrap">
           <button
-            onClick={irParaProximoMesRef}
-            disabled={!podeAvancarMes}
-            className={podeAvancarMes ? "mbr-hover-grow flex items-center justify-center rounded-full" : "flex items-center justify-center rounded-full"}
-            style={{ width: 26, height: 26, color: podeAvancarMes ? theme.text : theme.textMuted, opacity: podeAvancarMes ? 1 : 0.4, cursor: podeAvancarMes ? "pointer" : "default" }}
+            onClick={() => setValoresOcultos((v) => !v)}
+            className="mbr-hover-grow flex items-center justify-center rounded-full"
+            title={valoresOcultos ? "Mostrar valores" : "Ocultar valores"}
+            style={{ width: 34, height: 34, background: theme.card, border: `1px solid ${theme.cardBorder}`, color: theme.text }}
           >
-            <ChevronRight size={16} />
+            {valoresOcultos ? <EyeOff size={16} /> : <Eye size={16} />}
           </button>
-          {mesEscolhido && (
-            <button
-              onClick={() => setMesEscolhido(null)}
-              className="text-xs font-semibold rounded-full px-2 py-1 ml-1"
-              style={{ background: hexToRgba(theme.mint, 0.16), color: theme.mint, fontFamily: BODY_FONT }}
-            >
-              Atual
+          <div className="flex items-center gap-1 rounded-full px-1.5 py-1" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
+            <button onClick={irParaMesAnteriorRef} className="mbr-hover-grow flex items-center justify-center rounded-full" style={{ width: 26, height: 26, color: theme.text }}>
+              <ChevronLeft size={16} />
             </button>
-          )}
+            <span
+              className="text-xs font-semibold text-center"
+              style={{ color: theme.text, fontFamily: BODY_FONT, minWidth: 74 }}
+            >
+              {rotuloMes}
+            </span>
+            <button
+              onClick={irParaProximoMesRef}
+              disabled={!podeAvancarMes}
+              className={podeAvancarMes ? "mbr-hover-grow flex items-center justify-center rounded-full" : "flex items-center justify-center rounded-full"}
+              style={{ width: 26, height: 26, color: podeAvancarMes ? theme.text : theme.textMuted, opacity: podeAvancarMes ? 1 : 0.4, cursor: podeAvancarMes ? "pointer" : "default" }}
+            >
+              <ChevronRight size={16} />
+            </button>
+            {mesEscolhido && (
+              <button
+                onClick={() => setMesEscolhido(null)}
+                className="text-xs font-semibold rounded-full px-2 py-1 ml-1"
+                style={{ background: hexToRgba(theme.mint, 0.16), color: theme.mint, fontFamily: BODY_FONT }}
+              >
+                Atual
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -3414,6 +3458,7 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
           <HeroStat
             label={`Faturamento (${rotuloMes})`}
             value={entradasMes}
+            format={fmt}
             icon={TrendingUp}
             accent={theme.mint}
             deltaPercent={deltaFaturamento}
@@ -3425,6 +3470,7 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
             <HeroStat
               label={`${lucroMes >= 0 ? "Lucro" : "Prejuízo"} (${rotuloMes})`}
               value={Math.abs(lucroMes)}
+              format={fmt}
               icon={Wallet}
               accent={lucroMes >= 0 ? theme.mint : theme.coral}
               deltaPercent={deltaLucro}
@@ -3453,13 +3499,13 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
           style={{ background: `linear-gradient(150deg, ${theme.card} 0%, ${theme.card2} 130%)`, border: `1px solid ${theme.cardBorder}` }}
         >
           {[
-            { icon: TrendingUp, label: "Faturamento previsto/mês", value: faturamentoPrevisto, format: formatCurrency, accent: theme.blue },
-            { icon: TrendingDown, label: `Gastos operacionais (${rotuloMes})`, value: saidasMes, format: formatCurrency, accent: theme.coral },
-            { icon: Wallet, label: "Ticket médio", value: ticketMedio, format: formatCurrency, accent: theme.mint },
+            { icon: TrendingUp, label: "Faturamento previsto/mês", value: faturamentoPrevisto, format: fmt, accent: theme.blue },
+            { icon: TrendingDown, label: `Gastos operacionais (${rotuloMes})`, value: saidasMes, format: fmt, accent: theme.coral },
+            { icon: Wallet, label: "Ticket médio", value: ticketMedio, format: fmt, accent: theme.mint },
             { icon: Users, label: "Total de clientes", value: totalClientes, accent: theme.amber },
-            { icon: TrendingUp, label: "Investido em frota", value: investimentoFrota, format: formatCurrency, accent: theme.blue },
-            { icon: Wallet, label: "Faturamento acumulado", value: faturamentoAcumulado, format: formatCurrency, accent: theme.mint },
-            { icon: Wrench, label: "Manutenção acumulada", value: manutencaoAcumulada, format: formatCurrency, accent: theme.coral },
+            { icon: TrendingUp, label: "Investido em frota", value: investimentoFrota, format: fmt, accent: theme.blue },
+            { icon: Wallet, label: "Faturamento acumulado", value: faturamentoAcumulado, format: fmt, accent: theme.mint },
+            { icon: Wrench, label: "Manutenção acumulada", value: manutencaoAcumulada, format: fmt, accent: theme.coral },
             { icon: FileText, label: "Contratos encerrados", value: contratosEncerrados, accent: theme.amber },
           ].map((s) => (
             <div key={s.label} className="flex items-center gap-2 min-w-0">
@@ -3549,10 +3595,10 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
           </div>
         </div>
         <div className="flex gap-4 mb-3 text-xs flex-wrap" style={{ fontFamily: BODY_FONT }}>
-          <span style={{ color: theme.mint }}>Entradas no período: {formatCurrency(chartData.reduce((s, d) => s + d.Entradas, 0))}</span>
-          <span style={{ color: theme.coral }}>Saídas no período: {formatCurrency(chartData.reduce((s, d) => s + d.Saídas, 0))}</span>
+          <span style={{ color: theme.mint }}>Entradas no período: {fmt(chartData.reduce((s, d) => s + d.Entradas, 0))}</span>
+          <span style={{ color: theme.coral }}>Saídas no período: {fmt(chartData.reduce((s, d) => s + d.Saídas, 0))}</span>
           {mostrarInvestimentos && (
-            <span style={{ color: theme.blue }}>Investido no período: {formatCurrency(chartData.reduce((s, d) => s + d.Investimentos, 0))}</span>
+            <span style={{ color: theme.blue }}>Investido no período: {fmt(chartData.reduce((s, d) => s + d.Investimentos, 0))}</span>
           )}
         </div>
         <div style={{ width: "100%", height: 260 }}>
@@ -3574,19 +3620,19 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke={theme.cardBorder} vertical={false} />
               <XAxis dataKey="mes" stroke={theme.textMuted} fontSize={12} axisLine={false} tickLine={false} />
-              <YAxis yAxisId="left" stroke={theme.textMuted} fontSize={11} tickFormatter={formatCompact} width={56} axisLine={false} tickLine={false} />
+              <YAxis yAxisId="left" stroke={theme.textMuted} fontSize={11} tickFormatter={fmtCompact} width={56} axisLine={false} tickLine={false} />
               <YAxis
                 yAxisId="right"
                 orientation="right"
                 stroke={theme.amber}
                 fontSize={11}
-                tickFormatter={formatCompact}
+                tickFormatter={fmtCompact}
                 width={56}
                 axisLine={false}
                 tickLine={false}
               />
               <Tooltip
-                formatter={(value, name) => [formatCurrency(value), name]}
+                formatter={(value, name) => [fmt(value), name]}
                 contentStyle={{ background: theme.panel, border: `1px solid ${theme.cardBorder}`, borderRadius: 12, color: theme.text }}
               />
               <Legend />
@@ -3640,9 +3686,20 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
       {retornoPorMoto.length > 0 && (
         <Reveal delay={40}>
           <div className="rounded-2xl p-4 mbr-card-lift h-full flex flex-col" style={{ background: `linear-gradient(150deg, ${theme.card} 0%, ${theme.card2} 130%)`, border: `1px solid ${theme.cardBorder}` }}>
-            <SectionTitle color={theme.amber} className="mb-1">Retorno do investimento por moto</SectionTitle>
+            <div className="flex items-center justify-between mb-1">
+              <SectionTitle color={theme.amber} className="">Retorno do investimento por moto</SectionTitle>
+              {retornoPorMoto.length > 6 && (
+                <button
+                  onClick={() => setVerTodasRetorno((v) => !v)}
+                  className="text-xs font-semibold flex-shrink-0"
+                  style={{ color: theme.amber, fontFamily: BODY_FONT }}
+                >
+                  {verTodasRetorno ? "Ver menos" : `Ver mais (${retornoPorMoto.length - 6})`}
+                </button>
+              )}
+            </div>
             <div className="flex-1 flex flex-wrap content-center justify-center gap-6 mt-3">
-              {retornoPorMoto.map((r) => {
+              {(verTodasRetorno ? retornoPorMoto : retornoPorMoto.slice(0, 6)).map((r) => {
                 const clamped = Math.max(0, Math.min(100, r.percentPago));
                 const raio = 34;
                 const c = 2 * Math.PI * raio;
@@ -3654,7 +3711,7 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
                     key={r.placa}
                     className="flex flex-col items-center gap-1"
                     style={{ width: 88 }}
-                    title={`${formatCurrency(r.recebidoReal)} de ${formatCurrency(r.investimentoTotal)}`}
+                    title={valoresOcultos ? undefined : `${formatCurrency(r.recebidoReal)} de ${formatCurrency(r.investimentoTotal)}`}
                   >
                     <svg width={84} height={84} viewBox="0 0 84 84">
                       <circle cx="42" cy="42" r={raio} fill="none" stroke={theme.cardBorder} strokeWidth="7" />
@@ -3701,20 +3758,20 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
                       <div className="text-xs uppercase tracking-wide mb-1" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
                         A receber (12 meses)
                       </div>
-                      <div style={{ fontFamily: HEAD_FONT, fontSize: 18, color: theme.mint }}>{formatCurrency(previstoEntrada12Meses)}</div>
+                      <div style={{ fontFamily: HEAD_FONT, fontSize: 18, color: theme.mint }}>{fmt(previstoEntrada12Meses)}</div>
                     </div>
                     <div>
                       <div className="text-xs uppercase tracking-wide mb-1" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
                         A pagar (12 meses)
                       </div>
-                      <div style={{ fontFamily: HEAD_FONT, fontSize: 18, color: theme.coral }}>{formatCurrency(previstoSaida12Meses)}</div>
+                      <div style={{ fontFamily: HEAD_FONT, fontSize: 18, color: theme.coral }}>{fmt(previstoSaida12Meses)}</div>
                     </div>
                     <div>
                       <div className="text-xs uppercase tracking-wide mb-1" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
                         Saldo previsto
                       </div>
                       <div style={{ fontFamily: HEAD_FONT, fontSize: 18, color: saldoPrevisto12Meses >= 0 ? theme.mint : theme.coral }}>
-                        {formatCurrency(saldoPrevisto12Meses)}
+                        {fmt(saldoPrevisto12Meses)}
                       </div>
                     </div>
                   </>
@@ -3739,7 +3796,7 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
                 <div key={m.placa}>
                   <div className="flex justify-between text-xs mb-1" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
                     <span>{formatPlaca(m.placa)}</span>
-                    <span>{formatCurrency(m.total)}</span>
+                    <span>{fmt(m.total)}</span>
                   </div>
                   <div style={{ height: 6, borderRadius: 3, background: theme.bg, overflow: "hidden" }}>
                     <div style={{ height: "100%", width: `${(m.total / maxFaturamentoMoto) * 100}%`, background: theme.mint }} />
@@ -3757,7 +3814,7 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
               <div key={n.natureza}>
                 <div className="flex justify-between text-xs mb-1" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
                   <span>{n.natureza}</span>
-                  <span>{formatCurrency(n.total)}</span>
+                  <span>{fmt(n.total)}</span>
                 </div>
                 <div style={{ height: 6, borderRadius: 3, background: theme.bg, overflow: "hidden" }}>
                   <div style={{ height: "100%", width: `${(n.total / maxNatureza) * 100}%`, background: theme.amber }} />
@@ -3775,7 +3832,7 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
                 <div key={m.placa}>
                   <div className="flex justify-between text-xs mb-1" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
                     <span>{formatPlaca(m.placa)}</span>
-                    <span>{formatCurrency(m.total)}</span>
+                    <span>{fmt(m.total)}</span>
                   </div>
                   <div style={{ height: 6, borderRadius: 3, background: theme.bg, overflow: "hidden" }}>
                     <div style={{ height: "100%", width: `${(m.total / maxManutencao) * 100}%`, background: theme.coral }} />
@@ -4198,11 +4255,13 @@ export default function MobirelliApp() {
         button { transition: opacity 0.15s ease, transform 0.16s ease, filter 0.15s ease; cursor: pointer; }
         button:active { transform: scale(0.97); opacity: 0.85; }
         .mbr-hover-grow { transform-origin: center; }
+        .mbr-tab-icon { transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1); }
         .mbr-card-lift { transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.28s ease; will-change: transform; }
         @media (hover: hover) and (pointer: fine) {
           button:hover { filter: brightness(1.22); }
-          nav button:hover { filter: none; }
+          nav button:hover { filter: none; transform: translateY(-2px); }
           nav button:hover span:first-child { background: ${hexToRgba(theme.mint, 0.1)}; }
+          nav button:hover .mbr-tab-icon { transform: scale(1.2) rotate(-6deg); }
           .mbr-hover-grow:hover { transform: scale(1.16); filter: brightness(1.28); }
           .mbr-card-lift:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(0,0,0,0.24); }
         }
@@ -4331,7 +4390,7 @@ export default function MobirelliApp() {
               key={t.id}
               onClick={() => setTab(t.id)}
               className="flex-1 flex flex-col items-center gap-1 py-1.5"
-              style={{ color: active ? theme.mint : theme.textMuted, background: "none" }}
+              style={{ color: active ? theme.mint : theme.textMuted, background: "none", transition: "color 0.15s ease, transform 0.18s ease" }}
             >
               <span
                 key={active}
@@ -4343,7 +4402,7 @@ export default function MobirelliApp() {
                   transition: "background 0.15s ease, color 0.15s ease",
                 }}
               >
-                <Icon size={19} strokeWidth={active ? 2.4 : 2} />
+                <Icon size={19} strokeWidth={active ? 2.4 : 2} className="mbr-tab-icon" />
               </span>
               <span style={{ fontSize: 10.5, fontWeight: active ? 700 : 500, fontFamily: BODY_FONT, transition: "font-weight 0.15s ease" }}>
                 {t.label}
