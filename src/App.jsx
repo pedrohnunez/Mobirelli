@@ -2352,13 +2352,24 @@ function emptyFuturo() {
     vencimento: todayISO(),
     recorrente: false,
     pago: false,
+    motoId: "",
   };
 }
 
-function FuturoModal({ futuro, onClose, onSave, onDelete, editando }) {
-  const [form, setForm] = useState({ tipo: "saida", ...futuro });
+function FuturoModal({ futuro, onClose, onSave, onDelete, editando, motos }) {
+  const [form, setForm] = useState({ tipo: "saida", motoId: "", aplicarTodas: false, ...futuro });
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
   const isEntrada = form.tipo === "entrada";
+
+  const salvar = () => {
+    const { aplicarTodas, ...base } = form;
+    const valor = Number(base.valor) || 0;
+    if (aplicarTodas && (motos || []).length > 0) {
+      onSave(motos.map((m) => ({ ...base, id: uid(), valor, motoId: m.id })));
+    } else {
+      onSave({ ...base, valor });
+    }
+  };
 
   return (
     <Modal title={editando ? "Editar conta futura" : "Nova conta futura"} onClose={onClose}>
@@ -2387,6 +2398,29 @@ function FuturoModal({ futuro, onClose, onSave, onDelete, editando }) {
       />
       <FieldLabel>Categoria (opcional)</FieldLabel>
       <input style={inputStyle} value={form.categoria} onChange={set("categoria")} placeholder="Imposto, serviço, taxa..." />
+      {(motos || []).length > 0 && (
+        <>
+          <FieldLabel>Moto relacionada (opcional)</FieldLabel>
+          <SelectField
+            value={form.motoId || ""}
+            onChange={(e) => setForm({ ...form, motoId: e.target.value })}
+            options={[
+              { value: "", label: "Nenhuma / não é de uma moto específica" },
+              ...motos.map((m) => ({ value: m.id, label: `${formatPlaca(m.placa)} — ${m.modelo || "modelo?"}` })),
+            ]}
+          />
+          {!editando && (
+            <label className="flex items-center gap-2 mb-3 text-sm" style={{ color: theme.text, fontFamily: BODY_FONT }}>
+              <input
+                type="checkbox"
+                checked={form.aplicarTodas}
+                onChange={(e) => setForm({ ...form, aplicarTodas: e.target.checked })}
+              />
+              Aplicar a todas as motos ({motos.length}) — lança uma conta dessas pra cada moto
+            </label>
+          )}
+        </>
+      )}
       <Row2>
         <div>
           <FieldLabel>Valor (R$)</FieldLabel>
@@ -2409,7 +2443,7 @@ function FuturoModal({ futuro, onClose, onSave, onDelete, editando }) {
       )}
       <div className="flex gap-2">
         <button
-          onClick={() => onSave({ ...form, valor: Number(form.valor) || 0 })}
+          onClick={salvar}
           className="flex-1 rounded-xl py-2 font-semibold mt-1"
           style={{ background: theme.mint, color: theme.mintText }}
         >
@@ -2429,12 +2463,16 @@ function FuturoModal({ futuro, onClose, onSave, onDelete, editando }) {
   );
 }
 
-function FuturosView({ futuros, persist }) {
+function FuturosView({ futuros, persist, motos }) {
   const [modal, setModal] = useState(null);
 
-  const salvar = async (f) => {
-    const existe = futuros.find((x) => x.id === f.id);
-    const next = existe ? futuros.map((x) => (x.id === f.id ? f : x)) : [...futuros, f];
+  const salvar = async (fOrLista) => {
+    const lista = Array.isArray(fOrLista) ? fOrLista : [fOrLista];
+    let next = [...futuros];
+    lista.forEach((f) => {
+      const existe = next.find((x) => x.id === f.id);
+      next = existe ? next.map((x) => (x.id === f.id ? f : x)) : [...next, f];
+    });
     await persist(next);
     setModal(null);
   };
@@ -2448,7 +2486,9 @@ function FuturosView({ futuros, persist }) {
   const recorrentes = futuros.filter((f) => f.recorrente);
   const avulsos = [...futuros.filter((f) => !f.recorrente)].sort((a, b) => (a.vencimento > b.vencimento ? 1 : -1));
 
-  const FuturoRow = ({ f }) => (
+  const FuturoRow = ({ f }) => {
+    const motoLigada = motos?.find((m) => m.id === f.motoId);
+    return (
     <div
       key={f.id}
       onClick={() => setModal(f)}
@@ -2462,6 +2502,7 @@ function FuturosView({ futuros, persist }) {
         <div style={{ color: theme.textMuted, fontFamily: BODY_FONT, fontSize: 12 }}>
           {f.recorrente ? `Todo mês · a partir de ${formatDate(f.vencimento)}` : `Vence em ${formatDate(f.vencimento)}`}
           {f.pago && (f.tipo === "entrada" ? " · Recebido" : " · Pago")}
+          {motoLigada && ` · ${formatPlaca(motoLigada.placa)}`}
         </div>
       </div>
       <div className="flex items-center gap-3">
@@ -2480,7 +2521,8 @@ function FuturosView({ futuros, persist }) {
         </button>
       </div>
     </div>
-  );
+    );
+  };
 
   return (
     <div>
@@ -2586,6 +2628,7 @@ function FuturosView({ futuros, persist }) {
       {modal && (
         <FuturoModal
           futuro={modal}
+          motos={motos}
           editando={futuros.some((x) => x.id === modal.id)}
           onClose={() => setModal(null)}
           onSave={salvar}
@@ -2658,7 +2701,7 @@ function FluxoCaixaView({ lancamentos, persist, motos, futuros, persistFuturos }
       </div>
 
       {view === "futuros" ? (
-        <FuturosView futuros={futuros || []} persist={persistFuturos} />
+        <FuturosView futuros={futuros || []} persist={persistFuturos} motos={motos} />
       ) : (
         <>
       {ordenados.length === 0 && (
