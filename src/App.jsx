@@ -1432,9 +1432,7 @@ function TrackingMap({ link, filterPlaca, height = 320, rounded = true, motos, c
 
   return (
     <div
-      className={
-        rounded ? "mbr-map rounded-2xl overflow-hidden relative" : "mbr-map mbr-map-fade overflow-hidden relative"
-      }
+      className={rounded ? "mbr-map rounded-2xl overflow-hidden relative" : "mbr-map overflow-hidden relative"}
       style={{
         border: rounded ? `1px solid ${theme.cardBorder}` : "none",
         height,
@@ -1442,8 +1440,7 @@ function TrackingMap({ link, filterPlaca, height = 320, rounded = true, motos, c
         "--mbr-bottom-inset": `${bottomInset}px`,
       }}
     >
-      {!rounded && <div className="absolute inset-0" style={{ background: theme.panel }} />}
-      <div ref={containerRef} style={{ width: "100%", height: "100%", position: "relative" }} />
+      <div ref={containerRef} style={{ width: "100%", height: "100%" }} />
       <div className="absolute left-3 flex gap-3 z-10" style={{ top: 12 + topInset }}>
         <MapToolButton icon={Crosshair} label="Centralizar" onClick={centralizar} />
         <MapToolButton icon={Route} label="Mostrar rastro" active={mostrarRastro} onClick={alternarRastro} />
@@ -3761,7 +3758,10 @@ export default function MobirelliApp() {
         className="px-4 sm:px-8 py-3 grid items-center sticky top-0 z-40"
         style={{
           gridTemplateColumns: "1fr auto 1fr",
-          background: tab === "rastreio" ? theme.panel : hexToRgba(theme.panel, 0.82),
+          background:
+            tab === "rastreio"
+              ? `linear-gradient(to bottom, ${hexToRgba(theme.panel, 0.82)} 0%, ${hexToRgba(theme.panel, 0.82)} 50%, ${hexToRgba(theme.panel, 0)} 100%)`
+              : hexToRgba(theme.panel, 0.82),
           borderBottom: tab === "rastreio" ? "none" : `1px solid ${theme.cardBorder}`,
           backdropFilter: "saturate(1.6) blur(16px)",
           WebkitBackdropFilter: "saturate(1.6) blur(16px)",
@@ -3844,7 +3844,10 @@ export default function MobirelliApp() {
         ref={navRef}
         className="fixed bottom-0 left-0 right-0 z-40 flex items-stretch justify-around px-2 py-1.5"
         style={{
-          background: tab === "rastreio" ? theme.panel : hexToRgba(theme.panel, 0.82),
+          background:
+            tab === "rastreio"
+              ? `linear-gradient(to bottom, ${hexToRgba(theme.panel, 0)} 0%, ${hexToRgba(theme.panel, 0.82)} 50%, ${hexToRgba(theme.panel, 0.82)} 100%)`
+              : hexToRgba(theme.panel, 0.82),
           borderTop: tab === "rastreio" ? "none" : `1px solid ${theme.cardBorder}`,
           paddingBottom: "calc(6px + env(safe-area-inset-bottom, 0px))",
           backdropFilter: "saturate(1.6) blur(16px)",
