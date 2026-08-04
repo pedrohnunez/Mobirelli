@@ -278,6 +278,7 @@ function contratosComoFuturos(motos) {
       categoria: "Contrato ativo",
       valor: Number(m.contratoAtual.valorMensal) || 0,
       vencimento: m.contratoAtual.dataInicio || todayISO(),
+      diaVencimento: diaVencimentoDoContrato(m.contratoAtual),
       dataTermino: m.contratoAtual.dataTermino || "",
       recorrente: true,
       pago: false,
@@ -306,6 +307,39 @@ function totaisFuturos(futuros, motos) {
     previstoEntrada12Meses,
     saldoPrevisto12Meses: previstoEntrada12Meses - previstoSaida12Meses,
   };
+}
+
+// quanto está previsto entrar/sair nos próximos `dias` dias — pra ver rapidinho o que
+// vence essa semana, sem precisar abrir o mês inteiro em "Futuros"
+function futurosProximosDias(futuros, motos, dias = 7) {
+  const todos = [...(futuros || []), ...contratosComoFuturos(motos)];
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+  const limite = new Date(hoje);
+  limite.setDate(limite.getDate() + dias);
+  let entrada = 0;
+  let saida = 0;
+  todos.forEach((f) => {
+    if (!f.vencimento) return;
+    const valor = Number(f.valor) || 0;
+    const soma = f.tipo === "entrada" ? (v) => (entrada += v) : (v) => (saida += v);
+    if (f.recorrente) {
+      const diaVenc = f.diaVencimento ? Number(f.diaVencimento) : new Date(`${f.vencimento}T00:00:00`).getDate();
+      const fimRecorrencia = f.dataTermino ? new Date(`${f.dataTermino}T00:00:00`) : null;
+      // olha esse mês e o próximo, pra cobrir vencimento que cai virando o mês
+      for (let i = 0; i < 2; i++) {
+        const candidato = new Date(hoje.getFullYear(), hoje.getMonth() + i, diaVenc);
+        if (candidato >= hoje && candidato <= limite && (!fimRecorrencia || candidato <= fimRecorrencia)) {
+          soma(valor);
+          break;
+        }
+      }
+    } else if (!f.pago) {
+      const vd = new Date(`${f.vencimento}T00:00:00`);
+      if (vd >= hoje && vd <= limite) soma(valor);
+    }
+  });
+  return { entrada, saida };
 }
 
 // consulta o CEP no ViaCEP (serviço público, gratuito, sem chave) e devolve o endereço
@@ -3235,6 +3269,8 @@ function FluxoCaixaView({ lancamentos, persist, motos, futuros, persistFuturos }
                           </div>
                           <div style={{ color: theme.textMuted, fontFamily: BODY_FONT, fontSize: 12 }}>
                             {formatDate(l.data)}
+                            {l.natureza && ` · ${l.natureza}`}
+                            {l.forma && ` · ${l.forma}`}
                             {l.descricao ? ` · ${l.descricao}` : ""}
                             {motoLigada && ` · ${formatPlaca(motoLigada.placa)}`}
                           </div>
@@ -4044,6 +4080,21 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
                         {fmt(saldoPrevisto12Meses)}
                       </div>
                     </div>
+                  </>
+                );
+              })()}
+            </div>
+            <div className="flex gap-4 flex-wrap mt-3 pt-3" style={{ borderTop: `1px solid ${theme.cardBorder}` }}>
+              {(() => {
+                const { entrada: entrada7d, saida: saida7d } = futurosProximosDias(futuros, motos, 7);
+                return (
+                  <>
+                    <span className="text-xs" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+                      Próximos 7 dias — a receber: <span style={{ color: theme.mint, fontWeight: 700 }}>{fmt(entrada7d)}</span>
+                    </span>
+                    <span className="text-xs" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+                      a pagar: <span style={{ color: theme.coral, fontWeight: 700 }}>{fmt(saida7d)}</span>
+                    </span>
                   </>
                 );
               })()}
