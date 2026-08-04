@@ -3312,34 +3312,45 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
             <h3 style={{ fontFamily: HEAD_FONT, fontSize: 16, color: theme.text }} className="mb-1">
               Retorno do investimento por moto
             </h3>
-            <div className="flex flex-col gap-3 mt-3">
-              {retornoPorMoto.map((r) => (
-                <div key={r.placa}>
-                  <div className="flex justify-between items-baseline text-xs mb-1" style={{ fontFamily: BODY_FONT }}>
-                    <span style={{ color: theme.text, fontWeight: 700, fontFamily: "monospace" }}>{formatPlaca(r.placa)}</span>
-                    <span style={{ color: theme.textMuted }}>
-                      {formatCurrency(r.recebidoReal)} de {formatCurrency(r.investimentoTotal)}
-                    </span>
+            <div className="flex flex-wrap gap-4 mt-3">
+              {retornoPorMoto.map((r) => {
+                const clamped = Math.max(0, Math.min(100, r.percentPago));
+                const raio = 26;
+                const c = 2 * Math.PI * raio;
+                const offset = c - (clamped / 100) * c;
+                const cor = r.jaPagou ? theme.mint : theme.amber;
+                const legenda = r.jaPagou ? "Pago" : r.mesesRestantes != null ? `~${r.mesesRestantes}m` : "—";
+                return (
+                  <div
+                    key={r.placa}
+                    className="flex flex-col items-center gap-1"
+                    style={{ width: 74 }}
+                    title={`${formatCurrency(r.recebidoReal)} de ${formatCurrency(r.investimentoTotal)}`}
+                  >
+                    <svg width={64} height={64} viewBox="0 0 64 64">
+                      <circle cx="32" cy="32" r={raio} fill="none" stroke={theme.cardBorder} strokeWidth="6" />
+                      <circle
+                        cx="32"
+                        cy="32"
+                        r={raio}
+                        fill="none"
+                        stroke={cor}
+                        strokeWidth="6"
+                        strokeLinecap="round"
+                        strokeDasharray={c}
+                        strokeDashoffset={offset}
+                        transform="rotate(-90 32 32)"
+                        style={{ transition: "stroke-dashoffset 0.6s ease" }}
+                      />
+                      <text x="32" y="37" textAnchor="middle" fontSize="13" fontWeight="700" fill={theme.text} style={{ fontFamily: HEAD_FONT }}>
+                        {Math.round(clamped)}%
+                      </text>
+                    </svg>
+                    <span style={{ fontFamily: "monospace", fontWeight: 700, fontSize: 11, color: theme.text }}>{formatPlaca(r.placa)}</span>
+                    <span style={{ fontSize: 10, color: theme.textMuted, fontFamily: BODY_FONT }}>{legenda}</span>
                   </div>
-                  <div style={{ height: 8, borderRadius: 4, background: theme.bg, overflow: "hidden" }}>
-                    <div
-                      style={{
-                        height: "100%",
-                        width: `${r.percentPago}%`,
-                        background: r.jaPagou ? theme.mint : theme.amber,
-                        transition: "width 0.6s ease",
-                      }}
-                    />
-                  </div>
-                  <div className="text-xs mt-1" style={{ fontFamily: BODY_FONT, color: r.jaPagou ? theme.mint : theme.textMuted }}>
-                    {r.jaPagou
-                      ? "Já se pagou — a partir de agora é lucro 🎉"
-                      : r.mesesRestantes != null
-                      ? `${r.percentPago.toFixed(0)}% recuperado · faltam ~${r.mesesRestantes} ${r.mesesRestantes === 1 ? "mês" : "meses"}`
-                      : "Sem contrato ativo pra estimar o prazo"}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </Reveal>
