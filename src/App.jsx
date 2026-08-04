@@ -953,11 +953,46 @@ function emptyMoto() {
     valorCompra: "",
     notaFiscalLink: "",
     notaFiscalArquivo: "",
+    linkRastreamento: "",
     status: "preparacao",
     contratoAtual: null,
     historicoContratos: [],
     manutencoes: [],
   };
+}
+
+function MotoTrackingBlock({ link }) {
+  const [aberto, setAberto] = useState(false);
+  if (!link) return null;
+  return (
+    <div className="mb-3">
+      <button
+        type="button"
+        onClick={() => setAberto((v) => !v)}
+        className="flex items-center gap-1.5 text-xs font-semibold rounded-xl px-3 py-1.5"
+        style={{ background: hexToRgba(theme.blue, 0.16), color: theme.blue }}
+      >
+        <MapPin size={13} /> {aberto ? "Ocultar localização" : "Ver localização em tempo real"}
+      </button>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateRows: aberto ? "1fr" : "0fr",
+          transition: "grid-template-rows 0.3s ease",
+          overflow: "hidden",
+        }}
+      >
+        <div style={{ minHeight: 0 }}>
+          <iframe
+            src={aberto ? link : undefined}
+            title="Localização em tempo real"
+            className="rounded-xl mt-2"
+            style={{ width: "100%", height: 300, border: `1px solid ${theme.cardBorder}`, display: "block" }}
+          />
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function MotoFormModal({ moto, onClose, onSave, title }) {
@@ -1020,6 +1055,16 @@ function MotoFormModal({ moto, onClose, onSave, title }) {
         fileName={form.notaFiscalArquivo}
         onFileNameChange={(name) => setForm({ ...form, notaFiscalArquivo: name })}
       />
+      <FieldLabel>Link de rastreamento (Melocaliza)</FieldLabel>
+      <input
+        style={inputStyle}
+        value={form.linkRastreamento}
+        onChange={set("linkRastreamento")}
+        placeholder="https://web.melocaliza.com.br/sharing/..."
+      />
+      <div className="text-xs -mt-2 mb-3" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+        Na Melocaliza: Compartilhar localização → Novo → escolha esta moto → validade "Nenhum" → copie o link gerado.
+      </div>
       <button onClick={() => onSave(form)} className="w-full rounded-xl py-2 font-semibold mt-1" style={{ background: theme.mint, color: theme.mintText }}>
         Salvar
       </button>
@@ -1349,6 +1394,8 @@ function MotosView({ motos, persist, clientes, persistClientes }) {
                     <span>Compra: {formatDate(moto.dataCompra)}</span>
                     <span>Valor: {formatCurrency(moto.valorCompra)}</span>
                   </div>
+
+                  <MotoTrackingBlock link={moto.linkRastreamento} />
 
                   {(moto.notaFiscalLink || moto.notaFiscalArquivo) && (
                     <a
