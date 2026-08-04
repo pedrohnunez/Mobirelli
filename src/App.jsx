@@ -144,6 +144,13 @@ const fontImport = `
 =========================================================== */
 const uid = () => Math.random().toString(36).slice(2, 10);
 
+// o Storage do Supabase rejeita chaves com acento (ex: "Joao" com til, "contracao" com
+// cedilha) com erro "InvalidKey" — o upload falha silenciosamente. Isso troca só o NOME
+// usado no caminho de armazenamento por uma versão sem acento; o nome original mostrado
+// pro usuário não muda.
+const DIACRITICOS = new RegExp("[" + String.fromCharCode(0x0300) + "-" + String.fromCharCode(0x036f) + "]", "g");
+const nomeArquivoSeguro = (nome) => (nome || "arquivo").normalize("NFD").replace(DIACRITICOS, "");
+
 const formatCurrency = (v) =>
   (Number(v) || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
@@ -757,7 +764,7 @@ function AnexoField({ label, linkValue, storageKey, fileName, onChange }) {
     }
     setStatus("Enviando...");
     (async () => {
-      const path = `${storageKey}-${file.name}`;
+      const path = `${storageKey}-${nomeArquivoSeguro(file.name)}`;
       const url = await uploadArquivo(path, file);
       if (url) {
         onChange({ link: url, fileName: file.name });
@@ -851,7 +858,7 @@ function AnexoMultiField({ label, anexos, storageKey, onChange }) {
     (async () => {
       const enviados = [];
       for (const file of validos) {
-        const path = `${storageKey}-${Date.now()}-${file.name}`;
+        const path = `${storageKey}-${Date.now()}-${nomeArquivoSeguro(file.name)}`;
         const url = await uploadArquivo(path, file);
         if (url) enviados.push({ link: url, fileName: file.name });
       }
@@ -4102,7 +4109,7 @@ function ConfiguracoesView({ config, persist }) {
     }
     setStatus({ text: "Enviando logo...", kind: "" });
     (async () => {
-      const url = await uploadArquivo(`logo-${Date.now()}-${file.name}`, file);
+      const url = await uploadArquivo(`logo-${Date.now()}-${nomeArquivoSeguro(file.name)}`, file);
       if (!url) {
         setStatus({ text: "Não foi possível enviar a logo agora.", kind: "erro" });
         return;

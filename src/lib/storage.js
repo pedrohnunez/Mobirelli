@@ -53,7 +53,11 @@ export async function uploadArquivo(path, file) {
     upsert: true,
     cacheControl: "3600",
   });
-  if (error) return null;
+  if (error) {
+    // eslint-disable-next-line no-console
+    console.error("Falha ao enviar arquivo pro Storage:", path, error);
+    return null;
+  }
   const { data } = supabase.storage.from("arquivos").getPublicUrl(path);
   return data.publicUrl;
 }
