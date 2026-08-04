@@ -182,11 +182,15 @@ const formatPlaca = (v) => {
 
 // liga lançamentos de entrada à moto pela placa (categoria/descrição), tipo "Mensalidade URB5I50" —
 // é assim que o fluxo de caixa já é lançado, então usamos isso pra saber o que essa moto já recebeu de verdade
-function pagamentosDaMoto(placa, lancamentos) {
-  const p = (placa || "").toUpperCase().trim();
-  if (!p) return [];
+function pagamentosDaMoto(moto, lancamentos) {
+  const p = (moto?.placa || "").toUpperCase().trim();
+  if (!moto) return [];
   return (lancamentos || [])
-    .filter((l) => l.tipo === "entrada" && (`${l.categoria || ""} ${l.descricao || ""}`.toUpperCase().includes(p)))
+    .filter(
+      (l) =>
+        l.tipo === "entrada" &&
+        (l.motoId === moto.id || (p && !l.motoId && `${l.categoria || ""} ${l.descricao || ""}`.toUpperCase().includes(p)))
+    )
     .sort((a, b) => (a.data < b.data ? 1 : -1));
 }
 
@@ -1893,12 +1897,12 @@ function MotosView({ motos, persist, clientes, persistClientes, config, lancamen
         {filtradas.map((moto) => {
           const vencido = moto.status === "alugada" && isOverdue(moto.contratoAtual?.dataVencimento);
           const cliente = clientes.find((c) => c.id === moto.contratoAtual?.clienteId);
-          const pagamentos = pagamentosDaMoto(moto.placa, lancamentos);
+          const pagamentos = pagamentosDaMoto(moto, lancamentos);
           const aberto = expandido === moto.id;
           return (
             <div key={moto.id} className="rounded-2xl overflow-hidden" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
               <button className="w-full flex items-center justify-between px-4 py-3 text-left" onClick={() => setExpandido(aberto ? null : moto.id)}>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-col gap-1.5">
                   <MotoPlate placa={moto.placa} />
                   <StatusBadge status={moto.status} vencido={vencido} />
                 </div>
@@ -2098,23 +2102,24 @@ function MotosView({ motos, persist, clientes, persistClientes, config, lancamen
 const NATUREZAS = ["Operacional", "Administrativo", "Expansão"];
 
 function emptyLancamento() {
-  return { id: uid(), data: todayISO(), tipo: "entrada", natureza: "Operacional", categoria: "", valor: "", descricao: "", forma: "" };
+  return { id: uid(), data: todayISO(), tipo: "entrada", natureza: "Operacional", categoria: "", valor: "", descricao: "", forma: "", motoId: "" };
 }
 
-function LancamentoModal({ lancamento, onClose, onSave, motos }) {
-  const [form, setForm] = useState(lancamento);
-  const [ehMensalidade, setEhMensalidade] = useState(false);
-  const [motoId, setMotoId] = useState("");
+function LancamentoModal({ lancamento, onClose, onSave, onDelete, motos, editando }) {
+  const [form, setForm] = useState({ motoId: "", ...lancamento });
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
 
-  const selecionarMotoMensalidade = (id) => {
-    setMotoId(id);
+  const selecionarMoto = (id) => {
     const moto = motos?.find((m) => m.id === id);
-    if (moto) setForm((f) => ({ ...f, categoria: `Mensalidade ${moto.placa}`, natureza: "Operacional" }));
+    setForm((f) => ({
+      ...f,
+      motoId: id,
+      categoria: !f.categoria && moto && f.tipo === "entrada" ? `Mensalidade ${moto.placa}` : f.categoria,
+    }));
   };
 
   return (
-    <Modal title="Novo lançamento" onClose={onClose}>
+    <Modal title={editando ? "Editar lançamento" : "Novo lançamento"} onClose={onClose}>
       <div className="flex gap-2 mb-3">
         {["entrada", "saida"].map((t) => (
           <button
@@ -2132,23 +2137,20 @@ function LancamentoModal({ lancamento, onClose, onSave, motos }) {
         ))}
       </div>
 
-      {form.tipo === "entrada" && (motos || []).length > 0 && (
-        <label className="flex items-center gap-2 mb-3 text-sm" style={{ color: theme.text, fontFamily: BODY_FONT }}>
-          <input type="checkbox" checked={ehMensalidade} onChange={(e) => setEhMensalidade(e.target.checked)} />
-          É pagamento de mensalidade de uma moto
-        </label>
-      )}
-      {ehMensalidade && (
+      {(motos || []).length > 0 && (
         <>
-          <FieldLabel>Moto</FieldLabel>
+          <FieldLabel>Moto relacionada (opcional)</FieldLabel>
           <SelectField
-            value={motoId}
-            onChange={(e) => selecionarMotoMensalidade(e.target.value)}
+            value={form.motoId || ""}
+            onChange={(e) => selecionarMoto(e.target.value)}
             options={[
-              { value: "", label: "Selecione a moto..." },
+              { value: "", label: "Nenhuma / não é de uma moto específica" },
               ...motos.map((m) => ({ value: m.id, label: `${formatPlaca(m.placa)} — ${m.modelo || "modelo?"}` })),
             ]}
           />
+          <div className="text-xs -mt-2 mb-3" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+            Use pra mensalidade, manutenção, combustível, despachante — qualquer gasto ou receita de uma moto específica.
+          </div>
         </>
       )}
 
@@ -2170,13 +2172,24 @@ function LancamentoModal({ lancamento, onClose, onSave, motos }) {
       <input style={inputStyle} value={form.forma} onChange={set("forma")} placeholder="Pix, boleto, cartão..." />
       <FieldLabel>Descrição (opcional)</FieldLabel>
       <input style={inputStyle} value={form.descricao} onChange={set("descricao")} />
-      <button
-        onClick={() => onSave({ ...form, valor: Number(form.valor) || 0 })}
-        className="w-full rounded-xl py-2 font-semibold mt-1"
-        style={{ background: theme.mint, color: theme.mintText }}
-      >
-        Salvar
-      </button>
+      <div className="flex gap-2">
+        <button
+          onClick={() => onSave({ ...form, valor: Number(form.valor) || 0 })}
+          className="flex-1 rounded-xl py-2 font-semibold mt-1"
+          style={{ background: theme.mint, color: theme.mintText }}
+        >
+          Salvar
+        </button>
+        {editando && (
+          <button
+            onClick={onDelete}
+            className="rounded-xl py-2 px-4 font-semibold mt-1"
+            style={{ border: `1px solid ${theme.cardBorder}`, color: theme.coral }}
+          >
+            Excluir
+          </button>
+        )}
+      </div>
     </Modal>
   );
 }
@@ -2253,31 +2266,43 @@ function FluxoCaixaView({ lancamentos, persist, motos }) {
 
               <Collapse open={aberto}>
                 <div style={{ borderTop: `1px solid ${theme.cardBorder}` }}>
-                  {itens.map((l, i) => (
-                    <div
-                      key={l.id}
-                      className="flex items-center justify-between px-4 py-3"
-                      style={{
-                        background: theme.card2,
-                        borderBottom: i < itens.length - 1 ? `1px solid ${theme.cardBorder}` : "none",
-                      }}
-                    >
-                      <div>
-                        <div style={{ color: theme.text, fontFamily: BODY_FONT, fontWeight: 600 }}>{l.categoria || "Sem categoria"}</div>
-                        <div style={{ color: theme.textMuted, fontFamily: BODY_FONT, fontSize: 12 }}>
-                          {formatDate(l.data)} · {l.natureza} {l.descricao ? `· ${l.descricao}` : ""}
+                  {itens.map((l, i) => {
+                    const motoLigada = motos?.find((m) => m.id === l.motoId);
+                    return (
+                      <div
+                        key={l.id}
+                        onClick={() => setModal(l)}
+                        className="flex items-center justify-between px-4 py-3 cursor-pointer"
+                        style={{
+                          background: theme.card2,
+                          borderBottom: i < itens.length - 1 ? `1px solid ${theme.cardBorder}` : "none",
+                        }}
+                      >
+                        <div>
+                          <div style={{ color: theme.text, fontFamily: BODY_FONT, fontWeight: 600 }}>{l.categoria || "Sem categoria"}</div>
+                          <div style={{ color: theme.textMuted, fontFamily: BODY_FONT, fontSize: 12 }}>
+                            {formatDate(l.data)} · {l.natureza} {l.descricao ? `· ${l.descricao}` : ""}
+                            {motoLigada && ` · ${formatPlaca(motoLigada.placa)}`}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span style={{ color: l.tipo === "entrada" ? theme.mint : theme.coral, fontFamily: HEAD_FONT, fontSize: 16 }}>
+                            {l.tipo === "entrada" ? "+" : "-"} {formatCurrency(l.valor)}
+                          </span>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              excluir(l.id);
+                            }}
+                            className="mbr-hover-grow"
+                            style={{ color: theme.textMuted }}
+                          >
+                            <Trash2 size={14} />
+                          </button>
                         </div>
                       </div>
-                      <div className="flex items-center gap-3">
-                        <span style={{ color: l.tipo === "entrada" ? theme.mint : theme.coral, fontFamily: HEAD_FONT, fontSize: 16 }}>
-                          {l.tipo === "entrada" ? "+" : "-"} {formatCurrency(l.valor)}
-                        </span>
-                        <button onClick={() => excluir(l.id)} className="mbr-hover-grow" style={{ color: theme.textMuted }}>
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </Collapse>
             </div>
@@ -2285,7 +2310,19 @@ function FluxoCaixaView({ lancamentos, persist, motos }) {
         })}
       </div>
 
-      {modal && <LancamentoModal lancamento={modal} onClose={() => setModal(null)} onSave={salvar} motos={motos} />}
+      {modal && (
+        <LancamentoModal
+          lancamento={modal}
+          editando={lancamentos.some((x) => x.id === modal.id)}
+          onClose={() => setModal(null)}
+          onSave={salvar}
+          onDelete={() => {
+            excluir(modal.id);
+            setModal(null);
+          }}
+          motos={motos}
+        />
+      )}
     </div>
   );
 }
@@ -2513,7 +2550,7 @@ function DashboardView({ motos, lancamentos, clientes }) {
 
       // recebido de verdade — soma os lançamentos de entrada que citam a placa dessa moto
       // (é assim que o fluxo de caixa já é lançado, ex: "Mensalidade URB5I50")
-      const recebidoReal = pagamentosDaMoto(m.placa, lancamentos).reduce((s, p) => s + Number(p.valor), 0);
+      const recebidoReal = pagamentosDaMoto(m, lancamentos).reduce((s, p) => s + Number(p.valor), 0);
       const restante = Math.max(0, investimentoTotal - recebidoReal);
       const mesesRestantes = receitaMensal > 0 ? Math.ceil(restante / receitaMensal) : null;
       const percentPago = investimentoTotal > 0 ? Math.min(100, (recebidoReal / investimentoTotal) * 100) : 0;
