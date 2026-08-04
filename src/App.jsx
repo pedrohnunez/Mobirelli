@@ -3019,18 +3019,65 @@ function Reveal({ children, delay = 0 }) {
   );
 }
 
-function HeroStat({ label, value, icon: Icon, accent, deltaPercent, deltaLabel }) {
+const reduceMotion = () =>
+  typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+// anima um número subindo do valor anterior até o novo (efeito "contador") sempre que
+// `value` muda — dá vida aos números do dashboard sem precisar animar nada além do texto
+function CountUp({ value, format, duration = 900 }) {
+  const to = Number(value) || 0;
+  const [display, setDisplay] = useState(0);
+  const fromRef = useRef(0);
+  const firstRef = useRef(true);
+
+  useEffect(() => {
+    const from = firstRef.current ? 0 : fromRef.current;
+    firstRef.current = false;
+    if (reduceMotion() || from === to) {
+      setDisplay(to);
+      fromRef.current = to;
+      return;
+    }
+    const start = performance.now();
+    const ease = (t) => 1 - Math.pow(1 - t, 3);
+    let raf = requestAnimationFrame(tick);
+    function tick(now) {
+      const t = Math.min(1, (now - start) / duration);
+      setDisplay(from + (to - from) * ease(t));
+      if (t < 1) {
+        raf = requestAnimationFrame(tick);
+      } else {
+        fromRef.current = to;
+      }
+    }
+    return () => cancelAnimationFrame(raf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [to, duration]);
+
+  return <>{format ? format(display) : Math.round(display)}</>;
+}
+
+function HeroStat({ label, value, format = formatCurrency, icon: Icon, accent, deltaPercent, deltaLabel }) {
   const hasDelta = deltaPercent !== null && deltaPercent !== undefined && Number.isFinite(deltaPercent);
   return (
     <div
-      className="rounded-2xl p-5 flex flex-col gap-2 min-w-0"
-      style={{ background: theme.card, border: `1px solid ${accent}55`, boxShadow: "0 2px 12px rgba(0,0,0,0.22)" }}
+      className="rounded-2xl p-5 flex flex-col gap-2 min-w-0 mbr-card-lift"
+      style={{
+        background: `linear-gradient(150deg, ${theme.card} 0%, ${theme.card2} 130%)`,
+        border: `1px solid ${accent}55`,
+        boxShadow: "0 2px 12px rgba(0,0,0,0.22)",
+      }}
     >
       <div className="flex items-center justify-between gap-2 min-w-0">
         <span className="text-xs uppercase tracking-wide truncate" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
           {label}
         </span>
-        <Icon size={18} color={accent} style={{ flexShrink: 0 }} />
+        <div
+          className="rounded-full flex items-center justify-center flex-shrink-0"
+          style={{ width: 30, height: 30, background: `linear-gradient(150deg, ${accent}3D 0%, ${accent}14 100%)` }}
+        >
+          <Icon size={15} color={accent} />
+        </div>
       </div>
       <span
         style={{
@@ -3043,7 +3090,7 @@ function HeroStat({ label, value, icon: Icon, accent, deltaPercent, deltaLabel }
           fontVariantNumeric: "tabular-nums",
         }}
       >
-        {value}
+        <CountUp value={value} format={format} />
       </span>
       {hasDelta && (
         <span className="text-xs font-semibold flex items-center gap-1" style={{ color: deltaPercent >= 0 ? theme.mint : theme.coral, fontFamily: BODY_FONT }}>
@@ -3062,9 +3109,15 @@ function RadialStat({ label, percent, color, sublabel, bare }) {
   const offset = c - (clamped / 100) * c;
   return (
     <div
-      className={bare ? "flex items-center gap-3 min-w-0" : "rounded-2xl p-4 flex items-center gap-3 min-w-0"}
+      className={bare ? "flex items-center gap-3 min-w-0" : "rounded-2xl p-4 flex items-center gap-3 min-w-0 mbr-card-lift"}
       style={
-        bare ? {} : { background: theme.card, border: `1px solid ${theme.cardBorder}`, boxShadow: "0 1px 2px rgba(0,0,0,0.18)" }
+        bare
+          ? {}
+          : {
+              background: `linear-gradient(150deg, ${theme.card} 0%, ${theme.card2} 130%)`,
+              border: `1px solid ${theme.cardBorder}`,
+              boxShadow: "0 1px 2px rgba(0,0,0,0.18)",
+            }
       }
     >
       <svg width={64} height={64} viewBox="0 0 64 64" style={{ flexShrink: 0 }}>
@@ -3080,10 +3133,10 @@ function RadialStat({ label, percent, color, sublabel, bare }) {
           strokeDasharray={c}
           strokeDashoffset={offset}
           transform="rotate(-90 32 32)"
-          style={{ transition: "stroke-dashoffset 0.7s ease" }}
+          style={{ transition: "stroke-dashoffset 0.8s cubic-bezier(0.22, 1, 0.36, 1)" }}
         />
         <text x="32" y="37" textAnchor="middle" fontSize="14" fontWeight="700" fill={theme.text} style={{ fontFamily: HEAD_FONT }}>
-          {Math.round(clamped)}%
+          <CountUp value={clamped} format={(v) => `${Math.round(v)}%`} />
         </text>
       </svg>
       <div className="flex flex-col gap-0.5 min-w-0">
@@ -3241,7 +3294,7 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
       </h2>
 
       {vencidas > 0 && (
-        <div className="rounded-2xl p-4 mb-4" style={{ background: `${theme.coral}1F`, border: `1px solid ${theme.coral}` }}>
+        <div className="rounded-2xl p-4 mb-4 mbr-card-lift" style={{ background: `${theme.coral}1F`, border: `1px solid ${theme.coral}` }}>
           <div className="flex items-center gap-2 mb-2">
             <AlertTriangle size={16} color={theme.coral} />
             <span style={{ fontFamily: HEAD_FONT, fontSize: 15, color: theme.text }}>
@@ -3266,7 +3319,7 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
         <div className="grid gap-3 mb-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
           <HeroStat
             label={`Faturamento (${rotuloMes})`}
-            value={formatCurrency(entradasMes)}
+            value={entradasMes}
             icon={TrendingUp}
             accent={theme.mint}
             deltaPercent={deltaFaturamento}
@@ -3274,7 +3327,7 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
           />
           <HeroStat
             label={`${lucroMes >= 0 ? "Lucro" : "Prejuízo"} (${rotuloMes})`}
-            value={formatCurrency(Math.abs(lucroMes))}
+            value={Math.abs(lucroMes)}
             icon={Wallet}
             accent={lucroMes >= 0 ? theme.mint : theme.coral}
             deltaPercent={deltaLucro}
@@ -3297,23 +3350,23 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
       {/* Indicadores secundários — grade fixa (2 colunas no celular), pra não quebrar torto */}
       <Reveal delay={80}>
         <div
-          className="rounded-2xl mb-3 p-3 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3"
-          style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}
+          className="rounded-2xl mb-3 p-3 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mbr-card-lift"
+          style={{ background: `linear-gradient(150deg, ${theme.card} 0%, ${theme.card2} 130%)`, border: `1px solid ${theme.cardBorder}` }}
         >
           {[
-            { icon: TrendingUp, label: "Faturamento previsto/mês", value: formatCurrency(faturamentoPrevisto), accent: theme.blue },
-            { icon: TrendingDown, label: `Gastos operacionais (${rotuloMes})`, value: formatCurrency(saidasMes), accent: theme.coral },
-            { icon: Wallet, label: "Ticket médio", value: formatCurrency(ticketMedio), accent: theme.mint },
+            { icon: TrendingUp, label: "Faturamento previsto/mês", value: faturamentoPrevisto, format: formatCurrency, accent: theme.blue },
+            { icon: TrendingDown, label: `Gastos operacionais (${rotuloMes})`, value: saidasMes, format: formatCurrency, accent: theme.coral },
+            { icon: Wallet, label: "Ticket médio", value: ticketMedio, format: formatCurrency, accent: theme.mint },
             { icon: Users, label: "Total de clientes", value: totalClientes, accent: theme.amber },
-            { icon: TrendingUp, label: "Investido em frota", value: formatCurrency(investimentoFrota), accent: theme.blue },
-            { icon: Wallet, label: "Faturamento acumulado", value: formatCurrency(faturamentoAcumulado), accent: theme.mint },
-            { icon: Wrench, label: "Manutenção acumulada", value: formatCurrency(manutencaoAcumulada), accent: theme.coral },
+            { icon: TrendingUp, label: "Investido em frota", value: investimentoFrota, format: formatCurrency, accent: theme.blue },
+            { icon: Wallet, label: "Faturamento acumulado", value: faturamentoAcumulado, format: formatCurrency, accent: theme.mint },
+            { icon: Wrench, label: "Manutenção acumulada", value: manutencaoAcumulada, format: formatCurrency, accent: theme.coral },
             { icon: FileText, label: "Contratos encerrados", value: contratosEncerrados, accent: theme.amber },
           ].map((s) => (
             <div key={s.label} className="flex items-center gap-2 min-w-0">
               <div
                 className="rounded-full flex items-center justify-center flex-shrink-0"
-                style={{ width: 30, height: 30, background: hexToRgba(s.accent, 0.16) }}
+                style={{ width: 30, height: 30, background: `linear-gradient(150deg, ${s.accent}3D 0%, ${s.accent}14 100%)` }}
               >
                 <s.icon size={14} color={s.accent} />
               </div>
@@ -3321,7 +3374,9 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
                 <span className="text-xs truncate" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
                   {s.label}
                 </span>
-                <span style={{ fontFamily: HEAD_FONT, fontWeight: 700, fontSize: 14, color: theme.text }}>{s.value}</span>
+                <span style={{ fontFamily: HEAD_FONT, fontWeight: 700, fontSize: 14, color: theme.text }}>
+                  <CountUp value={s.value} format={s.format} />
+                </span>
               </div>
             </div>
           ))}
@@ -3331,8 +3386,8 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
       {/* Status da frota — anel + números, um card só */}
       <Reveal delay={140}>
         <div
-          className="rounded-2xl p-4 mb-4 flex items-center gap-5 flex-wrap"
-          style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}
+          className="rounded-2xl p-4 mb-4 flex items-center gap-5 flex-wrap mbr-card-lift"
+          style={{ background: `linear-gradient(150deg, ${theme.card} 0%, ${theme.card2} 130%)`, border: `1px solid ${theme.cardBorder}` }}
         >
           <RadialStat bare label="Taxa de ocupação" percent={taxaOcupacao} color={theme.amber} sublabel={`${alugadas} de ${motos.length} motos`} />
           <div className="flex-1 grid grid-cols-4 gap-2 min-w-[220px]" style={{ borderLeft: `1px solid ${theme.cardBorder}`, paddingLeft: 16 }}>
@@ -3343,7 +3398,9 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
               { label: "Vencidos", value: vencidas, color: vencidas > 0 ? theme.coral : theme.textMuted },
             ].map((it) => (
               <div key={it.label} className="min-w-0">
-                <div style={{ fontFamily: HEAD_FONT, fontSize: 19, fontWeight: 700, color: it.color }}>{it.value}</div>
+                <div style={{ fontFamily: HEAD_FONT, fontSize: 19, fontWeight: 700, color: it.color }}>
+                  <CountUp value={it.value} />
+                </div>
                 <div className="text-xs truncate" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
                   {it.label}
                 </div>
@@ -3354,7 +3411,7 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
       </Reveal>
 
       <Reveal delay={0}>
-      <div className="rounded-2xl p-4 mb-4" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
+      <div className="rounded-2xl p-4 mb-4 mbr-card-lift" style={{ background: `linear-gradient(150deg, ${theme.card} 0%, ${theme.card2} 130%)`, border: `1px solid ${theme.cardBorder}` }}>
         <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
           <h3 style={{ fontFamily: HEAD_FONT, fontSize: 16, color: theme.text }}>Entradas, saídas e lucro</h3>
           <div className="flex items-center gap-2 flex-wrap">
@@ -3482,7 +3539,7 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
 
       {retornoPorMoto.length > 0 && (
         <Reveal delay={40}>
-          <div className="rounded-2xl p-4 mb-4" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
+          <div className="rounded-2xl p-4 mb-4 mbr-card-lift" style={{ background: `linear-gradient(150deg, ${theme.card} 0%, ${theme.card2} 130%)`, border: `1px solid ${theme.cardBorder}` }}>
             <h3 style={{ fontFamily: HEAD_FONT, fontSize: 16, color: theme.text }} className="mb-1">
               Retorno do investimento por moto
             </h3>
@@ -3514,13 +3571,15 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
                         strokeDasharray={c}
                         strokeDashoffset={offset}
                         transform="rotate(-90 32 32)"
-                        style={{ transition: "stroke-dashoffset 0.6s ease" }}
+                        style={{ transition: "stroke-dashoffset 0.8s cubic-bezier(0.22, 1, 0.36, 1)" }}
                       />
                       <text x="32" y="37" textAnchor="middle" fontSize="13" fontWeight="700" fill={theme.text} style={{ fontFamily: HEAD_FONT }}>
-                        {Math.round(clamped)}%
+                        <CountUp value={clamped} format={(v) => `${Math.round(v)}%`} />
                       </text>
                     </svg>
-                    <span style={{ fontFamily: "monospace", fontWeight: 700, fontSize: 11, color: theme.text }}>{formatPlaca(r.placa)}</span>
+                    <span style={{ fontFamily: "monospace", fontWeight: 700, fontSize: 11, color: theme.text, transition: "color 0.15s ease" }}>
+                      {formatPlaca(r.placa)}
+                    </span>
                     <span style={{ fontSize: 10, color: theme.textMuted, fontFamily: BODY_FONT }}>{legenda}</span>
                   </div>
                 );
@@ -3532,7 +3591,7 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
 
       {(futuros || []).length > 0 && (
         <Reveal delay={50}>
-          <div className="rounded-2xl p-4 mb-4" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
+          <div className="rounded-2xl p-4 mb-4 mbr-card-lift" style={{ background: `linear-gradient(150deg, ${theme.card} 0%, ${theme.card2} 130%)`, border: `1px solid ${theme.cardBorder}` }}>
             <h3 style={{ fontFamily: HEAD_FONT, fontSize: 16, color: theme.text }} className="mb-3">
               Contas futuras
             </h3>
@@ -3571,7 +3630,7 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
 
       <Reveal>
       <div className="grid gap-4 mb-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
-        <div className="rounded-2xl p-4" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
+        <div className="rounded-2xl p-4 mbr-card-lift" style={{ background: `linear-gradient(150deg, ${theme.card} 0%, ${theme.card2} 130%)`, border: `1px solid ${theme.cardBorder}` }}>
           <h3 style={{ fontFamily: HEAD_FONT, fontSize: 16, color: theme.text }} className="mb-3">
             Motos que mais faturam/mês
           </h3>
@@ -3596,7 +3655,7 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
           )}
         </div>
 
-        <div className="rounded-2xl p-4" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
+        <div className="rounded-2xl p-4 mbr-card-lift" style={{ background: `linear-gradient(150deg, ${theme.card} 0%, ${theme.card2} 130%)`, border: `1px solid ${theme.cardBorder}` }}>
           <h3 style={{ fontFamily: HEAD_FONT, fontSize: 16, color: theme.text }} className="mb-3">
             Gastos por natureza (total)
           </h3>
@@ -3616,7 +3675,7 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
         </div>
 
         {rankingManutencao.length > 0 && (
-          <div className="rounded-2xl p-4" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
+          <div className="rounded-2xl p-4 mbr-card-lift" style={{ background: `linear-gradient(150deg, ${theme.card} 0%, ${theme.card2} 130%)`, border: `1px solid ${theme.cardBorder}` }}>
             <h3 style={{ fontFamily: HEAD_FONT, fontSize: 16, color: theme.text }} className="mb-3">
               Maiores gastos de manutenção
             </h3>
@@ -4040,9 +4099,11 @@ export default function MobirelliApp() {
         button { transition: opacity 0.15s ease, transform 0.16s ease, filter 0.15s ease; cursor: pointer; }
         button:active { transform: scale(0.97); opacity: 0.85; }
         .mbr-hover-grow { transform-origin: center; }
+        .mbr-card-lift { transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.28s ease; will-change: transform; }
         @media (hover: hover) and (pointer: fine) {
           button:hover { filter: brightness(1.22); }
           .mbr-hover-grow:hover { transform: scale(1.16); filter: brightness(1.28); }
+          .mbr-card-lift:hover { transform: translateY(-3px); box-shadow: 0 10px 26px rgba(0,0,0,0.3); }
         }
         input, select, textarea, button { font-family: ${BODY_FONT}; }
         input:focus, select:focus, textarea:focus, button:focus-visible {
