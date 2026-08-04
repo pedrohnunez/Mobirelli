@@ -3022,6 +3022,17 @@ function Reveal({ children, delay = 0 }) {
 const reduceMotion = () =>
   typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+// título de seção com um traço colorido do lado — dá um toque de cor variando por
+// painel, em vez de todo título ficar no mesmo tom neutro
+function SectionTitle({ color = theme.mint, className = "mb-3", children }) {
+  return (
+    <h3 className={`flex items-center gap-2 ${className}`} style={{ fontFamily: HEAD_FONT, fontSize: 16, color: theme.text }}>
+      <span style={{ width: 4, height: 16, borderRadius: 2, background: color, boxShadow: `0 0 8px ${color}77`, flexShrink: 0 }} />
+      {children}
+    </h3>
+  );
+}
+
 // anima um número subindo do valor anterior até o novo (efeito "contador") sempre que
 // `value` muda — dá vida aos números do dashboard sem precisar animar nada além do texto
 function CountUp({ value, format, duration = 900 }) {
@@ -3065,7 +3076,7 @@ function HeroStat({ label, value, format = formatCurrency, icon: Icon, accent, d
       style={{
         background: `linear-gradient(150deg, ${theme.card} 0%, ${theme.card2} 130%)`,
         border: `1px solid ${accent}55`,
-        boxShadow: "0 2px 12px rgba(0,0,0,0.22)",
+        boxShadow: `0 2px 12px rgba(0,0,0,0.22), 0 0 28px ${accent}1F`,
       }}
     >
       <div className="flex items-center justify-between gap-2 min-w-0">
@@ -3074,7 +3085,12 @@ function HeroStat({ label, value, format = formatCurrency, icon: Icon, accent, d
         </span>
         <div
           className="rounded-full flex items-center justify-center flex-shrink-0"
-          style={{ width: 30, height: 30, background: `linear-gradient(150deg, ${accent}3D 0%, ${accent}14 100%)` }}
+          style={{
+            width: 30,
+            height: 30,
+            background: `linear-gradient(150deg, ${accent}3D 0%, ${accent}14 100%)`,
+            boxShadow: `0 0 12px ${accent}33`,
+          }}
         >
           <Icon size={15} color={accent} />
         </div>
@@ -3084,6 +3100,10 @@ function HeroStat({ label, value, format = formatCurrency, icon: Icon, accent, d
           fontFamily: HEAD_FONT,
           fontSize: "clamp(18px, 6vw, 28px)",
           fontWeight: 800,
+          backgroundImage: `linear-gradient(120deg, ${theme.text} 30%, ${accent} 145%)`,
+          WebkitBackgroundClip: "text",
+          backgroundClip: "text",
+          WebkitTextFillColor: "transparent",
           color: theme.text,
           lineHeight: 1.15,
           wordBreak: "break-word",
@@ -3413,7 +3433,7 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
       <Reveal delay={0}>
       <div className="rounded-2xl p-4 mb-4 mbr-card-lift" style={{ background: `linear-gradient(150deg, ${theme.card} 0%, ${theme.card2} 130%)`, border: `1px solid ${theme.cardBorder}` }}>
         <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
-          <h3 style={{ fontFamily: HEAD_FONT, fontSize: 16, color: theme.text }}>Entradas, saídas e lucro</h3>
+          <SectionTitle color={theme.mint} className="">Entradas, saídas e lucro</SectionTitle>
           <div className="flex items-center gap-2 flex-wrap">
             <div className="flex rounded-full overflow-hidden" style={{ border: `1px solid ${theme.cardBorder}` }}>
               {[
@@ -3540,9 +3560,7 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
       {retornoPorMoto.length > 0 && (
         <Reveal delay={40}>
           <div className="rounded-2xl p-4 mb-4 mbr-card-lift" style={{ background: `linear-gradient(150deg, ${theme.card} 0%, ${theme.card2} 130%)`, border: `1px solid ${theme.cardBorder}` }}>
-            <h3 style={{ fontFamily: HEAD_FONT, fontSize: 16, color: theme.text }} className="mb-1">
-              Retorno do investimento por moto
-            </h3>
+            <SectionTitle color={theme.amber} className="mb-1">Retorno do investimento por moto</SectionTitle>
             <div className="flex flex-wrap gap-4 mt-3">
               {retornoPorMoto.map((r) => {
                 const clamped = Math.max(0, Math.min(100, r.percentPago));
@@ -3592,9 +3610,7 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
       {(futuros || []).length > 0 && (
         <Reveal delay={50}>
           <div className="rounded-2xl p-4 mb-4 mbr-card-lift" style={{ background: `linear-gradient(150deg, ${theme.card} 0%, ${theme.card2} 130%)`, border: `1px solid ${theme.cardBorder}` }}>
-            <h3 style={{ fontFamily: HEAD_FONT, fontSize: 16, color: theme.text }} className="mb-3">
-              Contas futuras
-            </h3>
+            <SectionTitle color={theme.blue}>Contas futuras</SectionTitle>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {(() => {
                 const { previstoEntrada12Meses, previstoSaida12Meses, saldoPrevisto12Meses } = totaisFuturos(futuros, motos);
@@ -3631,9 +3647,7 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
       <Reveal>
       <div className="grid gap-4 mb-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
         <div className="rounded-2xl p-4 mbr-card-lift" style={{ background: `linear-gradient(150deg, ${theme.card} 0%, ${theme.card2} 130%)`, border: `1px solid ${theme.cardBorder}` }}>
-          <h3 style={{ fontFamily: HEAD_FONT, fontSize: 16, color: theme.text }} className="mb-3">
-            Motos que mais faturam/mês
-          </h3>
+          <SectionTitle color={theme.mint}>Motos que mais faturam/mês</SectionTitle>
           {rankingFaturamento.length === 0 ? (
             <div className="text-xs" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
               Nenhuma moto alugada no momento.
@@ -3656,9 +3670,7 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
         </div>
 
         <div className="rounded-2xl p-4 mbr-card-lift" style={{ background: `linear-gradient(150deg, ${theme.card} 0%, ${theme.card2} 130%)`, border: `1px solid ${theme.cardBorder}` }}>
-          <h3 style={{ fontFamily: HEAD_FONT, fontSize: 16, color: theme.text }} className="mb-3">
-            Gastos por natureza (total)
-          </h3>
+          <SectionTitle color={theme.amber}>Gastos por natureza (total)</SectionTitle>
           <div className="flex flex-col gap-2">
             {porNatureza.map((n) => (
               <div key={n.natureza}>
@@ -3676,9 +3688,7 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
 
         {rankingManutencao.length > 0 && (
           <div className="rounded-2xl p-4 mbr-card-lift" style={{ background: `linear-gradient(150deg, ${theme.card} 0%, ${theme.card2} 130%)`, border: `1px solid ${theme.cardBorder}` }}>
-            <h3 style={{ fontFamily: HEAD_FONT, fontSize: 16, color: theme.text }} className="mb-3">
-              Maiores gastos de manutenção
-            </h3>
+            <SectionTitle color={theme.coral}>Maiores gastos de manutenção</SectionTitle>
             <div className="flex flex-col gap-2">
               {rankingManutencao.map((m) => (
                 <div key={m.placa}>
@@ -4092,7 +4102,15 @@ export default function MobirelliApp() {
   ];
 
   return (
-    <div style={{ background: theme.bg, minHeight: "100vh", fontFamily: BODY_FONT }}>
+    <div
+      style={{
+        backgroundColor: theme.bg,
+        backgroundImage: `radial-gradient(circle at 12% -8%, ${theme.mint}26 0%, transparent 42%), radial-gradient(circle at 105% 8%, ${theme.blue}20 0%, transparent 38%), radial-gradient(circle at 50% 115%, ${theme.amber}14 0%, transparent 40%)`,
+        backgroundAttachment: "fixed",
+        minHeight: "100vh",
+        fontFamily: BODY_FONT,
+      }}
+    >
       <style>{`
         ${fontImport}
         * { -webkit-tap-highlight-color: transparent; }
