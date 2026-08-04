@@ -136,6 +136,26 @@ const formatDate = (d) => {
   return `${day}/${m}/${y}`;
 };
 
+// consulta o CEP no ViaCEP (serviço público, gratuito, sem chave) e devolve o endereço
+// pra preencher os campos sozinho — só chama quando o CEP tem os 8 dígitos
+async function buscarEnderecoPorCEP(cep) {
+  const digits = (cep || "").replace(/\D/g, "");
+  if (digits.length !== 8) return null;
+  try {
+    const res = await fetch(`https://viacep.com.br/ws/${digits}/json/`);
+    const data = await res.json();
+    if (!res.ok || data.erro) return null;
+    return {
+      logradouro: data.logradouro || "",
+      bairro: data.bairro || "",
+      cidade: data.localidade || "",
+      estado: data.uf || "",
+    };
+  } catch {
+    return null;
+  }
+}
+
 const isOverdue = (dateStr) => {
   if (!dateStr) return false;
   const today = new Date();
@@ -151,10 +171,14 @@ const monthLabel = (key) => {
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
-const enderecoCompleto = (c) =>
-  [c.logradouro && c.numero ? `${c.logradouro}, ${c.numero}` : c.logradouro, c.bairro, c.cidade && c.estado ? `${c.cidade}/${c.estado}` : c.cidade]
-    .filter(Boolean)
-    .join(" — ") || "Endereço não informado";
+const enderecoCompleto = (c) => {
+  let logradouroNumero = c.logradouro && c.numero ? `${c.logradouro}, ${c.numero}` : c.logradouro;
+  if (logradouroNumero && c.complemento) logradouroNumero += ` - ${c.complemento}`;
+  return (
+    [logradouroNumero, c.bairro, c.cidade && c.estado ? `${c.cidade}/${c.estado}` : c.cidade].filter(Boolean).join(" — ") ||
+    "Endereço não informado"
+  );
+};
 
 /* ===========================================================
    STORAGE — dados compartilhados (você + seu pai, mesmo link)
@@ -525,12 +549,46 @@ function AnexoField({ label, linkValue, onLinkChange, storageKey, fileName, onFi
    CLIENTES
 =========================================================== */
 function emptyCliente() {
-  return { id: uid(), nome: "", cpfCnpj: "", telefone: "", email: "", cep: "", logradouro: "", numero: "", bairro: "", cidade: "", estado: "", observacoes: "" };
+  return {
+    id: uid(),
+    nome: "",
+    cpfCnpj: "",
+    telefone: "",
+    email: "",
+    cep: "",
+    logradouro: "",
+    numero: "",
+    complemento: "",
+    bairro: "",
+    cidade: "",
+    estado: "",
+    observacoes: "",
+  };
 }
 
 function ClienteFormModal({ cliente, onClose, onSave, title }) {
   const [form, setForm] = useState(cliente);
+  const [cepStatus, setCepStatus] = useState(""); // "" | "buscando" | "ok" | "nao-encontrado"
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
+
+  const handleCepBlur = async () => {
+    const digits = (form.cep || "").replace(/\D/g, "");
+    if (digits.length !== 8) return;
+    setCepStatus("buscando");
+    const endereco = await buscarEnderecoPorCEP(form.cep);
+    if (!endereco) {
+      setCepStatus("nao-encontrado");
+      return;
+    }
+    setForm((f) => ({
+      ...f,
+      logradouro: endereco.logradouro || f.logradouro,
+      bairro: endereco.bairro || f.bairro,
+      cidade: endereco.cidade || f.cidade,
+      estado: endereco.estado || f.estado,
+    }));
+    setCepStatus("ok");
+  };
 
   return (
     <Modal title={title} onClose={onClose}>
@@ -549,15 +607,34 @@ function ClienteFormModal({ cliente, onClose, onSave, title }) {
         </div>
       </Row2>
       <FieldLabel>CEP</FieldLabel>
-      <input style={inputStyle} value={form.cep} onChange={set("cep")} />
-      <Row2>
-        <div>
-          <FieldLabel>Logradouro</FieldLabel>
-          <input style={inputStyle} value={form.logradouro} onChange={set("logradouro")} placeholder="Rua / Av." />
+      <input
+        style={inputStyle}
+        value={form.cep}
+        onChange={set("cep")}
+        onBlur={handleCepBlur}
+        placeholder="00000-000"
+        inputMode="numeric"
+      />
+      {cepStatus === "buscando" && (
+        <div className="text-xs -mt-2 mb-3" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+          Buscando endereço...
         </div>
+      )}
+      {cepStatus === "nao-encontrado" && (
+        <div className="text-xs -mt-2 mb-3" style={{ color: theme.coral, fontFamily: BODY_FONT }}>
+          CEP não encontrado — preencha o endereço manualmente.
+        </div>
+      )}
+      <FieldLabel>Logradouro</FieldLabel>
+      <input style={inputStyle} value={form.logradouro} onChange={set("logradouro")} placeholder="Rua / Av." />
+      <Row2>
         <div>
           <FieldLabel>Número</FieldLabel>
           <input style={inputStyle} value={form.numero} onChange={set("numero")} />
+        </div>
+        <div>
+          <FieldLabel>Complemento</FieldLabel>
+          <input style={inputStyle} value={form.complemento} onChange={set("complemento")} placeholder="Apto, bloco..." />
         </div>
       </Row2>
       <FieldLabel>Bairro</FieldLabel>
@@ -569,7 +646,13 @@ function ClienteFormModal({ cliente, onClose, onSave, title }) {
         </div>
         <div>
           <FieldLabel>Estado</FieldLabel>
-          <input style={inputStyle} value={form.estado} onChange={set("estado")} placeholder="SP" />
+          <input
+            style={inputStyle}
+            value={form.estado}
+            onChange={(e) => setForm({ ...form, estado: e.target.value.toUpperCase().slice(0, 2) })}
+            placeholder="SP"
+            maxLength={2}
+          />
         </div>
       </Row2>
       <button onClick={() => onSave(form)} className="w-full rounded-xl py-2 font-semibold mt-1" style={{ background: theme.mint, color: theme.mintText }}>
@@ -930,8 +1013,28 @@ function ContratoModal({ moto, clientes, onClose, onSave }) {
     contratoArquivo: "",
   });
 
+  const [cepStatus, setCepStatus] = useState(""); // "" | "buscando" | "ok" | "nao-encontrado"
   const setNC = (k) => (e) => setNovoCliente({ ...novoCliente, [k]: e.target.value });
   const setC = (k) => (e) => setContrato({ ...contrato, [k]: e.target.value });
+
+  const handleCepBlur = async () => {
+    const digits = (novoCliente.cep || "").replace(/\D/g, "");
+    if (digits.length !== 8) return;
+    setCepStatus("buscando");
+    const endereco = await buscarEnderecoPorCEP(novoCliente.cep);
+    if (!endereco) {
+      setCepStatus("nao-encontrado");
+      return;
+    }
+    setNovoCliente((c) => ({
+      ...c,
+      logradouro: endereco.logradouro || c.logradouro,
+      bairro: endereco.bairro || c.bairro,
+      cidade: endereco.cidade || c.cidade,
+      estado: endereco.estado || c.estado,
+    }));
+    setCepStatus("ok");
+  };
 
   return (
     <Modal title={`Novo contrato — ${moto.placa || moto.modelo}`} onClose={onClose}>
@@ -959,25 +1062,52 @@ function ContratoModal({ moto, clientes, onClose, onSave }) {
             </div>
           </Row2>
           <FieldLabel>CEP</FieldLabel>
-          <input style={inputStyle} value={novoCliente.cep} onChange={setNC("cep")} />
-          <Row2>
-            <div>
-              <FieldLabel>Logradouro</FieldLabel>
-              <input style={inputStyle} value={novoCliente.logradouro} onChange={setNC("logradouro")} />
+          <input
+            style={inputStyle}
+            value={novoCliente.cep}
+            onChange={setNC("cep")}
+            onBlur={handleCepBlur}
+            placeholder="00000-000"
+            inputMode="numeric"
+          />
+          {cepStatus === "buscando" && (
+            <div className="text-xs -mt-2 mb-3" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+              Buscando endereço...
             </div>
+          )}
+          {cepStatus === "nao-encontrado" && (
+            <div className="text-xs -mt-2 mb-3" style={{ color: theme.coral, fontFamily: BODY_FONT }}>
+              CEP não encontrado — preencha o endereço manualmente.
+            </div>
+          )}
+          <FieldLabel>Logradouro</FieldLabel>
+          <input style={inputStyle} value={novoCliente.logradouro} onChange={setNC("logradouro")} />
+          <Row2>
             <div>
               <FieldLabel>Número</FieldLabel>
               <input style={inputStyle} value={novoCliente.numero} onChange={setNC("numero")} />
             </div>
+            <div>
+              <FieldLabel>Complemento</FieldLabel>
+              <input style={inputStyle} value={novoCliente.complemento} onChange={setNC("complemento")} placeholder="Apto, bloco..." />
+            </div>
           </Row2>
+          <FieldLabel>Bairro</FieldLabel>
+          <input style={inputStyle} value={novoCliente.bairro} onChange={setNC("bairro")} />
           <Row2>
             <div>
-              <FieldLabel>Bairro</FieldLabel>
-              <input style={inputStyle} value={novoCliente.bairro} onChange={setNC("bairro")} />
+              <FieldLabel>Cidade</FieldLabel>
+              <input style={inputStyle} value={novoCliente.cidade} onChange={setNC("cidade")} />
             </div>
             <div>
-              <FieldLabel>Cidade/UF</FieldLabel>
-              <input style={inputStyle} value={novoCliente.cidade} onChange={setNC("cidade")} placeholder="Cidade/UF" />
+              <FieldLabel>Estado</FieldLabel>
+              <input
+                style={inputStyle}
+                value={novoCliente.estado}
+                onChange={(e) => setNovoCliente({ ...novoCliente, estado: e.target.value.toUpperCase().slice(0, 2) })}
+                placeholder="SP"
+                maxLength={2}
+              />
             </div>
           </Row2>
         </div>
