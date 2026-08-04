@@ -985,8 +985,9 @@ function ContratoAnexosButton({ anexos, label = "Contrato", tituloPreview, onAbr
   );
 }
 
-// passa o mouse por cima de um valor (ex: "A receber") e mostra de onde ele vem, item a
-// item — sem isso, um total de vários meses somados não dizia se era 1 moto ou várias
+// mostra de onde vem um valor (ex: "A receber"), item a item — no computador funciona
+// passando o mouse; no celular não existe hover de verdade, então também abre/fecha ao
+// tocar (com uma camada invisível atrás pra fechar se tocar em outro lugar)
 function ValorComDetalhe({ children, itens, fmt }) {
   const [aberto, setAberto] = useState(false);
   if (!itens || itens.length === 0) return children;
@@ -995,25 +996,38 @@ function ValorComDetalhe({ children, itens, fmt }) {
       className="relative inline-block"
       onMouseEnter={() => setAberto(true)}
       onMouseLeave={() => setAberto(false)}
+      onClick={(e) => {
+        e.stopPropagation();
+        setAberto((v) => !v);
+      }}
       style={{ cursor: "help" }}
     >
       {children}
       {aberto && (
-        <div
-          className="absolute z-30 mt-1 left-0 rounded-xl overflow-hidden mbr-fade-in"
-          style={{ background: theme.panel, border: `1px solid ${theme.cardBorder}`, minWidth: 220, boxShadow: "0 6px 20px rgba(0,0,0,0.4)", padding: 10 }}
-        >
-          {itens.map((it, i) => (
-            <div
-              key={i}
-              className="flex items-center justify-between gap-3 text-xs py-1"
-              style={{ color: theme.text, fontFamily: BODY_FONT, borderBottom: i < itens.length - 1 ? `1px solid ${theme.cardBorder}` : "none" }}
-            >
-              <span className="truncate">{it.label}</span>
-              <span style={{ fontWeight: 700, flexShrink: 0 }}>{fmt(it.total)}</span>
-            </div>
-          ))}
-        </div>
+        <>
+          <div
+            className="fixed inset-0 z-20"
+            onClick={(e) => {
+              e.stopPropagation();
+              setAberto(false);
+            }}
+          />
+          <div
+            className="absolute z-30 mt-1 left-0 rounded-xl overflow-hidden mbr-fade-in"
+            style={{ background: theme.panel, border: `1px solid ${theme.cardBorder}`, minWidth: 220, boxShadow: "0 6px 20px rgba(0,0,0,0.4)", padding: 10 }}
+          >
+            {itens.map((it, i) => (
+              <div
+                key={i}
+                className="flex items-center justify-between gap-3 text-xs py-1"
+                style={{ color: theme.text, fontFamily: BODY_FONT, borderBottom: i < itens.length - 1 ? `1px solid ${theme.cardBorder}` : "none" }}
+              >
+                <span className="truncate">{it.label}</span>
+                <span style={{ fontWeight: 700, flexShrink: 0 }}>{fmt(it.total)}</span>
+              </div>
+            ))}
+          </div>
+        </>
       )}
     </span>
   );
