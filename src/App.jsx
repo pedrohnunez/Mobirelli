@@ -28,6 +28,8 @@ import {
   Search,
   ChevronDown,
   ChevronUp,
+  ChevronLeft,
+  ChevronRight,
   Phone,
   Mail,
   MapPin,
@@ -3203,8 +3205,23 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
     [...lancamentos.map((l) => l.data?.slice(0, 7)), ...todasManutencoes.map((m) => m.data?.slice(0, 7))].filter(Boolean)
   );
   // usa o mês atual se ele já tiver algum lançamento; senão, cai pro mês mais recente com dados
-  // (evita mostrar "Lucro do mês" zerado só porque ainda não lançou nada no mês corrente)
-  const mesRef = mesesComDados.has(mesCalendario) ? mesCalendario : [...mesesComDados].sort().pop() || mesCalendario;
+  // (evita mostrar "Lucro do mês" zerado só porque ainda não lançou nada no mês corrente) —
+  // mas o usuário pode escolher outro mês pra olhar pelo seletor no topo da tela
+  const mesAutoDetectado = mesesComDados.has(mesCalendario) ? mesCalendario : [...mesesComDados].sort().pop() || mesCalendario;
+  const [mesEscolhido, setMesEscolhido] = useState(null);
+  const mesRef = mesEscolhido || mesAutoDetectado;
+  const podeAvancarMes = mesRef < mesCalendario;
+  const irParaMesAnteriorRef = () => {
+    const [ano, mesN] = mesRef.split("-").map(Number);
+    const d = new Date(ano, mesN - 2, 1);
+    setMesEscolhido(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+  };
+  const irParaProximoMesRef = () => {
+    if (!podeAvancarMes) return;
+    const [ano, mesN] = mesRef.split("-").map(Number);
+    const d = new Date(ano, mesN, 1);
+    setMesEscolhido(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+  };
   const noMes = (data) => data?.slice(0, 7) === mesRef;
   const rotuloMes = monthLabel(mesRef);
 
@@ -3337,9 +3354,37 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
 
   return (
     <div>
-      <h2 style={{ fontFamily: HEAD_FONT, fontSize: 22, fontWeight: 800, color: theme.mint }} className="mb-4">
-        Visão geral
-      </h2>
+      <div className="flex items-center justify-between gap-2 mb-4 flex-wrap">
+        <h2 style={{ fontFamily: HEAD_FONT, fontSize: 22, fontWeight: 800, color: theme.mint }}>Visão geral</h2>
+        <div className="flex items-center gap-1 rounded-full px-1.5 py-1" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
+          <button onClick={irParaMesAnteriorRef} className="mbr-hover-grow flex items-center justify-center rounded-full" style={{ width: 26, height: 26, color: theme.text }}>
+            <ChevronLeft size={16} />
+          </button>
+          <span
+            className="text-xs font-semibold text-center"
+            style={{ color: theme.text, fontFamily: BODY_FONT, minWidth: 74 }}
+          >
+            {rotuloMes}
+          </span>
+          <button
+            onClick={irParaProximoMesRef}
+            disabled={!podeAvancarMes}
+            className={podeAvancarMes ? "mbr-hover-grow flex items-center justify-center rounded-full" : "flex items-center justify-center rounded-full"}
+            style={{ width: 26, height: 26, color: podeAvancarMes ? theme.text : theme.textMuted, opacity: podeAvancarMes ? 1 : 0.4, cursor: podeAvancarMes ? "pointer" : "default" }}
+          >
+            <ChevronRight size={16} />
+          </button>
+          {mesEscolhido && (
+            <button
+              onClick={() => setMesEscolhido(null)}
+              className="text-xs font-semibold rounded-full px-2 py-1 ml-1"
+              style={{ background: hexToRgba(theme.mint, 0.16), color: theme.mint, fontFamily: BODY_FONT }}
+            >
+              Atual
+            </button>
+          )}
+        </div>
+      </div>
 
       {vencidas > 0 && (
         <div className="rounded-2xl p-4 mb-4 mbr-card-lift" style={{ background: `${theme.coral}1F`, border: `1px solid ${theme.coral}` }}>
@@ -3395,7 +3440,7 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
           </div>
         </div>
       </Reveal>
-      {mesRef !== mesCalendario && (
+      {!mesEscolhido && mesRef !== mesCalendario && (
         <div className="text-xs mb-3" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
           Ainda não há lançamentos em {monthLabel(mesCalendario)} — mostrando o último mês com movimento.
         </div>
@@ -3594,12 +3639,12 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
 
       {retornoPorMoto.length > 0 && (
         <Reveal delay={40}>
-          <div className="rounded-2xl p-4 mbr-card-lift" style={{ background: `linear-gradient(150deg, ${theme.card} 0%, ${theme.card2} 130%)`, border: `1px solid ${theme.cardBorder}` }}>
+          <div className="rounded-2xl p-4 mbr-card-lift h-full flex flex-col" style={{ background: `linear-gradient(150deg, ${theme.card} 0%, ${theme.card2} 130%)`, border: `1px solid ${theme.cardBorder}` }}>
             <SectionTitle color={theme.amber} className="mb-1">Retorno do investimento por moto</SectionTitle>
-            <div className="flex flex-wrap gap-4 mt-3">
+            <div className="flex-1 flex flex-wrap content-center justify-center gap-6 mt-3">
               {retornoPorMoto.map((r) => {
                 const clamped = Math.max(0, Math.min(100, r.percentPago));
-                const raio = 26;
+                const raio = 34;
                 const c = 2 * Math.PI * raio;
                 const offset = c - (clamped / 100) * c;
                 const cor = r.jaPagou ? theme.mint : theme.amber;
@@ -3608,32 +3653,32 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
                   <div
                     key={r.placa}
                     className="flex flex-col items-center gap-1"
-                    style={{ width: 74 }}
+                    style={{ width: 88 }}
                     title={`${formatCurrency(r.recebidoReal)} de ${formatCurrency(r.investimentoTotal)}`}
                   >
-                    <svg width={64} height={64} viewBox="0 0 64 64">
-                      <circle cx="32" cy="32" r={raio} fill="none" stroke={theme.cardBorder} strokeWidth="6" />
+                    <svg width={84} height={84} viewBox="0 0 84 84">
+                      <circle cx="42" cy="42" r={raio} fill="none" stroke={theme.cardBorder} strokeWidth="7" />
                       <circle
-                        cx="32"
-                        cy="32"
+                        cx="42"
+                        cy="42"
                         r={raio}
                         fill="none"
                         stroke={cor}
-                        strokeWidth="6"
+                        strokeWidth="7"
                         strokeLinecap="round"
                         strokeDasharray={c}
                         strokeDashoffset={offset}
-                        transform="rotate(-90 32 32)"
+                        transform="rotate(-90 42 42)"
                         style={{ transition: "stroke-dashoffset 0.8s cubic-bezier(0.22, 1, 0.36, 1)" }}
                       />
-                      <text x="32" y="37" textAnchor="middle" fontSize="13" fontWeight="700" fill={theme.text} style={{ fontFamily: HEAD_FONT }}>
+                      <text x="42" y="48" textAnchor="middle" fontSize="16" fontWeight="700" fill={theme.text} style={{ fontFamily: HEAD_FONT }}>
                         <CountUp value={clamped} format={(v) => `${Math.round(v)}%`} />
                       </text>
                     </svg>
-                    <span style={{ fontFamily: "monospace", fontWeight: 700, fontSize: 11, color: theme.text, transition: "color 0.15s ease" }}>
+                    <span style={{ fontFamily: "monospace", fontWeight: 700, fontSize: 12, color: theme.text, transition: "color 0.15s ease" }}>
                       {formatPlaca(r.placa)}
                     </span>
-                    <span style={{ fontSize: 10, color: theme.textMuted, fontFamily: BODY_FONT }}>{legenda}</span>
+                    <span style={{ fontSize: 11, color: theme.textMuted, fontFamily: BODY_FONT }}>{legenda}</span>
                   </div>
                 );
               })}
