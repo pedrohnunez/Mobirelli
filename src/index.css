@@ -1,4 +1,4 @@
-@import "leaflet/dist/leaflet.css";
+@import "maplibre-gl/dist/maplibre-gl.css";
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -11,18 +11,28 @@ body {
   margin: 0;
 }
 
-.mbr-map .leaflet-control-zoom a {
+.mbr-map .maplibregl-ctrl-group {
   background: #183524;
-  color: #EDF5EF;
-  border-color: #2C4D38;
+  border: 1px solid #2C4D38;
+  box-shadow: none;
 }
-.mbr-map .leaflet-control-zoom a:hover {
+.mbr-map .maplibregl-ctrl-group button {
+  background: transparent;
+}
+.mbr-map .maplibregl-ctrl-group button:hover {
   background: #1E3F2A;
 }
-.mbr-map .leaflet-control-attribution {
+.mbr-map .maplibregl-ctrl-attrib {
   background: rgba(14, 33, 22, 0.75);
   color: #8AA894;
 }
-.mbr-map .leaflet-control-attribution a {
+.mbr-map .maplibregl-ctrl-attrib a {
   color: #8AA894;
+}
+.mbr-map .maplibregl-ctrl-bottom-right,
+.mbr-map .maplibregl-ctrl-bottom-left {
+  font-size: 10px;
+}
+.mbr-map-marker {
+  cursor: pointer;
 }

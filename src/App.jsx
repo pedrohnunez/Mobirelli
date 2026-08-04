@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import L from "leaflet";
+import * as maplibregl from "maplibre-gl";
+import mapStyle from "./mapStyle.json";
 import { getKV, setKV, subscribeKV, uploadArquivo } from "./lib/storage";
 import {
   Bike,
@@ -26,6 +27,9 @@ import {
   Settings,
   Image as ImageIcon,
   Navigation,
+  Crosshair,
+  Route,
+  RefreshCw,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -859,11 +863,13 @@ function ClientesView({ clientes, persistClientes, motos, persistMotos }) {
           return (
             <div key={c.id} className="rounded-2xl overflow-hidden" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
               <button className="w-full flex items-center justify-between px-4 py-3 text-left" onClick={() => setExpandido(aberto ? null : c.id)}>
-                <div>
+                <div className="flex flex-col gap-1.5">
                   <div style={{ fontFamily: HEAD_FONT, fontSize: 17, color: theme.text }}>{c.nome || "Sem nome"}</div>
-                  <div className="text-xs" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
-                    {motoVinculada ? `Com a moto ${motoVinculada.placa}` : "Sem moto no momento"}
-                  </div>
+                  {motoVinculada ? (
+                    <Badge color={theme.mint} icon={Bike} label={`Com a moto ${motoVinculada.placa}`} />
+                  ) : (
+                    <Badge color={theme.amber} icon={Clock} label="Sem moto no momento" />
+                  )}
                 </div>
                 {aberto ? <ChevronUp size={18} color={theme.textMuted} /> : <ChevronDown size={18} color={theme.textMuted} />}
               </button>
@@ -1009,24 +1015,53 @@ function rastreioMarkerHtml(placa, corHex) {
   `;
 }
 
+function MapToolButton({ icon: Icon, label, onClick, active }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={label}
+      className="flex items-center justify-center rounded-full"
+      style={{
+        width: 34,
+        height: 34,
+        background: active ? theme.mint : hexToRgba(theme.card, 0.92),
+        color: active ? theme.mintText : theme.text,
+        border: `1px solid ${theme.cardBorder}`,
+        boxShadow: "0 1px 4px rgba(0,0,0,0.3)",
+      }}
+    >
+      <Icon size={16} />
+    </button>
+  );
+}
+
 function TrackingMap({ link, filterPlaca, height = 320 }) {
   const containerRef = useRef(null);
   const mapObjRef = useRef(null);
   const markersRef = useRef({});
+  const tickRef = useRef(null);
+  const mostrarRastroRef = useRef(false);
   const [status, setStatus] = useState("carregando"); // carregando | ok | erro
+  const [mostrarRastro, setMostrarRastro] = useState(false);
+
+  useEffect(() => {
+    mostrarRastroRef.current = mostrarRastro;
+  }, [mostrarRastro]);
 
   useEffect(() => {
     if (!containerRef.current) return;
     let cancelled = false;
 
-    const map = L.map(containerRef.current, { zoomControl: true, attributionControl: true }).setView([-22.9, -47.0], 6);
+    const map = new maplibregl.Map({
+      container: containerRef.current,
+      style: mapStyle,
+      center: [-47.0, -22.9],
+      zoom: 6,
+      attributionControl: true,
+    });
     mapObjRef.current = map;
-
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
-      attribution: "&copy; OpenStreetMap &copy; CARTO",
-      subdomains: "abcd",
-      maxZoom: 20,
-    }).addTo(map);
+    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
 
     async function tick() {
       try {
@@ -1038,26 +1073,64 @@ function TrackingMap({ link, filterPlaca, height = 320 }) {
           filterPlaca ? (d.name || "").toUpperCase().startsWith(filterPlaca.toUpperCase()) : true
         );
 
-        const bounds = [];
+        const bounds = new maplibregl.LngLatBounds();
+        const vistos = new Set();
+
         devices.forEach((d) => {
           const lat = parseFloat(d.lat);
           const lng = parseFloat(d.lng);
           if (!lat || !lng) return;
+          const chave = String(d.id);
+          vistos.add(chave);
           const placa = (d.name || "").split(" - ")[0].trim();
           const cor = RASTREIO_STATUS_COR[d.icon_color] || theme.mint;
-          const icon = L.divIcon({ html: rastreioMarkerHtml(placa, cor), className: "mbr-map-marker", iconSize: [0, 0] });
 
-          if (markersRef.current[d.id]) {
-            markersRef.current[d.id].setLatLng([lat, lng]);
-            markersRef.current[d.id].setIcon(icon);
+          if (markersRef.current[chave]) {
+            markersRef.current[chave].setLngLat([lng, lat]);
           } else {
-            markersRef.current[d.id] = L.marker([lat, lng], { icon }).addTo(map);
+            const el = document.createElement("div");
+            el.className = "mbr-map-marker";
+            el.innerHTML = rastreioMarkerHtml(placa, cor);
+            markersRef.current[chave] = new maplibregl.Marker({ element: el, anchor: "bottom" }).setLngLat([lng, lat]).addTo(map);
           }
-          bounds.push([lat, lng]);
+          bounds.extend([lng, lat]);
+
+          if (map.isStyleLoaded()) {
+            const srcId = `trail-${chave}`;
+            const coords = (d.tail || [])
+              .map((p) => [parseFloat(p.lng), parseFloat(p.lat)])
+              .filter(([lo, la]) => lo && la);
+            const geojson = { type: "Feature", geometry: { type: "LineString", coordinates: coords } };
+            const existente = map.getSource(srcId);
+            if (existente) {
+              existente.setData(geojson);
+            } else if (coords.length > 1) {
+              map.addSource(srcId, { type: "geojson", data: geojson });
+              map.addLayer({
+                id: `trail-line-${chave}`,
+                type: "line",
+                source: srcId,
+                layout: { visibility: mostrarRastroRef.current ? "visible" : "none" },
+                paint: { "line-color": theme.mint, "line-width": 2.5, "line-opacity": 0.55 },
+              });
+            }
+          }
         });
 
-        if (bounds.length === 1) map.setView(bounds[0], 15);
-        else if (bounds.length > 1) map.fitBounds(bounds, { padding: [30, 30] });
+        Object.keys(markersRef.current).forEach((chave) => {
+          if (!vistos.has(chave)) {
+            markersRef.current[chave].remove();
+            delete markersRef.current[chave];
+          }
+        });
+
+        if (!bounds.isEmpty()) {
+          if (devices.length === 1) {
+            map.easeTo({ center: bounds.getCenter(), zoom: 15, duration: 500 });
+          } else {
+            map.fitBounds(bounds, { padding: 60, maxZoom: 15, duration: 500 });
+          }
+        }
 
         setStatus("ok");
       } catch {
@@ -1065,22 +1138,54 @@ function TrackingMap({ link, filterPlaca, height = 320 }) {
       }
     }
 
-    tick();
+    tickRef.current = tick;
+    map.on("load", tick);
     const interval = setInterval(tick, 20000);
 
     return () => {
       cancelled = true;
       clearInterval(interval);
+      Object.values(markersRef.current).forEach((mk) => mk.remove());
+      markersRef.current = {};
       map.remove();
       mapObjRef.current = null;
-      markersRef.current = {};
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [link, filterPlaca]);
 
+  const centralizar = () => {
+    const map = mapObjRef.current;
+    const marcadores = Object.values(markersRef.current);
+    if (!map || marcadores.length === 0) return;
+    if (marcadores.length === 1) {
+      map.flyTo({ center: marcadores[0].getLngLat(), zoom: 15 });
+      return;
+    }
+    const bounds = new maplibregl.LngLatBounds();
+    marcadores.forEach((mk) => bounds.extend(mk.getLngLat()));
+    map.fitBounds(bounds, { padding: 60, maxZoom: 15, duration: 500 });
+  };
+
+  const alternarRastro = () => {
+    const novo = !mostrarRastro;
+    setMostrarRastro(novo);
+    const map = mapObjRef.current;
+    if (!map) return;
+    (map.getStyle()?.layers || []).forEach((l) => {
+      if (l.id.startsWith("trail-line-")) {
+        map.setLayoutProperty(l.id, "visibility", novo ? "visible" : "none");
+      }
+    });
+  };
+
   return (
     <div className="mbr-map rounded-2xl overflow-hidden relative" style={{ border: `1px solid ${theme.cardBorder}`, height }}>
-      <div ref={containerRef} style={{ width: "100%", height: "100%", background: theme.bg }} />
+      <div ref={containerRef} style={{ width: "100%", height: "100%" }} />
+      <div className="absolute top-3 left-3 flex gap-2 z-10">
+        <MapToolButton icon={Crosshair} label="Centralizar" onClick={centralizar} />
+        <MapToolButton icon={Route} label="Mostrar rastro" active={mostrarRastro} onClick={alternarRastro} />
+        <MapToolButton icon={RefreshCw} label="Atualizar agora" onClick={() => tickRef.current?.()} />
+      </div>
       {status === "erro" && (
         <div
           className="absolute inset-0 flex items-center justify-center text-xs text-center px-4"
@@ -1588,15 +1693,17 @@ function MotosView({ motos, persist, clientes, persistClientes, config }) {
           return (
             <div key={moto.id} className="rounded-2xl overflow-hidden" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
               <button className="w-full flex items-center justify-between px-4 py-3 text-left" onClick={() => setExpandido(aberto ? null : moto.id)}>
-                <MotoPlate placa={moto.placa} />
+                <div className="flex items-center gap-2">
+                  <MotoPlate placa={moto.placa} />
+                  <StatusBadge status={moto.status} vencido={vencido} />
+                </div>
                 {aberto ? <ChevronUp size={18} color={theme.textMuted} /> : <ChevronDown size={18} color={theme.textMuted} />}
               </button>
 
               <Collapse open={aberto}>
                 <div className="px-4 pb-4 text-sm" style={{ fontFamily: BODY_FONT }}>
-                  <div className="flex items-center justify-between mb-3">
-                    <div style={{ fontFamily: HEAD_FONT, fontSize: 16, color: theme.text }}>{moto.modelo || "Modelo não informado"}</div>
-                    <StatusBadge status={moto.status} vencido={vencido} />
+                  <div style={{ fontFamily: HEAD_FONT, fontSize: 16, color: theme.text }} className="mb-3">
+                    {moto.modelo || "Modelo não informado"}
                   </div>
                   <div className="grid grid-cols-2 gap-x-3 gap-y-1 mb-3" style={{ color: theme.textMuted }}>
                     <span>Chassi: {moto.chassi || "—"}</span>
