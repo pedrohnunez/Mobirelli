@@ -2637,7 +2637,6 @@ function FuturosView({ futuros, persist, motos }) {
     totaisFuturos(futuros, motos);
   const contratos = contratosComoFuturos(motos);
   const projecao = projecaoFuturosPorMes([...futuros, ...contratos], 12);
-  const maxProjecao = Math.max(1, ...projecao.map((m) => Math.max(m.entrada, m.saida)));
 
   const recorrentes = futuros.filter((f) => f.recorrente);
   const avulsos = [...futuros.filter((f) => !f.recorrente)].sort((a, b) => (a.vencimento > b.vencimento ? 1 : -1));
@@ -2730,23 +2729,30 @@ function FuturosView({ futuros, persist, motos }) {
             Cadastre uma conta futura pra ver a previsão aqui.
           </div>
         ) : (
-          <div className="flex flex-col gap-3">
-            {projecao.map((m) => (
-              <div key={m.key}>
-                <div className="flex justify-between text-xs mb-1" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
-                  <span>{m.mes}</span>
-                  <span style={{ color: m.saldo >= 0 ? theme.mint : theme.coral, fontWeight: 600 }}>{formatCurrency(m.saldo)}</span>
-                </div>
-                <div className="flex flex-col gap-1">
-                  <div style={{ height: 5, borderRadius: 3, background: theme.bg, overflow: "hidden" }}>
-                    <div style={{ height: "100%", width: `${(m.entrada / maxProjecao) * 100}%`, background: theme.mint }} />
-                  </div>
-                  <div style={{ height: 5, borderRadius: 3, background: theme.bg, overflow: "hidden" }}>
-                    <div style={{ height: "100%", width: `${(m.saida / maxProjecao) * 100}%`, background: theme.coral }} />
-                  </div>
-                </div>
-              </div>
-            ))}
+          <div style={{ width: "100%", height: 280 }}>
+            <ResponsiveContainer>
+              <ComposedChart data={projecao} margin={{ left: -12 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke={theme.cardBorder} vertical={false} />
+                <XAxis dataKey="mes" stroke={theme.textMuted} fontSize={11} axisLine={false} tickLine={false} />
+                <YAxis stroke={theme.textMuted} fontSize={11} tickFormatter={formatCompact} width={56} axisLine={false} tickLine={false} />
+                <Tooltip
+                  formatter={(value, name) => [formatCurrency(value), name]}
+                  contentStyle={{ background: theme.panel, border: `1px solid ${theme.cardBorder}`, borderRadius: 12, color: theme.text }}
+                />
+                <Legend />
+                <Bar dataKey="entrada" name="A receber" fill={theme.mint} radius={[4, 4, 0, 0]} />
+                <Bar dataKey="saida" name="A pagar" fill={theme.coral} radius={[4, 4, 0, 0]} />
+                <Line
+                  type="monotone"
+                  dataKey="saldo"
+                  name="Saldo"
+                  stroke={theme.amber}
+                  strokeWidth={2.5}
+                  dot={{ r: 3, fill: theme.amber, strokeWidth: 0 }}
+                  activeDot={{ r: 5 }}
+                />
+              </ComposedChart>
+            </ResponsiveContainer>
           </div>
         )}
       </div>
