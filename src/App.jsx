@@ -37,6 +37,7 @@ import {
   Crosshair,
   Route,
   RefreshCw,
+  ExternalLink,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -565,11 +566,69 @@ function Modal({ title, onClose, children }) {
         <div className="sm:hidden mx-auto mb-3 rounded-full" style={{ width: 36, height: 5, background: theme.cardBorder }} />
         <div className="flex items-center justify-between mb-4">
           <h3 style={{ fontFamily: HEAD_FONT, fontSize: 20, color: theme.text }}>{title}</h3>
-          <button onClick={handleClose} style={{ color: theme.textMuted }}>
+          <button onClick={handleClose} className="mbr-hover-grow" style={{ color: theme.textMuted }}>
             <X size={20} />
           </button>
         </div>
         {children}
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+// visualizador de PDF embutido na própria página — usa o leitor nativo do navegador
+// dentro de um iframe (já vem com zoom, navegação de páginas, etc.), só com a
+// nossa moldura verde em volta pra parecer parte do site
+function PdfViewer({ url, title, onClose }) {
+  const [show, setShow] = useState(false);
+
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setShow(true));
+    return () => cancelAnimationFrame(id);
+  }, []);
+
+  return createPortal(
+    <div
+      className="fixed inset-0 flex items-center justify-center p-2 sm:p-6"
+      style={{ background: "rgba(10,20,13,0.85)", opacity: show ? 1 : 0, transition: "opacity 0.2s ease", zIndex: 999 }}
+      onClick={onClose}
+    >
+      <div
+        className="w-full h-full sm:w-[92vw] sm:h-[90vh] sm:max-w-4xl rounded-2xl overflow-hidden flex flex-col"
+        style={{
+          background: theme.panel,
+          border: `2px solid ${theme.mint}`,
+          boxShadow: `0 0 0 4px ${theme.mint}26, 0 8px 40px rgba(0,0,0,0.5)`,
+          opacity: show ? 1 : 0,
+          transform: show ? "scale(1)" : "scale(0.97)",
+          transition: "opacity 0.2s ease, transform 0.2s ease",
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div
+          className="flex items-center justify-between px-4 py-3 gap-3"
+          style={{ borderBottom: `1px solid ${theme.cardBorder}`, background: theme.card }}
+        >
+          <span style={{ fontFamily: HEAD_FONT, fontSize: 15, color: theme.text }} className="truncate">
+            {title}
+          </span>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <a
+              href={url}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1 text-xs font-semibold mbr-hover-grow"
+              style={{ color: theme.blue }}
+            >
+              <ExternalLink size={13} /> Nova aba
+            </a>
+            <button onClick={onClose} className="mbr-hover-grow" style={{ color: theme.textMuted }}>
+              <X size={20} />
+            </button>
+          </div>
+        </div>
+        <iframe src={url} title={title} style={{ flex: 1, border: "none", background: "#fff" }} />
       </div>
     </div>,
     document.body
@@ -1377,7 +1436,7 @@ function TrackingMap({ link, filterPlaca, height = 320, rounded = true, motos, c
       style={{ border: rounded ? `1px solid ${theme.cardBorder}` : "none", height }}
     >
       <div ref={containerRef} style={{ width: "100%", height: "100%" }} />
-      <div className="absolute top-3 left-3 flex gap-2 z-10">
+      <div className="absolute top-3 left-3 flex gap-3 z-10">
         <MapToolButton icon={Crosshair} label="Centralizar" onClick={centralizar} />
         <MapToolButton icon={Route} label="Mostrar rastro" active={mostrarRastro} onClick={alternarRastro} />
         <MapToolButton
@@ -1875,6 +1934,7 @@ function MotosView({ motos, persist, clientes, persistClientes, config, lancamen
   const [busca, setBusca] = useState("");
   const [expandido, setExpandido] = useState(null);
   const [modal, setModal] = useState(null);
+  const [preview, setPreview] = useState(null);
 
   const salvarMoto = async (moto) => {
     const existe = motos.find((m) => m.id === moto.id);
@@ -2000,20 +2060,32 @@ function MotosView({ motos, persist, clientes, persistClientes, config, lancamen
                   <MotoTrackingBlock link={moto.linkRastreamento || config?.linkRastreioGeral} placa={moto.placa} />
 
                   <div className="flex items-center gap-3 flex-wrap mb-3">
-                    {(moto.notaFiscalLink || moto.notaFiscalArquivo) && (
-                      <a href={moto.notaFiscalLink || "#"} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs" style={{ color: theme.blue }}>
+                    {moto.notaFiscalLink && (
+                      <button
+                        onClick={() => setPreview({ url: moto.notaFiscalLink, title: `Nota fiscal — ${formatPlaca(moto.placa)}` })}
+                        className="inline-flex items-center gap-1 text-xs mbr-hover-grow"
+                        style={{ color: theme.blue }}
+                      >
                         <FileText size={12} /> Nota fiscal
-                      </a>
+                      </button>
                     )}
-                    {(moto.documentoLink || moto.documentoArquivo) && (
-                      <a href={moto.documentoLink || "#"} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs" style={{ color: theme.blue }}>
+                    {moto.documentoLink && (
+                      <button
+                        onClick={() => setPreview({ url: moto.documentoLink, title: `Documento — ${formatPlaca(moto.placa)}` })}
+                        className="inline-flex items-center gap-1 text-xs mbr-hover-grow"
+                        style={{ color: theme.blue }}
+                      >
                         <FileText size={12} /> Documento
-                      </a>
+                      </button>
                     )}
-                    {(moto.certificadoLink || moto.certificadoArquivo) && (
-                      <a href={moto.certificadoLink || "#"} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs" style={{ color: theme.blue }}>
+                    {moto.certificadoLink && (
+                      <button
+                        onClick={() => setPreview({ url: moto.certificadoLink, title: `Certificado — ${formatPlaca(moto.placa)}` })}
+                        className="inline-flex items-center gap-1 text-xs mbr-hover-grow"
+                        style={{ color: theme.blue }}
+                      >
                         <FileText size={12} /> Certificado
-                      </a>
+                      </button>
                     )}
                   </div>
 
@@ -2030,16 +2102,16 @@ function MotosView({ motos, persist, clientes, persistClientes, config, lancamen
                         {formatDate(moto.contratoAtual.dataVencimento)}
                         {moto.contratoAtual.dataVencimento && ` (todo dia ${moto.contratoAtual.dataVencimento.slice(8, 10)})`}
                       </div>
-                      {(moto.contratoAtual.contratoLink || moto.contratoAtual.contratoArquivo) && (
-                        <a
-                          href={moto.contratoAtual.contratoLink || "#"}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex items-center gap-1 text-xs mt-1"
+                      {moto.contratoAtual.contratoLink && (
+                        <button
+                          onClick={() =>
+                            setPreview({ url: moto.contratoAtual.contratoLink, title: `Contrato — ${formatPlaca(moto.placa)}` })
+                          }
+                          className="inline-flex items-center gap-1 text-xs mt-1 mbr-hover-grow"
                           style={{ color: theme.blue }}
                         >
-                          <FileText size={12} /> Contrato {moto.contratoAtual.contratoArquivo ? `(${moto.contratoAtual.contratoArquivo})` : ""}
-                        </a>
+                          <FileText size={12} /> Contrato
+                        </button>
                       )}
                       <button
                         onClick={() => encerrarContrato(moto)}
@@ -2174,6 +2246,7 @@ function MotosView({ motos, persist, clientes, persistClientes, config, lancamen
         <CustoExtraModal onClose={() => setModal(null)} onSave={(c) => salvarCustoExtra(modal.moto, c)} />
       )}
       {modal?.type === "consulta" && <ConsultaPlacaModal onClose={() => setModal(null)} />}
+      {preview && <PdfViewer url={preview.url} title={preview.title} onClose={() => setPreview(null)} />}
     </div>
   );
 }
@@ -3641,11 +3714,12 @@ export default function MobirelliApp() {
       <style>{`
         ${fontImport}
         * { -webkit-tap-highlight-color: transparent; }
-        button { transition: opacity 0.15s ease, transform 0.1s ease, filter 0.15s ease; cursor: pointer; }
+        button { transition: opacity 0.15s ease, transform 0.16s ease, filter 0.15s ease; cursor: pointer; }
         button:active { transform: scale(0.97); opacity: 0.85; }
+        .mbr-hover-grow { transform-origin: center; }
         @media (hover: hover) and (pointer: fine) {
           button:hover { filter: brightness(1.22); }
-          .mbr-hover-grow:hover { transform: scale(1.12); }
+          .mbr-hover-grow:hover { transform: scale(1.16); filter: brightness(1.28); }
         }
         input, select, textarea, button { font-family: ${BODY_FONT}; }
         input:focus, select:focus, textarea:focus, button:focus-visible {
