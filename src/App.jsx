@@ -41,25 +41,25 @@ import {
    inspirado diretamente na identidade visual da mobi relli
 =========================================================== */
 const DEFAULT_THEME = {
-  bg: "#173A21",
-  mint: "#E3F7D8",
-  amber: "#E8B93D",
-  coral: "#E8735C",
-  blue: "#7DB8E8",
+  bg: "#0E2116",
+  mint: "#2FA666",
+  amber: "#C9A24B",
+  coral: "#D9694F",
+  blue: "#6FA8D8",
 };
 
 // objeto mutável — lido "ao vivo" por todos os componentes a cada renderização,
 // então recalculá-lo em buildTheme()/Object.assign no topo do App já repinta tudo
 const theme = {
   ...DEFAULT_THEME,
-  panel: "#1E4A2A",
-  card: "#20512E",
-  card2: "#265C36",
-  cardBorder: "#357248",
-  mintText: "#173A21",
-  sage: "#8FBF93",
-  text: "#F3FBEE",
-  textMuted: "#9FC7A6",
+  panel: "#152D1F",
+  card: "#183524",
+  card2: "#1E3F2A",
+  cardBorder: "#2C4D38",
+  mintText: "#0E2116",
+  sage: "#6FA087",
+  text: "#EDF5EF",
+  textMuted: "#8AA894",
 };
 
 const clamp255 = (n) => Math.min(255, Math.max(0, n));
@@ -71,6 +71,10 @@ const hexToRgb = (hex) => {
 };
 const rgbToHex = ({ r, g, b }) =>
   "#" + [r, g, b].map((v) => clamp255(Math.round(v)).toString(16).padStart(2, "0")).join("");
+const hexToRgba = (hex, alpha) => {
+  const { r, g, b } = hexToRgb(hex);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+};
 const mixColors = (hexA, hexB, t) => {
   const a = hexToRgb(hexA);
   const b = hexToRgb(hexB);
@@ -80,7 +84,7 @@ const luminance = (hex) => {
   const { r, g, b } = hexToRgb(hex);
   return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
 };
-const contrastText = (hex) => (luminance(hex) > 0.6 ? "#173A21" : "#F3FBEE");
+const contrastText = (hex) => (luminance(hex) > 0.6 ? "#0E2116" : "#EDF5EF");
 
 function buildTheme(config) {
   const bg = (config && config.bg) || DEFAULT_THEME.bg;
@@ -104,8 +108,8 @@ function buildTheme(config) {
   };
 }
 
-const HEAD_FONT = "'Poppins', 'Trebuchet MS', sans-serif";
-const BODY_FONT = "'Inter', system-ui, sans-serif";
+const HEAD_FONT = "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Poppins', system-ui, sans-serif";
+const BODY_FONT = "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', system-ui, sans-serif";
 
 const fontImport = `
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap');
@@ -244,11 +248,19 @@ function useSharedObject(key, defaultValue) {
 /* ===========================================================
    UI ATOMS
 =========================================================== */
-function Wordmark({ compact, logoDataUrl }) {
+function Wordmark({ compact, logoDataUrl, logoSize }) {
   const [erro, setErro] = useState(false);
   const src = logoDataUrl || "/logo-header.png";
   if (!erro) {
-    return <img src={src} alt="Mobirelli" style={{ height: compact ? 28 : 38, display: "block" }} onError={() => setErro(true)} />;
+    const height = logoDataUrl ? logoSize || (compact ? 28 : 38) : compact ? 28 : 38;
+    return (
+      <img
+        src={src}
+        alt="Mobirelli"
+        style={{ height, width: "auto", maxWidth: "60vw", objectFit: "contain", display: "block" }}
+        onError={() => setErro(true)}
+      />
+    );
   }
   return <WordmarkFallback compact={compact} />;
 }
@@ -346,14 +358,29 @@ function Badge({ color, icon: Icon, label }) {
 
 function StatCard({ label, value, icon: Icon, accent }) {
   return (
-    <div className="rounded-xl p-4 flex flex-col gap-2" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
-      <div className="flex items-center justify-between">
-        <span className="text-xs uppercase tracking-wide" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+    <div
+      className="rounded-2xl p-4 flex flex-col gap-2 min-w-0"
+      style={{ background: theme.card, border: `1px solid ${theme.cardBorder}`, boxShadow: "0 1px 2px rgba(0,0,0,0.18)" }}
+    >
+      <div className="flex items-center justify-between gap-2 min-w-0">
+        <span className="text-xs uppercase tracking-wide truncate" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
           {label}
         </span>
-        <Icon size={16} color={accent || theme.textMuted} />
+        <Icon size={16} color={accent || theme.textMuted} style={{ flexShrink: 0 }} />
       </div>
-      <span style={{ fontFamily: HEAD_FONT, fontSize: 26, fontWeight: 700, color: theme.text }}>{value}</span>
+      <span
+        style={{
+          fontFamily: HEAD_FONT,
+          fontSize: "clamp(15px, 5.2vw, 24px)",
+          fontWeight: 700,
+          color: theme.text,
+          lineHeight: 1.15,
+          wordBreak: "break-word",
+          fontVariantNumeric: "tabular-nums",
+        }}
+      >
+        {value}
+      </span>
     </div>
   );
 }
@@ -362,10 +389,15 @@ function Modal({ title, onClose, children }) {
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" style={{ background: "rgba(10,20,13,0.7)" }} onClick={onClose}>
       <div
-        className="w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl p-5 max-h-[92vh] overflow-y-auto"
-        style={{ background: theme.panel, border: `1px solid ${theme.cardBorder}` }}
+        className="w-full sm:max-w-md rounded-t-[24px] sm:rounded-[20px] p-5 max-h-[92vh] overflow-y-auto"
+        style={{
+          background: theme.panel,
+          border: `1px solid ${theme.cardBorder}`,
+          boxShadow: "0 -8px 30px rgba(0,0,0,0.25)",
+        }}
         onClick={(e) => e.stopPropagation()}
       >
+        <div className="sm:hidden mx-auto mb-3 rounded-full" style={{ width: 36, height: 5, background: theme.cardBorder }} />
         <div className="flex items-center justify-between mb-4">
           <h3 style={{ fontFamily: HEAD_FONT, fontSize: 20, color: theme.text }}>{title}</h3>
           <button onClick={onClose} style={{ color: theme.textMuted }}>
@@ -390,8 +422,8 @@ const inputStyle = {
   width: "100%",
   background: theme.bg,
   border: `1px solid ${theme.cardBorder}`,
-  borderRadius: 8,
-  padding: "8px 10px",
+  borderRadius: 10,
+  padding: "9px 11px",
   color: theme.text,
   fontFamily: BODY_FONT,
   fontSize: 14,
@@ -458,7 +490,7 @@ function AnexoField({ label, linkValue, onLinkChange, storageKey, fileName, onFi
         <button
           type="button"
           onClick={() => inputRef.current?.click()}
-          className="text-xs font-semibold rounded-lg px-3 py-1.5"
+          className="text-xs font-semibold rounded-xl px-3 py-1.5"
           style={{ border: `1px solid ${theme.cardBorder}`, color: theme.text }}
         >
           Anexar arquivo
@@ -469,7 +501,7 @@ function AnexoField({ label, linkValue, onLinkChange, storageKey, fileName, onFi
               href={linkValue}
               target="_blank"
               rel="noreferrer"
-              className="text-xs font-semibold rounded-lg px-3 py-1.5 flex items-center gap-1"
+              className="text-xs font-semibold rounded-xl px-3 py-1.5 flex items-center gap-1"
               style={{ background: theme.mint, color: theme.mintText }}
             >
               <FileText size={12} /> {fileName}
@@ -540,7 +572,7 @@ function ClienteFormModal({ cliente, onClose, onSave, title }) {
           <input style={inputStyle} value={form.estado} onChange={set("estado")} placeholder="SP" />
         </div>
       </Row2>
-      <button onClick={() => onSave(form)} className="w-full rounded-lg py-2 font-semibold mt-1" style={{ background: theme.mint, color: theme.mintText }}>
+      <button onClick={() => onSave(form)} className="w-full rounded-xl py-2 font-semibold mt-1" style={{ background: theme.mint, color: theme.mintText }}>
         Salvar
       </button>
     </Modal>
@@ -624,7 +656,7 @@ function VincularMotoModal({ cliente, motosDisponiveis, onClose, onSave }) {
         onClick={() =>
           onSave({ motoId, contrato: { ...contrato, id: contratoId, valorMensal: Number(contrato.valorMensal) || 0 } })
         }
-        className="w-full rounded-lg py-2 font-semibold mt-1"
+        className="w-full rounded-xl py-2 font-semibold mt-1"
         style={{ background: theme.mint, color: theme.mintText }}
       >
         Confirmar vínculo
@@ -666,7 +698,7 @@ function ClientesView({ clientes, persistClientes, motos, persistMotos }) {
         <h2 style={{ fontFamily: HEAD_FONT, fontSize: 22, color: theme.text }}>Clientes</h2>
         <button
           onClick={() => setModal({ mode: "novo", cliente: emptyCliente() })}
-          className="flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-semibold"
+          className="flex items-center gap-1 rounded-xl px-3 py-2 text-sm font-semibold"
           style={{ background: theme.mint, color: theme.mintText }}
         >
           <Plus size={16} /> Novo cliente
@@ -684,7 +716,7 @@ function ClientesView({ clientes, persistClientes, motos, persistMotos }) {
       </div>
 
       {filtrados.length === 0 && (
-        <div className="rounded-xl p-6 text-center" style={{ background: theme.card, color: theme.textMuted, fontFamily: BODY_FONT }}>
+        <div className="rounded-2xl p-6 text-center" style={{ background: theme.card, color: theme.textMuted, fontFamily: BODY_FONT }}>
           Nenhum cliente encontrado.
         </div>
       )}
@@ -694,7 +726,7 @@ function ClientesView({ clientes, persistClientes, motos, persistMotos }) {
           const motoVinculada = motos.find((m) => m.contratoAtual?.clienteId === c.id);
           const aberto = expandido === c.id;
           return (
-            <div key={c.id} className="rounded-xl overflow-hidden" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
+            <div key={c.id} className="rounded-2xl overflow-hidden" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
               <button className="w-full flex items-center justify-between px-4 py-3 text-left" onClick={() => setExpandido(aberto ? null : c.id)}>
                 <div>
                   <div style={{ fontFamily: HEAD_FONT, fontSize: 17, color: theme.text }}>{c.nome || "Sem nome"}</div>
@@ -725,7 +757,7 @@ function ClientesView({ clientes, persistClientes, motos, persistMotos }) {
                   </div>
 
                   {motoVinculada && (
-                    <div className="rounded-lg p-3 mb-3" style={{ background: theme.card2 }}>
+                    <div className="rounded-xl p-3 mb-3" style={{ background: theme.card2 }}>
                       <div className="flex items-center justify-between mb-1">
                         <MotoPlate placa={motoVinculada.placa} />
                         <span style={{ color: theme.amber, fontFamily: HEAD_FONT, fontSize: 17 }}>
@@ -741,7 +773,7 @@ function ClientesView({ clientes, persistClientes, motos, persistMotos }) {
                   {!motoVinculada && (
                     <button
                       onClick={() => setModal({ mode: "vincular", cliente: c })}
-                      className="text-xs font-semibold rounded-lg px-3 py-1.5 mb-2"
+                      className="text-xs font-semibold rounded-xl px-3 py-1.5 mb-2"
                       style={{ background: theme.amber, color: theme.mintText }}
                     >
                       Vincular a uma moto disponível
@@ -751,7 +783,7 @@ function ClientesView({ clientes, persistClientes, motos, persistMotos }) {
                   <div className="flex gap-2">
                     <button
                       onClick={() => setModal({ mode: "editar", cliente: c })}
-                      className="text-xs font-semibold rounded-lg px-3 py-1.5 flex items-center gap-1"
+                      className="text-xs font-semibold rounded-xl px-3 py-1.5 flex items-center gap-1"
                       style={{ border: `1px solid ${theme.cardBorder}`, color: theme.text }}
                     >
                       <Pencil size={12} /> Editar
@@ -759,7 +791,7 @@ function ClientesView({ clientes, persistClientes, motos, persistMotos }) {
                     {!motoVinculada && (
                       <button
                         onClick={() => excluir(c.id)}
-                        className="text-xs font-semibold rounded-lg px-3 py-1.5 flex items-center gap-1"
+                        className="text-xs font-semibold rounded-xl px-3 py-1.5 flex items-center gap-1"
                         style={{ border: `1px solid ${theme.cardBorder}`, color: theme.coral }}
                       >
                         <Trash2 size={12} /> Excluir
@@ -875,7 +907,7 @@ function MotoFormModal({ moto, onClose, onSave, title }) {
         fileName={form.notaFiscalArquivo}
         onFileNameChange={(name) => setForm({ ...form, notaFiscalArquivo: name })}
       />
-      <button onClick={() => onSave(form)} className="w-full rounded-lg py-2 font-semibold mt-1" style={{ background: theme.mint, color: theme.mintText }}>
+      <button onClick={() => onSave(form)} className="w-full rounded-xl py-2 font-semibold mt-1" style={{ background: theme.mint, color: theme.mintText }}>
         Salvar
       </button>
     </Modal>
@@ -911,7 +943,7 @@ function ContratoModal({ moto, clientes, onClose, onSave }) {
       />
 
       {clienteId === "novo" ? (
-        <div className="rounded-lg p-3 mb-2" style={{ background: theme.card2 }}>
+        <div className="rounded-xl p-3 mb-2" style={{ background: theme.card2 }}>
           <FieldLabel>Nome completo</FieldLabel>
           <input style={inputStyle} value={novoCliente.nome} onChange={setNC("nome")} />
           <FieldLabel>CPF ou CNPJ</FieldLabel>
@@ -999,7 +1031,7 @@ function ContratoModal({ moto, clientes, onClose, onSave }) {
             contrato: { ...contrato, id: contratoId, valorMensal: Number(contrato.valorMensal) || 0 },
           })
         }
-        className="w-full rounded-lg py-2 font-semibold mt-1"
+        className="w-full rounded-xl py-2 font-semibold mt-1"
         style={{ background: theme.mint, color: theme.mintText }}
       >
         Confirmar aluguel
@@ -1038,7 +1070,7 @@ function ManutencaoModal({ onClose, onSave }) {
       </label>
       <button
         onClick={() => onSave({ ...form, valorGasto: Number(form.valorGasto) || 0 })}
-        className="w-full rounded-lg py-2 font-semibold mt-1"
+        className="w-full rounded-xl py-2 font-semibold mt-1"
         style={{ background: theme.mint, color: theme.mintText }}
       >
         Salvar
@@ -1103,7 +1135,7 @@ function MotosView({ motos, persist, clientes, persistClientes }) {
         <h2 style={{ fontFamily: HEAD_FONT, fontSize: 22, color: theme.text }}>Motos</h2>
         <button
           onClick={() => setModal({ type: "moto", mode: "novo", moto: emptyMoto() })}
-          className="flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-semibold"
+          className="flex items-center gap-1 rounded-xl px-3 py-2 text-sm font-semibold"
           style={{ background: theme.mint, color: theme.mintText }}
         >
           <Plus size={16} /> Nova moto
@@ -1121,7 +1153,7 @@ function MotosView({ motos, persist, clientes, persistClientes }) {
       </div>
 
       {filtradas.length === 0 && (
-        <div className="rounded-xl p-6 text-center" style={{ background: theme.card, color: theme.textMuted, fontFamily: BODY_FONT }}>
+        <div className="rounded-2xl p-6 text-center" style={{ background: theme.card, color: theme.textMuted, fontFamily: BODY_FONT }}>
           Nenhuma moto encontrada.
         </div>
       )}
@@ -1132,7 +1164,7 @@ function MotosView({ motos, persist, clientes, persistClientes }) {
           const cliente = clientes.find((c) => c.id === moto.contratoAtual?.clienteId);
           const aberto = expandido === moto.id;
           return (
-            <div key={moto.id} className="rounded-xl overflow-hidden" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
+            <div key={moto.id} className="rounded-2xl overflow-hidden" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
               <button className="w-full flex items-center justify-between px-4 py-3 text-left" onClick={() => setExpandido(aberto ? null : moto.id)}>
                 <div className="flex items-center gap-2">
                   <MotoPlate placa={moto.placa} />
@@ -1166,7 +1198,7 @@ function MotosView({ motos, persist, clientes, persistClientes }) {
                   )}
 
                   {moto.contratoAtual ? (
-                    <div className="rounded-lg p-3 mb-3" style={{ background: theme.card2 }}>
+                    <div className="rounded-xl p-3 mb-3" style={{ background: theme.card2 }}>
                       <div className="flex items-center justify-between mb-1">
                         <span style={{ color: theme.text, fontWeight: 600 }}>{cliente?.nome || "Cliente"}</span>
                         <span style={{ color: theme.amber, fontFamily: HEAD_FONT, fontSize: 17 }}>
@@ -1190,7 +1222,7 @@ function MotosView({ motos, persist, clientes, persistClientes }) {
                       )}
                       <button
                         onClick={() => encerrarContrato(moto)}
-                        className="text-xs font-semibold rounded-lg px-3 py-1.5 mt-2"
+                        className="text-xs font-semibold rounded-xl px-3 py-1.5 mt-2"
                         style={{ border: `1px solid ${theme.cardBorder}`, color: theme.text }}
                       >
                         Encerrar contrato
@@ -1199,7 +1231,7 @@ function MotosView({ motos, persist, clientes, persistClientes }) {
                   ) : (
                     <button
                       onClick={() => setModal({ type: "contrato", moto })}
-                      className="text-xs font-semibold rounded-lg px-3 py-1.5 mb-3"
+                      className="text-xs font-semibold rounded-xl px-3 py-1.5 mb-3"
                       style={{ background: theme.amber, color: theme.mintText }}
                     >
                       Alugar / novo contrato
@@ -1232,14 +1264,14 @@ function MotosView({ motos, persist, clientes, persistClientes }) {
                   <div className="flex gap-2 mt-2">
                     <button
                       onClick={() => setModal({ type: "moto", mode: "editar", moto })}
-                      className="text-xs font-semibold rounded-lg px-3 py-1.5 flex items-center gap-1"
+                      className="text-xs font-semibold rounded-xl px-3 py-1.5 flex items-center gap-1"
                       style={{ border: `1px solid ${theme.cardBorder}`, color: theme.text }}
                     >
                       <Pencil size={12} /> Editar
                     </button>
                     <button
                       onClick={() => excluirMoto(moto.id)}
-                      className="text-xs font-semibold rounded-lg px-3 py-1.5 flex items-center gap-1"
+                      className="text-xs font-semibold rounded-xl px-3 py-1.5 flex items-center gap-1"
                       style={{ border: `1px solid ${theme.cardBorder}`, color: theme.coral }}
                     >
                       <Trash2 size={12} /> Excluir
@@ -1290,7 +1322,7 @@ function LancamentoModal({ lancamento, onClose, onSave }) {
           <button
             key={t}
             onClick={() => setForm({ ...form, tipo: t })}
-            className="flex-1 rounded-lg py-2 text-sm font-semibold"
+            className="flex-1 rounded-xl py-2 text-sm font-semibold"
             style={{
               background: form.tipo === t ? (t === "entrada" ? theme.mint : theme.coral) : "transparent",
               color: form.tipo === t ? theme.mintText : theme.textMuted,
@@ -1321,7 +1353,7 @@ function LancamentoModal({ lancamento, onClose, onSave }) {
       <input style={inputStyle} value={form.descricao} onChange={set("descricao")} />
       <button
         onClick={() => onSave({ ...form, valor: Number(form.valor) || 0 })}
-        className="w-full rounded-lg py-2 font-semibold mt-1"
+        className="w-full rounded-xl py-2 font-semibold mt-1"
         style={{ background: theme.mint, color: theme.mintText }}
       >
         Salvar
@@ -1349,7 +1381,7 @@ function FluxoCaixaView({ lancamentos, persist }) {
         <h2 style={{ fontFamily: HEAD_FONT, fontSize: 22, color: theme.text }}>Fluxo de caixa</h2>
         <button
           onClick={() => setModal(emptyLancamento())}
-          className="flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-semibold"
+          className="flex items-center gap-1 rounded-xl px-3 py-2 text-sm font-semibold"
           style={{ background: theme.mint, color: theme.mintText }}
         >
           <Plus size={16} /> Novo
@@ -1357,12 +1389,12 @@ function FluxoCaixaView({ lancamentos, persist }) {
       </div>
 
       {ordenados.length === 0 && (
-        <div className="rounded-xl p-6 text-center" style={{ background: theme.card, color: theme.textMuted, fontFamily: BODY_FONT, border: `1px solid ${theme.cardBorder}` }}>
+        <div className="rounded-2xl p-6 text-center" style={{ background: theme.card, color: theme.textMuted, fontFamily: BODY_FONT, border: `1px solid ${theme.cardBorder}` }}>
           Nenhum lançamento ainda.
         </div>
       )}
 
-      <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${theme.cardBorder}` }}>
+      <div className="rounded-2xl overflow-hidden" style={{ border: `1px solid ${theme.cardBorder}` }}>
         {ordenados.map((l) => (
           <div key={l.id} className="flex items-center justify-between px-4 py-3" style={{ background: theme.card, borderBottom: `1px solid ${theme.cardBorder}` }}>
             <div>
@@ -1463,7 +1495,7 @@ function DashboardView({ motos, lancamentos, clientes }) {
       </h2>
 
       {vencidas > 0 && (
-        <div className="rounded-xl p-4 mb-4" style={{ background: `${theme.coral}1F`, border: `1px solid ${theme.coral}` }}>
+        <div className="rounded-2xl p-4 mb-4" style={{ background: `${theme.coral}1F`, border: `1px solid ${theme.coral}` }}>
           <div className="flex items-center gap-2 mb-2">
             <AlertTriangle size={16} color={theme.coral} />
             <span style={{ fontFamily: HEAD_FONT, fontSize: 15, color: theme.text }}>
@@ -1519,7 +1551,7 @@ function DashboardView({ motos, lancamentos, clientes }) {
         <StatCard label="Investido em frota" value={formatCurrency(investimentoFrota)} icon={TrendingUp} accent={theme.blue} />
       </div>
 
-      <div className="rounded-xl p-4 mb-4" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
+      <div className="rounded-2xl p-4 mb-4" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
         <div className="flex items-center justify-between flex-wrap gap-1 mb-1">
           <h3 style={{ fontFamily: HEAD_FONT, fontSize: 16, color: theme.text }}>Entradas x Saídas (últimos 6 meses)</h3>
         </div>
@@ -1560,7 +1592,7 @@ function DashboardView({ motos, lancamentos, clientes }) {
       </div>
 
       <div className="grid gap-4 mb-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
-        <div className="rounded-xl p-4" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
+        <div className="rounded-2xl p-4" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
           <h3 style={{ fontFamily: HEAD_FONT, fontSize: 16, color: theme.text }} className="mb-3">
             Gastos por natureza (total)
           </h3>
@@ -1580,7 +1612,7 @@ function DashboardView({ motos, lancamentos, clientes }) {
         </div>
 
         {rankingManutencao.length > 0 && (
-          <div className="rounded-xl p-4" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
+          <div className="rounded-2xl p-4" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
             <h3 style={{ fontFamily: HEAD_FONT, fontSize: 16, color: theme.text }} className="mb-3">
               Maiores gastos de manutenção
             </h3>
@@ -1671,11 +1703,11 @@ function ConfiguracoesView({ config, persist }) {
         Configurações
       </h2>
 
-      <div className="rounded-xl p-4 mb-4" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
+      <div className="rounded-2xl p-4 mb-4" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
         <FieldLabel>Logo da empresa</FieldLabel>
         <div className="flex items-center gap-3 mb-2">
           <div
-            className="flex items-center justify-center rounded-lg"
+            className="flex items-center justify-center rounded-xl"
             style={{ width: 64, height: 64, background: theme.bg, border: `1px solid ${theme.cardBorder}` }}
           >
             {local.logoDataUrl ? (
@@ -1689,7 +1721,7 @@ function ConfiguracoesView({ config, persist }) {
             <button
               type="button"
               onClick={() => logoInputRef.current?.click()}
-              className="text-xs font-semibold rounded-lg px-3 py-1.5"
+              className="text-xs font-semibold rounded-xl px-3 py-1.5"
               style={{ background: theme.mint, color: theme.mintText }}
             >
               Enviar imagem da logo
@@ -1701,12 +1733,36 @@ function ConfiguracoesView({ config, persist }) {
             )}
           </div>
         </div>
-        <div className="text-xs" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+        <div className="text-xs mb-3" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
           PNG com fundo transparente funciona melhor. Até 5MB.
         </div>
+
+        {local.logoDataUrl && (
+          <div className="pt-3" style={{ borderTop: `1px solid ${theme.cardBorder}` }}>
+            <div className="flex items-center justify-between mb-1.5">
+              <span style={{ color: theme.text, fontFamily: BODY_FONT, fontSize: 13, fontWeight: 600 }}>
+                Tamanho da logo no topo
+              </span>
+              <span style={{ color: theme.textMuted, fontFamily: BODY_FONT, fontSize: 12 }}>
+                {local.logoSize || 38}px
+              </span>
+            </div>
+            <input
+              type="range"
+              min={24}
+              max={90}
+              step={2}
+              value={local.logoSize || 38}
+              onChange={(e) => setLocal((l) => ({ ...l, logoSize: Number(e.target.value) }))}
+              onMouseUp={() => salvarAgora({ ...local })}
+              onTouchEnd={() => salvarAgora({ ...local })}
+              style={{ width: "100%", accentColor: theme.mint }}
+            />
+          </div>
+        )}
       </div>
 
-      <div className="rounded-xl p-4 mb-4" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
+      <div className="rounded-2xl p-4 mb-4" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
         <FieldLabel>Cores do site</FieldLabel>
         <div className="flex items-center justify-between py-2" style={{ borderBottom: `1px solid ${theme.cardBorder}` }}>
           <span style={{ color: theme.text, fontFamily: BODY_FONT, fontSize: 14 }}>Cor de fundo</span>
@@ -1741,14 +1797,14 @@ function ConfiguracoesView({ config, persist }) {
         <div className="flex gap-2 mt-3">
           <button
             onClick={aplicarCores}
-            className="text-xs font-semibold rounded-lg px-3 py-1.5"
+            className="text-xs font-semibold rounded-xl px-3 py-1.5"
             style={{ background: theme.mint, color: theme.mintText }}
           >
             Aplicar cores
           </button>
           <button
             onClick={restaurarCores}
-            className="text-xs font-semibold rounded-lg px-3 py-1.5"
+            className="text-xs font-semibold rounded-xl px-3 py-1.5"
             style={{ border: `1px solid ${theme.cardBorder}`, color: theme.text }}
           >
             Restaurar padrão
@@ -1758,7 +1814,7 @@ function ConfiguracoesView({ config, persist }) {
 
       {status.text && (
         <div
-          className="text-xs font-semibold rounded-lg px-3 py-2 inline-block"
+          className="text-xs font-semibold rounded-xl px-3 py-2 inline-block"
           style={{
             color: status.kind === "erro" ? theme.coral : theme.mint,
             background: status.kind === "erro" ? `${theme.coral}1F` : `${theme.mint}1F`,
@@ -1927,9 +1983,14 @@ export default function MobirelliApp() {
 
       <header
         className="px-4 sm:px-8 py-3 flex items-center justify-between sticky top-0 z-40"
-        style={{ background: theme.panel, borderBottom: `1px solid ${theme.cardBorder}` }}
+        style={{
+          background: hexToRgba(theme.panel, 0.82),
+          borderBottom: `1px solid ${theme.cardBorder}`,
+          backdropFilter: "saturate(1.6) blur(16px)",
+          WebkitBackdropFilter: "saturate(1.6) blur(16px)",
+        }}
       >
-        <Wordmark logoDataUrl={configState.value.logoDataUrl} />
+        <Wordmark logoDataUrl={configState.value.logoDataUrl} logoSize={configState.value.logoSize} />
         {anyError && (
           <span className="text-xs" style={{ color: theme.coral, fontFamily: BODY_FONT }}>
             {anyError}
@@ -1970,11 +2031,13 @@ export default function MobirelliApp() {
       </main>
 
       <nav
-        className="fixed bottom-0 left-0 right-0 z-40 flex items-stretch justify-around"
+        className="fixed bottom-0 left-0 right-0 z-40 flex items-stretch justify-around px-2 py-1.5"
         style={{
-          background: theme.panel,
+          background: hexToRgba(theme.panel, 0.82),
           borderTop: `1px solid ${theme.cardBorder}`,
-          paddingBottom: "env(safe-area-inset-bottom, 0px)",
+          paddingBottom: "calc(6px + env(safe-area-inset-bottom, 0px))",
+          backdropFilter: "saturate(1.6) blur(16px)",
+          WebkitBackdropFilter: "saturate(1.6) blur(16px)",
         }}
       >
         {tabs.map((t) => {
@@ -1984,10 +2047,20 @@ export default function MobirelliApp() {
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
-              className="flex-1 flex flex-col items-center gap-0.5 py-2.5"
+              className="flex-1 flex flex-col items-center gap-1 py-1.5"
               style={{ color: active ? theme.mint : theme.textMuted, background: "none" }}
             >
-              <Icon size={19} strokeWidth={active ? 2.4 : 2} />
+              <span
+                className="rounded-full flex items-center justify-center"
+                style={{
+                  width: 40,
+                  height: 26,
+                  background: active ? hexToRgba(theme.mint, 0.16) : "transparent",
+                  transition: "background 0.15s ease",
+                }}
+              >
+                <Icon size={19} strokeWidth={active ? 2.4 : 2} />
+              </span>
               <span style={{ fontSize: 10.5, fontWeight: active ? 700 : 500, fontFamily: BODY_FONT }}>{t.label}</span>
             </button>
           );
