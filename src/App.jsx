@@ -238,7 +238,8 @@ function projecaoFuturosPorMes(futuros, meses = 12) {
       const conta = f.tipo === "entrada" ? (v) => (entrada += v) : (v) => (saida += v);
       if (f.recorrente) {
         const inicioRecorrencia = new Date(vd.getFullYear(), vd.getMonth(), 1);
-        if (d >= inicioRecorrencia) conta(valor);
+        const fimRecorrencia = f.dataTermino ? new Date(`${f.dataTermino}T00:00:00`) : null;
+        if (d >= inicioRecorrencia && (!fimRecorrencia || d <= fimRecorrencia)) conta(valor);
       } else if (!f.pago && f.vencimento.slice(0, 7) === key) {
         conta(valor);
       }
@@ -248,14 +249,37 @@ function projecaoFuturosPorMes(futuros, meses = 12) {
   return resultado;
 }
 
-function totaisFuturos(futuros) {
-  const recorrentes = (futuros || []).filter((f) => f.recorrente);
+// representa os contratos de aluguel ativos como se fossem "futuros" recorrentes —
+// assim a mensalidade de cada moto alugada entra automaticamente na previsão de
+// Futuros, sem precisar cadastrar de novo. Usa a data de término do contrato (se
+// tiver sido preenchida) como limite; sem data, entra como indefinido.
+function contratosComoFuturos(motos) {
+  return (motos || [])
+    .filter((m) => m.contratoAtual && Number(m.contratoAtual.valorMensal) > 0)
+    .map((m) => ({
+      id: `contrato-${m.contratoAtual.id}`,
+      tipo: "entrada",
+      descricao: `Mensalidade ${formatPlaca(m.placa)}`,
+      categoria: "Contrato ativo",
+      valor: Number(m.contratoAtual.valorMensal) || 0,
+      vencimento: m.contratoAtual.dataInicio || todayISO(),
+      dataTermino: m.contratoAtual.dataTermino || "",
+      recorrente: true,
+      pago: false,
+      motoId: m.id,
+      origemContrato: true,
+    }));
+}
+
+function totaisFuturos(futuros, motos) {
+  const todos = [...(futuros || []), ...contratosComoFuturos(motos)];
+  const recorrentes = todos.filter((f) => f.recorrente);
   const fixoMensalSaida = recorrentes.filter((f) => f.tipo !== "entrada").reduce((s, f) => s + (Number(f.valor) || 0), 0);
   const fixoMensalEntrada = recorrentes.filter((f) => f.tipo === "entrada").reduce((s, f) => s + (Number(f.valor) || 0), 0);
-  const avulsosPendentes = (futuros || []).filter((f) => !f.recorrente && !f.pago);
+  const avulsosPendentes = todos.filter((f) => !f.recorrente && !f.pago);
   const avulsosPendentesSaida = avulsosPendentes.filter((f) => f.tipo !== "entrada").reduce((s, f) => s + (Number(f.valor) || 0), 0);
   const avulsosPendentesEntrada = avulsosPendentes.filter((f) => f.tipo === "entrada").reduce((s, f) => s + (Number(f.valor) || 0), 0);
-  const projecao = projecaoFuturosPorMes(futuros, 12);
+  const projecao = projecaoFuturosPorMes(todos, 12);
   const previstoSaida12Meses = projecao.reduce((s, m) => s + m.saida, 0);
   const previstoEntrada12Meses = projecao.reduce((s, m) => s + m.entrada, 0);
   return {
@@ -907,6 +931,7 @@ function VincularMotoModal({ cliente, motosDisponiveis, onClose, onSave }) {
     formaPagamento: "Boleto Bancário",
     dataInicio: todayISO(),
     dataVencimento: "",
+    dataTermino: "",
     contratoLink: "",
     contratoArquivo: "",
   });
@@ -950,6 +975,11 @@ function VincularMotoModal({ cliente, motosDisponiveis, onClose, onSave }) {
           <input type="date" style={inputStyle} value={contrato.dataVencimento} onChange={setC("dataVencimento")} />
         </div>
       </Row2>
+      <FieldLabel>Data de término (opcional)</FieldLabel>
+      <input type="date" style={inputStyle} value={contrato.dataTermino || ""} onChange={setC("dataTermino")} />
+      <div className="text-xs -mt-2 mb-3" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+        Se o aluguel tiver prazo definido, preenche aqui — assim a previsão em "Futuros" soma só até essa data. Deixe em branco se for indefinido.
+      </div>
       <Row2>
         <div>
           <FieldLabel>Valor mensal</FieldLabel>
@@ -1089,6 +1119,7 @@ function ClientesView({ clientes, persistClientes, motos, persistMotos }) {
                       </div>
                       <div style={{ color: theme.textMuted, fontSize: 12 }}>
                         Contrato nº {motoVinculada.contratoAtual.numeroContrato} · vence em {formatDate(motoVinculada.contratoAtual.dataVencimento)}
+                        {motoVinculada.contratoAtual.dataTermino && ` · até ${formatDate(motoVinculada.contratoAtual.dataTermino)}`}
                       </div>
                       <div className="flex items-center gap-3 mt-2">
                         {motoVinculada.contratoAtual.contratoLink && (
@@ -1626,7 +1657,7 @@ function ContratoModal({ moto, clientes, onClose, onSave, editando }) {
   const nContratoDefault = (moto.historicoContratos?.length || 0) + 1;
   const [contrato, setContrato] = useState(
     editando
-      ? { ...moto.contratoAtual }
+      ? { dataTermino: "", ...moto.contratoAtual }
       : {
           numeroContrato: nContratoDefault,
           numeroClienteMoto: nContratoDefault,
@@ -1634,6 +1665,7 @@ function ContratoModal({ moto, clientes, onClose, onSave, editando }) {
           formaPagamento: "Boleto Bancário",
           dataInicio: todayISO(),
           dataVencimento: "",
+          dataTermino: "",
           contratoLink: "",
           contratoArquivo: "",
         }
@@ -1788,6 +1820,11 @@ function ContratoModal({ moto, clientes, onClose, onSave, editando }) {
           <input type="date" style={inputStyle} value={contrato.dataVencimento} onChange={setC("dataVencimento")} />
         </div>
       </Row2>
+      <FieldLabel>Data de término (opcional)</FieldLabel>
+      <input type="date" style={inputStyle} value={contrato.dataTermino || ""} onChange={setC("dataTermino")} />
+      <div className="text-xs -mt-2 mb-3" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+        Se o aluguel tiver prazo definido, preenche aqui — assim a previsão em "Futuros" soma só até essa data. Deixe em branco se for indefinido.
+      </div>
       <Row2>
         <div>
           <FieldLabel>Valor mensal</FieldLabel>
@@ -2157,6 +2194,7 @@ function MotosView({ motos, persist, clientes, persistClientes, config, lancamen
                         {moto.contratoAtual.numeroClienteMoto}º cliente · contrato nº {moto.contratoAtual.numeroContrato} · vence em{" "}
                         {formatDate(moto.contratoAtual.dataVencimento)}
                         {moto.contratoAtual.dataVencimento && ` (todo dia ${moto.contratoAtual.dataVencimento.slice(8, 10)})`}
+                        {moto.contratoAtual.dataTermino && ` · até ${formatDate(moto.contratoAtual.dataTermino)}`}
                       </div>
                       {moto.contratoAtual.contratoLink && (
                         <button
@@ -2557,8 +2595,9 @@ function FuturosView({ futuros, persist, motos }) {
   const excluir = async (id) => persist(futuros.filter((x) => x.id !== id));
 
   const { fixoMensalSaida, fixoMensalEntrada, avulsosPendentesSaida, avulsosPendentesEntrada, previstoSaida12Meses, previstoEntrada12Meses, saldoPrevisto12Meses } =
-    totaisFuturos(futuros);
-  const projecao = projecaoFuturosPorMes(futuros, 12);
+    totaisFuturos(futuros, motos);
+  const contratos = contratosComoFuturos(motos);
+  const projecao = projecaoFuturosPorMes([...futuros, ...contratos], 12);
   const maxProjecao = Math.max(1, ...projecao.map((m) => Math.max(m.entrada, m.saida)));
 
   const recorrentes = futuros.filter((f) => f.recorrente);
@@ -2672,6 +2711,30 @@ function FuturosView({ futuros, persist, motos }) {
           </div>
         )}
       </div>
+
+      {contratos.length > 0 && (
+        <div className="mb-4">
+          <div className="text-xs uppercase tracking-wide mb-2" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+            Contratos ativos (automático)
+          </div>
+          <div className="flex flex-col gap-2">
+            {contratos.map((f) => (
+              <div key={f.id} className="flex items-center justify-between px-4 py-3 rounded-2xl" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
+                <div>
+                  <div style={{ color: theme.text, fontFamily: BODY_FONT, fontWeight: 600 }}>{f.descricao}</div>
+                  <div style={{ color: theme.textMuted, fontFamily: BODY_FONT, fontSize: 12 }}>
+                    Todo mês{f.dataTermino ? ` · até ${formatDate(f.dataTermino)}` : " · sem prazo definido"}
+                  </div>
+                </div>
+                <span style={{ color: theme.mint, fontFamily: HEAD_FONT, fontSize: 16 }}>+ {formatCurrency(f.valor)}</span>
+              </div>
+            ))}
+          </div>
+          <div className="text-xs mt-2" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+            Vem direto dos contratos de aluguel ativos — pra editar, mude o contrato na aba Motos.
+          </div>
+        </div>
+      )}
 
       {recorrentes.length > 0 && (
         <div className="mb-4">
@@ -3441,7 +3504,7 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {(() => {
-                const { previstoEntrada12Meses, previstoSaida12Meses, saldoPrevisto12Meses } = totaisFuturos(futuros);
+                const { previstoEntrada12Meses, previstoSaida12Meses, saldoPrevisto12Meses } = totaisFuturos(futuros, motos);
                 return (
                   <>
                     <div>
