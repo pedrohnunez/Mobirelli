@@ -827,6 +827,7 @@ function anexosDe(lista, linkAntigo, nomeAntigo) {
 }
 const contratoAnexosOf = (contrato) => anexosDe(contrato?.anexos, contrato?.contratoLink, contrato?.contratoArquivo);
 const notaFiscalAnexosOf = (moto) => anexosDe(moto?.notaFiscalAnexos, moto?.notaFiscalLink, moto?.notaFiscalArquivo);
+const notaFiscalFabricaAnexosOf = (moto) => anexosDe(moto?.notaFiscalFabricaAnexos, null, null);
 
 // igual ao AnexoField, mas permite anexar vários arquivos (ou vários links) no mesmo campo —
 // útil pro contrato que às vezes vem em várias páginas/fotos separadas
@@ -1369,6 +1370,7 @@ function emptyMoto() {
     nfNumero: "",
     valorCompra: "",
     notaFiscalAnexos: [],
+    notaFiscalFabricaAnexos: [],
     documentoLink: "",
     documentoArquivo: "",
     certificadoLink: "",
@@ -1716,7 +1718,12 @@ function MotoTrackingBlock({ link, placa }) {
 }
 
 function MotoFormModal({ moto, onClose, onSave, title }) {
-  const [form, setForm] = useState({ ...emptyMoto(), ...moto, notaFiscalAnexos: notaFiscalAnexosOf(moto) });
+  const [form, setForm] = useState({
+    ...emptyMoto(),
+    ...moto,
+    notaFiscalAnexos: notaFiscalAnexosOf(moto),
+    notaFiscalFabricaAnexos: notaFiscalFabricaAnexosOf(moto),
+  });
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
 
   return (
@@ -1773,10 +1780,16 @@ function MotoFormModal({ moto, onClose, onSave, title }) {
       <FieldLabel>Nº da nota fiscal</FieldLabel>
       <input style={inputStyle} value={form.nfNumero} onChange={set("nfNumero")} />
       <AnexoMultiField
-        label="Nota fiscal da moto"
+        label="Nota fiscal"
         anexos={form.notaFiscalAnexos}
         storageKey={`mobirelli-arquivo-nf-${form.id}`}
         onChange={(anexos) => setForm({ ...form, notaFiscalAnexos: anexos })}
+      />
+      <AnexoMultiField
+        label="Nota fiscal de fábrica"
+        anexos={form.notaFiscalFabricaAnexos}
+        storageKey={`mobirelli-arquivo-nf-fabrica-${form.id}`}
+        onChange={(anexos) => setForm({ ...form, notaFiscalFabricaAnexos: anexos })}
       />
       <AnexoField
         label="Documento da moto (CRLV, etc.)"
@@ -1786,7 +1799,7 @@ function MotoFormModal({ moto, onClose, onSave, title }) {
         onChange={(v) => setForm({ ...form, documentoLink: v.link, documentoArquivo: v.fileName })}
       />
       <AnexoField
-        label="Certificado"
+        label="Certificado de garantia"
         linkValue={form.certificadoLink}
         storageKey={`mobirelli-arquivo-cert-${form.id}`}
         fileName={form.certificadoArquivo}
@@ -2324,12 +2337,22 @@ function MotosView({ motos, persist, clientes, persistClientes, config, lancamen
                   <div className="flex items-center gap-3 flex-wrap mb-3">
                     {notaFiscalAnexosOf(moto).map((a, i) => (
                       <button
-                        key={i}
+                        key={`nf-${i}`}
                         onClick={() => setPreview({ url: a.link, title: `Nota fiscal — ${formatPlaca(moto.placa)}` })}
                         className="inline-flex items-center gap-1 text-xs mbr-hover-grow"
                         style={{ color: theme.blue }}
                       >
                         <FileText size={12} /> {a.fileName || `Nota fiscal ${i + 1}`}
+                      </button>
+                    ))}
+                    {notaFiscalFabricaAnexosOf(moto).map((a, i) => (
+                      <button
+                        key={`nff-${i}`}
+                        onClick={() => setPreview({ url: a.link, title: `Nota fiscal de fábrica — ${formatPlaca(moto.placa)}` })}
+                        className="inline-flex items-center gap-1 text-xs mbr-hover-grow"
+                        style={{ color: theme.blue }}
+                      >
+                        <FileText size={12} /> {a.fileName || `Nota fiscal de fábrica ${i + 1}`}
                       </button>
                     ))}
                     {moto.documentoLink && (
@@ -2343,11 +2366,11 @@ function MotosView({ motos, persist, clientes, persistClientes, config, lancamen
                     )}
                     {moto.certificadoLink && (
                       <button
-                        onClick={() => setPreview({ url: moto.certificadoLink, title: `Certificado — ${formatPlaca(moto.placa)}` })}
+                        onClick={() => setPreview({ url: moto.certificadoLink, title: `Certificado de garantia — ${formatPlaca(moto.placa)}` })}
                         className="inline-flex items-center gap-1 text-xs mbr-hover-grow"
                         style={{ color: theme.blue }}
                       >
-                        <FileText size={12} /> Certificado
+                        <FileText size={12} /> Certificado de garantia
                       </button>
                     )}
                   </div>
