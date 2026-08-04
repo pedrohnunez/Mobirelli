@@ -1709,6 +1709,7 @@ function TrackingMap({ link, filterPlaca, height = 320, rounded = true, motos, c
   const popupRef = useRef(null);
   const tickRef = useRef(null);
   const primeiraCargaRef = useRef(true);
+  const seguindoRef = useRef(null);
   const mostrarRastroRef = useRef(false);
   const motosRef = useRef(motos);
   const clientesRef = useRef(clientes);
@@ -1745,6 +1746,15 @@ function TrackingMap({ link, filterPlaca, height = 320, rounded = true, motos, c
     // "compact" mantém isso, só troca a faixa cheia por um botão discreto "i"
     map.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-right");
 
+    // se a pessoa arrastar o mapa ou der zoom manualmente, para de seguir a moto —
+    // "originalEvent" só existe quando o movimento veio de um gesto do usuário (mouse/touch/
+    // scroll); os recentramentos automáticos (flyTo/easeTo) não disparam esses eventos
+    const pararDeSeguir = (e) => {
+      if (e.originalEvent) seguindoRef.current = null;
+    };
+    map.on("dragstart", pararDeSeguir);
+    map.on("zoomstart", pararDeSeguir);
+
     async function tick() {
       try {
         const res = await fetch(itemsUrlFromLink(link));
@@ -1772,6 +1782,9 @@ function TrackingMap({ link, filterPlaca, height = 320, rounded = true, motos, c
             markersRef.current[chave].placa = placa;
             markersRef.current[chave].cor = cor;
             markersRef.current[chave].device = d;
+            if (seguindoRef.current === chave) {
+              map.easeTo({ center: [lng, lat], duration: 900 });
+            }
           } else {
             const el = document.createElement("div");
             el.className = "mbr-map-marker";
@@ -1784,6 +1797,10 @@ function TrackingMap({ link, filterPlaca, height = 320, rounded = true, motos, c
               const entry = markersRef.current[chave];
               if (!entry) return;
               const ll = entry.marker.getLngLat();
+              // ao clicar numa moto, a câmera passa a "segui-la": a cada atualização de
+              // posição (tick) ela recentraliza sozinha, até a pessoa arrastar/dar zoom
+              // manualmente no mapa (aí para de seguir — ver listeners de dragstart/zoomstart)
+              seguindoRef.current = chave;
               map.flyTo({ center: ll, zoom: 16, duration: 600 });
 
               const moto = motosRef.current?.find((m) => (m.placa || "").toUpperCase() === entry.placa.toUpperCase());
@@ -1824,6 +1841,7 @@ function TrackingMap({ link, filterPlaca, height = 320, rounded = true, motos, c
           if (!vistos.has(chave)) {
             markersRef.current[chave].marker.remove();
             delete markersRef.current[chave];
+            if (seguindoRef.current === chave) seguindoRef.current = null;
           }
         });
 
@@ -1872,6 +1890,7 @@ function TrackingMap({ link, filterPlaca, height = 320, rounded = true, motos, c
   }, [link, filterPlaca]);
 
   const centralizar = () => {
+    seguindoRef.current = null;
     const map = mapObjRef.current;
     const marcadores = Object.values(markersRef.current).map((m) => m.marker);
     if (!map || marcadores.length === 0) return;
@@ -3374,22 +3393,38 @@ function FluxoCaixaView({ lancamentos, persist, motos, futuros, persistFuturos }
           className="rounded-2xl p-4 mb-3"
           style={{ background: `linear-gradient(150deg, ${theme.card} 0%, ${theme.card2} 130%)`, border: `1px solid ${theme.cardBorder}` }}
         >
-          <SectionTitle color={theme.blue} className="mb-2">Resumo mensal</SectionTitle>
+          <SectionTitle color={theme.blue} className="mb-3">Resumo mensal</SectionTitle>
           <div className="flex flex-col gap-2">
             {mesesOrdenados.slice(0, 4).map((mesKey) => {
               const itensResumo = porMes[mesKey];
               const entradaResumo = itensResumo.filter((l) => l.tipo === "entrada").reduce((s, l) => s + Number(l.valor), 0);
               const saidaResumo = itensResumo.filter((l) => l.tipo === "saida").reduce((s, l) => s + Number(l.valor), 0);
+              const saldoResumo = entradaResumo - saidaResumo;
               return (
-                <div key={mesKey} className="flex items-center justify-between gap-2 flex-wrap text-xs" style={{ fontFamily: BODY_FONT }}>
-                  <span style={{ color: theme.text, fontWeight: 700, minWidth: 64 }}>
-                    {mesKey === "sem-data" ? "Sem data" : monthLabel(mesKey)}
-                  </span>
-                  <span style={{ color: theme.mint }}>▲ {formatCurrency(entradaResumo)}</span>
-                  <span style={{ color: theme.coral }}>▼ {formatCurrency(saidaResumo)}</span>
-                  <span style={{ color: entradaResumo - saidaResumo >= 0 ? theme.mint : theme.coral, fontWeight: 700 }}>
-                    {formatCurrency(entradaResumo - saidaResumo)}
-                  </span>
+                <div
+                  key={mesKey}
+                  className="rounded-xl px-3 py-2.5"
+                  style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}
+                >
+                  <div className="flex items-center justify-between gap-2 mb-1.5">
+                    <span style={{ color: theme.text, fontWeight: 800, fontFamily: HEAD_FONT, fontSize: 14 }}>
+                      {mesKey === "sem-data" ? "Sem data" : monthLabel(mesKey)}
+                    </span>
+                    <span
+                      style={{
+                        color: saldoResumo >= 0 ? theme.mint : theme.coral,
+                        fontWeight: 800,
+                        fontFamily: BODY_FONT,
+                        fontSize: 14,
+                      }}
+                    >
+                      Saldo: {formatCurrency(saldoResumo)}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-4 flex-wrap text-xs" style={{ fontFamily: BODY_FONT, color: theme.textMuted }}>
+                    <span>Entradas <b style={{ color: theme.mint }}>{formatCurrency(entradaResumo)}</b></span>
+                    <span>Saídas <b style={{ color: theme.coral }}>{formatCurrency(saidaResumo)}</b></span>
+                  </div>
                 </div>
               );
             })}
