@@ -1326,13 +1326,7 @@ function MotosView({ motos, persist, clientes, persistClientes }) {
           return (
             <div key={moto.id} className="rounded-2xl overflow-hidden" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
               <button className="w-full flex items-center justify-between px-4 py-3 text-left" onClick={() => setExpandido(aberto ? null : moto.id)}>
-                <div className="flex items-center gap-2">
-                  <MotoPlate placa={moto.placa} />
-                  <div>
-                    <div style={{ fontFamily: HEAD_FONT, fontSize: 16, color: theme.text }}>{moto.modelo || "Modelo não informado"}</div>
-                    <StatusBadge status={moto.status} vencido={vencido} />
-                  </div>
-                </div>
+                <MotoPlate placa={moto.placa} />
                 {aberto ? <ChevronUp size={18} color={theme.textMuted} /> : <ChevronDown size={18} color={theme.textMuted} />}
               </button>
 
@@ -1345,6 +1339,10 @@ function MotosView({ motos, persist, clientes, persistClientes }) {
                 }}
               >
                 <div className="px-4 pb-4 text-sm" style={{ fontFamily: BODY_FONT, minHeight: 0 }}>
+                  <div className="flex items-center justify-between mb-3">
+                    <div style={{ fontFamily: HEAD_FONT, fontSize: 16, color: theme.text }}>{moto.modelo || "Modelo não informado"}</div>
+                    <StatusBadge status={moto.status} vencido={vencido} />
+                  </div>
                   <div className="grid grid-cols-2 gap-x-3 gap-y-1 mb-3" style={{ color: theme.textMuted }}>
                     <span>Chassi: {moto.chassi || "—"}</span>
                     <span>Renavam: {moto.renavam || "—"}</span>
@@ -1542,6 +1540,15 @@ function FluxoCaixaView({ lancamentos, persist }) {
   const excluir = async (id) => persist(lancamentos.filter((x) => x.id !== id));
   const ordenados = [...lancamentos].sort((a, b) => (a.data < b.data ? 1 : -1));
 
+  const porMes = {};
+  ordenados.forEach((l) => {
+    const key = l.data ? l.data.slice(0, 7) : "sem-data";
+    (porMes[key] = porMes[key] || []).push(l);
+  });
+  const mesesOrdenados = Object.keys(porMes).sort((a, b) => (a < b ? 1 : -1));
+
+  const [expandido, setExpandido] = useState(mesesOrdenados[0] || null);
+
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
@@ -1561,25 +1568,74 @@ function FluxoCaixaView({ lancamentos, persist }) {
         </div>
       )}
 
-      <div className="rounded-2xl overflow-hidden" style={{ border: `1px solid ${theme.cardBorder}` }}>
-        {ordenados.map((l) => (
-          <div key={l.id} className="flex items-center justify-between px-4 py-3" style={{ background: theme.card, borderBottom: `1px solid ${theme.cardBorder}` }}>
-            <div>
-              <div style={{ color: theme.text, fontFamily: BODY_FONT, fontWeight: 600 }}>{l.categoria || "Sem categoria"}</div>
-              <div style={{ color: theme.textMuted, fontFamily: BODY_FONT, fontSize: 12 }}>
-                {formatDate(l.data)} · {l.natureza} {l.descricao ? `· ${l.descricao}` : ""}
+      <div className="flex flex-col gap-2">
+        {mesesOrdenados.map((mesKey) => {
+          const itens = porMes[mesKey];
+          const totalEntrada = itens.filter((l) => l.tipo === "entrada").reduce((s, l) => s + Number(l.valor), 0);
+          const totalSaida = itens.filter((l) => l.tipo === "saida").reduce((s, l) => s + Number(l.valor), 0);
+          const saldo = totalEntrada - totalSaida;
+          const aberto = expandido === mesKey;
+          return (
+            <div key={mesKey} className="rounded-2xl overflow-hidden" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
+              <button
+                className="w-full flex items-center justify-between px-4 py-3 text-left"
+                onClick={() => setExpandido(aberto ? null : mesKey)}
+              >
+                <div>
+                  <div style={{ fontFamily: HEAD_FONT, fontSize: 16, color: theme.text }}>
+                    {mesKey === "sem-data" ? "Sem data" : monthLabel(mesKey)}
+                  </div>
+                  <div className="text-xs" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+                    {itens.length} lançamento{itens.length === 1 ? "" : "s"}
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span style={{ color: saldo >= 0 ? theme.mint : theme.coral, fontFamily: HEAD_FONT, fontSize: 15 }}>
+                    {formatCurrency(saldo)}
+                  </span>
+                  {aberto ? <ChevronUp size={18} color={theme.textMuted} /> : <ChevronDown size={18} color={theme.textMuted} />}
+                </div>
+              </button>
+
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateRows: aberto ? "1fr" : "0fr",
+                  transition: "grid-template-rows 0.28s ease",
+                  overflow: "hidden",
+                }}
+              >
+                <div style={{ minHeight: 0, borderTop: `1px solid ${theme.cardBorder}` }}>
+                  {itens.map((l, i) => (
+                    <div
+                      key={l.id}
+                      className="flex items-center justify-between px-4 py-3"
+                      style={{
+                        background: theme.card2,
+                        borderBottom: i < itens.length - 1 ? `1px solid ${theme.cardBorder}` : "none",
+                      }}
+                    >
+                      <div>
+                        <div style={{ color: theme.text, fontFamily: BODY_FONT, fontWeight: 600 }}>{l.categoria || "Sem categoria"}</div>
+                        <div style={{ color: theme.textMuted, fontFamily: BODY_FONT, fontSize: 12 }}>
+                          {formatDate(l.data)} · {l.natureza} {l.descricao ? `· ${l.descricao}` : ""}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span style={{ color: l.tipo === "entrada" ? theme.mint : theme.coral, fontFamily: HEAD_FONT, fontSize: 16 }}>
+                          {l.tipo === "entrada" ? "+" : "-"} {formatCurrency(l.valor)}
+                        </span>
+                        <button onClick={() => excluir(l.id)} style={{ color: theme.textMuted }}>
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
-            <div className="flex items-center gap-3">
-              <span style={{ color: l.tipo === "entrada" ? theme.mint : theme.coral, fontFamily: HEAD_FONT, fontSize: 16 }}>
-                {l.tipo === "entrada" ? "+" : "-"} {formatCurrency(l.valor)}
-              </span>
-              <button onClick={() => excluir(l.id)} style={{ color: theme.textMuted }}>
-                <Trash2 size={14} />
-              </button>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {modal && <LancamentoModal lancamento={modal} onClose={() => setModal(null)} onSave={salvar} />}
@@ -1590,6 +1646,42 @@ function FluxoCaixaView({ lancamentos, persist }) {
 /* ===========================================================
    DASHBOARD
 =========================================================== */
+// anima o conteúdo aparecendo (fade + subir) só quando ele entra na tela ao rolar —
+// dá aquele efeito de "site vivo" conforme você desce a página, sem custar nada em telas menores
+function Reveal({ children, delay = 0 }) {
+  const ref = useRef(null);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setVisible(true);
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.12 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <div
+      ref={ref}
+      style={{
+        opacity: visible ? 1 : 0,
+        transform: visible ? "translateY(0)" : "translateY(26px)",
+        transition: `opacity 0.55s ease ${delay}ms, transform 0.55s cubic-bezier(0.22, 1, 0.36, 1) ${delay}ms`,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
 function HeroStat({ label, value, icon: Icon, accent, deltaPercent, deltaLabel }) {
   const hasDelta = deltaPercent !== null && deltaPercent !== undefined && Number.isFinite(deltaPercent);
   return (
@@ -1783,30 +1875,32 @@ function DashboardView({ motos, lancamentos, clientes }) {
       )}
 
       {/* KPIs principais — os números que uma empresa acompanha primeiro */}
-      <div className="grid gap-3 mb-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
-        <HeroStat
-          label={`Faturamento (${rotuloMes})`}
-          value={formatCurrency(entradasMes)}
-          icon={TrendingUp}
-          accent={theme.mint}
-          deltaPercent={deltaFaturamento}
-          deltaLabel={`vs ${rotuloMesAnterior}`}
-        />
-        <HeroStat
-          label={`${lucroMes >= 0 ? "Lucro" : "Prejuízo"} (${rotuloMes})`}
-          value={formatCurrency(Math.abs(lucroMes))}
-          icon={Wallet}
-          accent={lucroMes >= 0 ? theme.mint : theme.coral}
-          deltaPercent={deltaLucro}
-          deltaLabel={`vs ${rotuloMesAnterior}`}
-        />
-        <RadialStat
-          label={`Margem de lucro (${rotuloMes})`}
-          percent={margemLucro}
-          color={lucroMes >= 0 ? theme.mint : theme.coral}
-          sublabel={entradasMes > 0 ? `${margemLucro.toFixed(1)}%` : "sem faturamento"}
-        />
-      </div>
+      <Reveal>
+        <div className="grid gap-3 mb-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
+          <HeroStat
+            label={`Faturamento (${rotuloMes})`}
+            value={formatCurrency(entradasMes)}
+            icon={TrendingUp}
+            accent={theme.mint}
+            deltaPercent={deltaFaturamento}
+            deltaLabel={`vs ${rotuloMesAnterior}`}
+          />
+          <HeroStat
+            label={`${lucroMes >= 0 ? "Lucro" : "Prejuízo"} (${rotuloMes})`}
+            value={formatCurrency(Math.abs(lucroMes))}
+            icon={Wallet}
+            accent={lucroMes >= 0 ? theme.mint : theme.coral}
+            deltaPercent={deltaLucro}
+            deltaLabel={`vs ${rotuloMesAnterior}`}
+          />
+          <RadialStat
+            label={`Margem de lucro (${rotuloMes})`}
+            percent={margemLucro}
+            color={lucroMes >= 0 ? theme.mint : theme.coral}
+            sublabel={entradasMes > 0 ? `${margemLucro.toFixed(1)}%` : "sem faturamento"}
+          />
+        </div>
+      </Reveal>
       {mesRef !== mesCalendario && (
         <div className="text-xs mb-3" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
           Ainda não há lançamentos em {monthLabel(mesCalendario)} — mostrando o último mês com movimento.
@@ -1814,23 +1908,28 @@ function DashboardView({ motos, lancamentos, clientes }) {
       )}
 
       {/* Indicadores secundários */}
-      <div className="grid gap-3 mb-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))" }}>
-        <StatCard label="Faturamento previsto/mês" value={formatCurrency(faturamentoPrevisto)} icon={TrendingUp} accent={theme.blue} />
-        <StatCard label={`Gastos operacionais (${rotuloMes})`} value={formatCurrency(saidasMes)} icon={TrendingDown} accent={theme.coral} />
-        <StatCard label="Ticket médio" value={formatCurrency(ticketMedio)} icon={Wallet} accent={theme.mint} />
-        <StatCard label="Total de clientes" value={totalClientes} icon={Users} accent={theme.amber} />
-        <StatCard label="Investido em frota" value={formatCurrency(investimentoFrota)} icon={TrendingUp} accent={theme.blue} />
-      </div>
+      <Reveal delay={80}>
+        <div className="grid gap-3 mb-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))" }}>
+          <StatCard label="Faturamento previsto/mês" value={formatCurrency(faturamentoPrevisto)} icon={TrendingUp} accent={theme.blue} />
+          <StatCard label={`Gastos operacionais (${rotuloMes})`} value={formatCurrency(saidasMes)} icon={TrendingDown} accent={theme.coral} />
+          <StatCard label="Ticket médio" value={formatCurrency(ticketMedio)} icon={Wallet} accent={theme.mint} />
+          <StatCard label="Total de clientes" value={totalClientes} icon={Users} accent={theme.amber} />
+          <StatCard label="Investido em frota" value={formatCurrency(investimentoFrota)} icon={TrendingUp} accent={theme.blue} />
+        </div>
+      </Reveal>
 
       {/* Status da frota */}
-      <div className="grid gap-3 mb-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))" }}>
-        <RadialStat label="Taxa de ocupação" percent={taxaOcupacao} color={theme.amber} sublabel={`${alugadas} de ${motos.length} motos`} />
-        <StatCard label="Motos" value={motos.length} icon={Bike} />
-        <StatCard label="Alugadas" value={alugadas} icon={Bike} accent={theme.amber} />
-        <StatCard label="Disponíveis" value={disponiveis} icon={CheckCircle2} accent={theme.mint} />
-        <StatCard label="Vencidos" value={vencidas} icon={AlertTriangle} accent={vencidas > 0 ? theme.coral : theme.textMuted} />
-      </div>
+      <Reveal delay={140}>
+        <div className="grid gap-3 mb-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))" }}>
+          <RadialStat label="Taxa de ocupação" percent={taxaOcupacao} color={theme.amber} sublabel={`${alugadas} de ${motos.length} motos`} />
+          <StatCard label="Motos" value={motos.length} icon={Bike} />
+          <StatCard label="Alugadas" value={alugadas} icon={Bike} accent={theme.amber} />
+          <StatCard label="Disponíveis" value={disponiveis} icon={CheckCircle2} accent={theme.mint} />
+          <StatCard label="Vencidos" value={vencidas} icon={AlertTriangle} accent={vencidas > 0 ? theme.coral : theme.textMuted} />
+        </div>
+      </Reveal>
 
+      <Reveal delay={0}>
       <div className="rounded-2xl p-4 mb-4" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
         <div className="flex items-center justify-between flex-wrap gap-1 mb-1">
           <h3 style={{ fontFamily: HEAD_FONT, fontSize: 16, color: theme.text }}>Entradas, saídas e lucro (últimos 6 meses)</h3>
@@ -1871,7 +1970,9 @@ function DashboardView({ motos, lancamentos, clientes }) {
           ))}
         </div>
       </div>
+      </Reveal>
 
+      <Reveal>
       <div className="grid gap-4 mb-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
         <div className="rounded-2xl p-4" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
           <h3 style={{ fontFamily: HEAD_FONT, fontSize: 16, color: theme.text }} className="mb-3">
@@ -1913,6 +2014,7 @@ function DashboardView({ motos, lancamentos, clientes }) {
           </div>
         )}
       </div>
+      </Reveal>
     </div>
   );
 }
@@ -2178,11 +2280,11 @@ const SEED_MOTOS = [
 
 const SEED_FLUXO = [
   { id: "flx-1", tipo: "saida", natureza: "Administrativo", data: "2026-05-03", categoria: "LR Moraes", forma: "", valor: 450, descricao: "" },
-  { id: "flx-2", tipo: "saida", natureza: "Administrativo", data: "2026-05-06", categoria: "Consultoria Rogerio", forma: "Pix Fê", valor: 45000, descricao: "" },
-  { id: "flx-3", tipo: "saida", natureza: "Administrativo", data: "2026-05-06", categoria: "Abertura Empresa (LR Moraes)", forma: "Pix Itau FÊ", valor: 1700, descricao: "" },
-  { id: "flx-4", tipo: "saida", natureza: "Administrativo", data: "2026-05-12", categoria: "Consultoria Rogerio", forma: "Pix Fê", valor: 25000, descricao: "" },
-  { id: "flx-5", tipo: "saida", natureza: "Administrativo", data: "2026-05-15", categoria: "Corpo de Bombeiros", forma: "", valor: 600, descricao: "" },
-  { id: "flx-6", tipo: "saida", natureza: "Administrativo", data: "2026-05-22", categoria: "Certificado Digital", forma: "", valor: 230, descricao: "" },
+  { id: "flx-2", tipo: "saida", natureza: "Expansão", data: "2026-05-06", categoria: "Consultoria Rogerio", forma: "Pix Fê", valor: 45000, descricao: "" },
+  { id: "flx-3", tipo: "saida", natureza: "Expansão", data: "2026-05-06", categoria: "Abertura Empresa (LR Moraes)", forma: "Pix Itau FÊ", valor: 1700, descricao: "" },
+  { id: "flx-4", tipo: "saida", natureza: "Expansão", data: "2026-05-12", categoria: "Consultoria Rogerio", forma: "Pix Fê", valor: 25000, descricao: "" },
+  { id: "flx-5", tipo: "saida", natureza: "Expansão", data: "2026-05-15", categoria: "Corpo de Bombeiros", forma: "", valor: 600, descricao: "" },
+  { id: "flx-6", tipo: "saida", natureza: "Expansão", data: "2026-05-22", categoria: "Certificado Digital", forma: "", valor: 230, descricao: "" },
   { id: "flx-7", tipo: "saida", natureza: "Operacional", data: "2026-06-01", categoria: "Seguro", forma: "", valor: 119.9, descricao: "" },
   { id: "flx-8", tipo: "saida", natureza: "Administrativo", data: "2026-06-03", categoria: "LR Moraes", forma: "Pix NuBank Mobirelli", valor: 450, descricao: "" },
   { id: "flx-9", tipo: "saida", natureza: "Expansão", data: "2026-06-12", categoria: "Grizzotti Despachante", forma: "Pix NuBank Mobirelli", valor: 930, descricao: "" },
