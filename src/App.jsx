@@ -172,6 +172,14 @@ const maskTelefone = (v) => {
 
 const maskCep = (v) => (v || "").replace(/\D/g, "").slice(0, 8).replace(/(\d{5})(\d{1,3})$/, "$1-$2");
 
+// placa fica guardada sem traço (bate com o nome do dispositivo na Melocaliza e com o texto
+// digitado no fluxo de caixa) — o traço é só visual, aplicado sempre na hora de mostrar/digitar
+const placaLimpa = (v) => (v || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 7);
+const formatPlaca = (v) => {
+  const d = placaLimpa(v);
+  return d.length <= 3 ? d : `${d.slice(0, 3)}-${d.slice(3)}`;
+};
+
 // liga lançamentos de entrada à moto pela placa (categoria/descrição), tipo "Mensalidade URB5I50" —
 // é assim que o fluxo de caixa já é lançado, então usamos isso pra saber o que essa moto já recebeu de verdade
 function pagamentosDaMoto(placa, lancamentos) {
@@ -401,7 +409,7 @@ function MotoPlate({ placa, size = "normal" }) {
           color: theme.text,
         }}
       >
-        {placa || "SEM PLACA"}
+        {placa ? formatPlaca(placa) : "SEM PLACA"}
       </span>
     </div>
   );
@@ -779,7 +787,7 @@ function VincularMotoModal({ cliente, motosDisponiveis, onClose, onSave }) {
       <SelectField
         value={motoId}
         onChange={(e) => setMotoId(e.target.value)}
-        options={motosDisponiveis.map((m) => ({ value: m.id, label: `${m.placa || "sem placa"} — ${m.modelo || "modelo?"}` }))}
+        options={motosDisponiveis.map((m) => ({ value: m.id, label: `${m.placa ? formatPlaca(m.placa) : "sem placa"} — ${m.modelo || "modelo?"}` }))}
       />
       <Row2>
         <div>
@@ -898,7 +906,7 @@ function ClientesView({ clientes, persistClientes, motos, persistMotos }) {
                 <div className="flex flex-col gap-1.5">
                   <div style={{ fontFamily: HEAD_FONT, fontSize: 17, color: theme.text }}>{c.nome || "Sem nome"}</div>
                   {motoVinculada ? (
-                    <Badge color={theme.mint} icon={Bike} label={`Com a moto ${motoVinculada.placa}`} />
+                    <Badge color={theme.mint} icon={Bike} label={`Com a moto ${formatPlaca(motoVinculada.placa)}`} />
                   ) : (
                     <Badge color={theme.amber} icon={Clock} label="Sem moto no momento" />
                   )}
@@ -1049,7 +1057,7 @@ const BIKE_ICON_PATHS =
   '<circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/>';
 
 function rastreioMarkerHtml(placa, corHex, estilo) {
-  const rotulo = `<div style="background:${theme.bg};border:1.5px solid ${corHex};border-radius:6px;padding:2px 7px;font-family:monospace;font-weight:700;font-size:11px;letter-spacing:0.5px;color:${theme.text};white-space:nowrap;">${placa}</div>`;
+  const rotulo = `<div style="background:${theme.bg};border:1.5px solid ${corHex};border-radius:6px;padding:2px 7px;font-family:monospace;font-weight:700;font-size:11px;letter-spacing:0.5px;color:${theme.text};white-space:nowrap;">${formatPlaca(placa)}</div>`;
   if (estilo === "moto") {
     return `
       <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
@@ -1081,7 +1089,7 @@ function rastreioPopupHtml(placa, device, moto, clienteNome) {
     : "";
   return `
     <div style="font-family:${BODY_FONT};min-width:150px;">
-      <div style="font-family:monospace;font-weight:700;font-size:14px;letter-spacing:1px;color:${theme.text};">${placa}</div>
+      <div style="font-family:monospace;font-weight:700;font-size:14px;letter-spacing:1px;color:${theme.text};">${formatPlaca(placa)}</div>
       ${modelo}
       <div style="font-size:12px;margin-top:4px;color:${cor};font-weight:600;">${statusTxt}</div>
       ${contrato}
@@ -1370,7 +1378,12 @@ function MotoFormModal({ moto, onClose, onSave, title }) {
       <Row2>
         <div>
           <FieldLabel>Placa</FieldLabel>
-          <input style={inputStyle} value={form.placa} onChange={set("placa")} />
+          <input
+            style={inputStyle}
+            value={formatPlaca(form.placa)}
+            onChange={(e) => setForm({ ...form, placa: placaLimpa(e.target.value) })}
+            placeholder="URB-5I50"
+          />
         </div>
         <div>
           <FieldLabel>Status</FieldLabel>
@@ -1476,7 +1489,7 @@ function ContratoModal({ moto, clientes, onClose, onSave }) {
   };
 
   return (
-    <Modal title={`Novo contrato — ${moto.placa || moto.modelo}`} onClose={onClose}>
+    <Modal title={`Novo contrato — ${moto.placa ? formatPlaca(moto.placa) : moto.modelo}`} onClose={onClose}>
       <FieldLabel>Cliente</FieldLabel>
       <SelectField
         value={clienteId}
@@ -1830,7 +1843,12 @@ function MotosView({ motos, persist, clientes, persistClientes, config, lancamen
 
   const filtradas = motos.filter((m) => {
     const q = busca.toLowerCase();
-    return !q || [m.placa, m.chassi, m.renavam, m.modelo].some((f) => f?.toLowerCase().includes(q));
+    const qLimpo = placaLimpa(busca).toLowerCase();
+    return (
+      !q ||
+      [m.placa, m.chassi, m.renavam, m.modelo].some((f) => f?.toLowerCase().includes(q)) ||
+      (qLimpo && m.placa?.toLowerCase().includes(qLimpo))
+    );
   });
 
   return (
@@ -1953,7 +1971,7 @@ function MotosView({ motos, persist, clientes, persistClientes, config, lancamen
                     </span>
                     {pagamentos.length === 0 ? (
                       <div style={{ color: theme.textMuted, fontSize: 12 }} className="mt-1">
-                        Nenhum pagamento com "{moto.placa}" na categoria/descrição ainda.
+                        Nenhum pagamento com "{formatPlaca(moto.placa)}" na categoria/descrição ainda.
                       </div>
                     ) : (
                       <>
@@ -2083,9 +2101,17 @@ function emptyLancamento() {
   return { id: uid(), data: todayISO(), tipo: "entrada", natureza: "Operacional", categoria: "", valor: "", descricao: "", forma: "" };
 }
 
-function LancamentoModal({ lancamento, onClose, onSave }) {
+function LancamentoModal({ lancamento, onClose, onSave, motos }) {
   const [form, setForm] = useState(lancamento);
+  const [ehMensalidade, setEhMensalidade] = useState(false);
+  const [motoId, setMotoId] = useState("");
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
+
+  const selecionarMotoMensalidade = (id) => {
+    setMotoId(id);
+    const moto = motos?.find((m) => m.id === id);
+    if (moto) setForm((f) => ({ ...f, categoria: `Mensalidade ${moto.placa}`, natureza: "Operacional" }));
+  };
 
   return (
     <Modal title="Novo lançamento" onClose={onClose}>
@@ -2105,6 +2131,27 @@ function LancamentoModal({ lancamento, onClose, onSave }) {
           </button>
         ))}
       </div>
+
+      {form.tipo === "entrada" && (motos || []).length > 0 && (
+        <label className="flex items-center gap-2 mb-3 text-sm" style={{ color: theme.text, fontFamily: BODY_FONT }}>
+          <input type="checkbox" checked={ehMensalidade} onChange={(e) => setEhMensalidade(e.target.checked)} />
+          É pagamento de mensalidade de uma moto
+        </label>
+      )}
+      {ehMensalidade && (
+        <>
+          <FieldLabel>Moto</FieldLabel>
+          <SelectField
+            value={motoId}
+            onChange={(e) => selecionarMotoMensalidade(e.target.value)}
+            options={[
+              { value: "", label: "Selecione a moto..." },
+              ...motos.map((m) => ({ value: m.id, label: `${formatPlaca(m.placa)} — ${m.modelo || "modelo?"}` })),
+            ]}
+          />
+        </>
+      )}
+
       <FieldLabel>Natureza</FieldLabel>
       <SelectField value={form.natureza} onChange={set("natureza")} options={NATUREZAS.map((n) => ({ value: n, label: n }))} />
       <FieldLabel>Categoria / descrição curta</FieldLabel>
@@ -2134,7 +2181,7 @@ function LancamentoModal({ lancamento, onClose, onSave }) {
   );
 }
 
-function FluxoCaixaView({ lancamentos, persist }) {
+function FluxoCaixaView({ lancamentos, persist, motos }) {
   const [modal, setModal] = useState(null);
 
   const salvar = async (l) => {
@@ -2238,7 +2285,7 @@ function FluxoCaixaView({ lancamentos, persist }) {
         })}
       </div>
 
-      {modal && <LancamentoModal lancamento={modal} onClose={() => setModal(null)} onSave={salvar} />}
+      {modal && <LancamentoModal lancamento={modal} onClose={() => setModal(null)} onSave={salvar} motos={motos} />}
     </div>
   );
 }
@@ -2515,7 +2562,7 @@ function DashboardView({ motos, lancamentos, clientes }) {
             {motosVencidas.map((m) => (
               <div key={m.id} className="flex items-center justify-between text-xs" style={{ fontFamily: BODY_FONT, color: theme.textMuted }}>
                 <span>
-                  {m.placa} · {clienteNome(m.contratoAtual.clienteId)}
+                  {formatPlaca(m.placa)} · {clienteNome(m.contratoAtual.clienteId)}
                 </span>
                 <span style={{ color: theme.coral }}>venceu em {formatDate(m.contratoAtual.dataVencimento)}</span>
               </div>
@@ -2700,7 +2747,7 @@ function DashboardView({ motos, lancamentos, clientes }) {
               {retornoPorMoto.map((r) => (
                 <div key={r.placa}>
                   <div className="flex justify-between items-baseline text-xs mb-1" style={{ fontFamily: BODY_FONT }}>
-                    <span style={{ color: theme.text, fontWeight: 700, fontFamily: "monospace" }}>{r.placa}</span>
+                    <span style={{ color: theme.text, fontWeight: 700, fontFamily: "monospace" }}>{formatPlaca(r.placa)}</span>
                     <span style={{ color: theme.textMuted }}>
                       {formatCurrency(r.recebidoReal)} de {formatCurrency(r.investimentoTotal)}
                     </span>
@@ -2744,7 +2791,7 @@ function DashboardView({ motos, lancamentos, clientes }) {
               {rankingFaturamento.map((m) => (
                 <div key={m.placa}>
                   <div className="flex justify-between text-xs mb-1" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
-                    <span>{m.placa}</span>
+                    <span>{formatPlaca(m.placa)}</span>
                     <span>{formatCurrency(m.total)}</span>
                   </div>
                   <div style={{ height: 6, borderRadius: 3, background: theme.bg, overflow: "hidden" }}>
@@ -2784,7 +2831,7 @@ function DashboardView({ motos, lancamentos, clientes }) {
               {rankingManutencao.map((m) => (
                 <div key={m.placa}>
                   <div className="flex justify-between text-xs mb-1" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
-                    <span>{m.placa}</span>
+                    <span>{formatPlaca(m.placa)}</span>
                     <span>{formatCurrency(m.total)}</span>
                   </div>
                   <div style={{ height: 6, borderRadius: 3, background: theme.bg, overflow: "hidden" }}>
@@ -3145,6 +3192,13 @@ export default function MobirelliApp() {
   // como nenhum componente aqui usa memo, todo mundo lê os valores atualizados no próximo render
   Object.assign(theme, buildTheme(configState.value));
 
+  // cobre a área que aparece durante o "elástico" do scroll (Mac) — sem isso, dava pra
+  // ver o fundo padrão (branco) do navegador atrás do site ao arrastar além do topo/fim
+  useEffect(() => {
+    document.documentElement.style.backgroundColor = theme.bg;
+    document.body.style.backgroundColor = theme.bg;
+  }, [theme.bg]);
+
   const loading = motosState.loading || clientesState.loading || fluxoState.loading || configState.loading;
   const anyError = motosState.error || clientesState.error || fluxoState.error || configState.error;
 
@@ -3260,7 +3314,7 @@ export default function MobirelliApp() {
                 persistMotos={motosState.persist}
               />
             ) : tab === "fluxo" ? (
-              <FluxoCaixaView lancamentos={fluxoState.items} persist={fluxoState.persist} />
+              <FluxoCaixaView lancamentos={fluxoState.items} persist={fluxoState.persist} motos={motosState.items} />
             ) : tab === "rastreio" ? (
               <RastreioView config={configState.value} motos={motosState.items} clientes={clientesState.items} />
             ) : (
