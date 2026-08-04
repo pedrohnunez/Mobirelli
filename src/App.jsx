@@ -310,7 +310,8 @@ function totaisFuturos(futuros, motos) {
 }
 
 // quanto está previsto entrar/sair nos próximos `dias` dias — pra ver rapidinho o que
-// vence essa semana, sem precisar abrir o mês inteiro em "Futuros"
+// vence essa semana, sem precisar abrir o mês inteiro em "Futuros". Também devolve item
+// a item (moto/categoria) pra dar pra mostrar "de onde vem" ao passar o mouse
 function futurosProximosDias(futuros, motos, dias = 7) {
   const todos = [...(futuros || []), ...contratosComoFuturos(motos)];
   const hoje = new Date();
@@ -319,10 +320,27 @@ function futurosProximosDias(futuros, motos, dias = 7) {
   limite.setDate(limite.getDate() + dias);
   let entrada = 0;
   let saida = 0;
+  const itensEntrada = new Map();
+  const itensSaida = new Map();
+
+  const rotulo = (f) => {
+    const moto = motos?.find((m) => m.id === f.motoId);
+    const base = f.descricao || f.categoria || "Item";
+    if (!moto) return base;
+    const placa = formatPlaca(moto.placa);
+    return base.includes(placa) ? base : `${base} (${placa})`;
+  };
+
   todos.forEach((f) => {
     if (!f.vencimento) return;
     const valor = Number(f.valor) || 0;
-    const soma = f.tipo === "entrada" ? (v) => (entrada += v) : (v) => (saida += v);
+    const itens = f.tipo === "entrada" ? itensEntrada : itensSaida;
+    const soma = (v) => {
+      if (f.tipo === "entrada") entrada += v;
+      else saida += v;
+      const label = rotulo(f);
+      itens.set(label, (itens.get(label) || 0) + v);
+    };
     if (f.recorrente) {
       const diaVenc = f.diaVencimento ? Number(f.diaVencimento) : new Date(`${f.vencimento}T00:00:00`).getDate();
       const fimRecorrencia = f.dataTermino ? new Date(`${f.dataTermino}T00:00:00`) : null;
@@ -339,7 +357,9 @@ function futurosProximosDias(futuros, motos, dias = 7) {
       if (vd >= hoje && vd <= limite) soma(valor);
     }
   });
-  return { entrada, saida };
+
+  const paraLista = (mapa) => [...mapa.entries()].map(([label, total]) => ({ label, total })).sort((a, b) => b.total - a.total);
+  return { entrada, saida, itensEntrada: paraLista(itensEntrada), itensSaida: paraLista(itensSaida) };
 }
 
 // detalha item a item o que compõe o total de "a receber"/"a pagar" (12 meses) — mesma
@@ -4201,14 +4221,20 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
             </div>
             <div className="flex gap-4 flex-wrap mt-3 pt-3" style={{ borderTop: `1px solid ${theme.cardBorder}` }}>
               {(() => {
-                const { entrada: entrada7d, saida: saida7d } = futurosProximosDias(futuros, motos, 7);
+                const { entrada: entrada7d, saida: saida7d, itensEntrada: itensEntrada7d, itensSaida: itensSaida7d } = futurosProximosDias(futuros, motos, 7);
                 return (
                   <>
                     <span className="text-xs" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
-                      Próximos 7 dias — a receber: <span style={{ color: theme.mint, fontWeight: 700 }}>{fmt(entrada7d)}</span>
+                      Próximos 7 dias — a receber:{" "}
+                      <ValorComDetalhe itens={itensEntrada7d} fmt={fmt}>
+                        <span style={{ color: theme.mint, fontWeight: 700, cursor: itensEntrada7d.length > 0 ? "help" : "default" }}>{fmt(entrada7d)}</span>
+                      </ValorComDetalhe>
                     </span>
                     <span className="text-xs" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
-                      a pagar: <span style={{ color: theme.coral, fontWeight: 700 }}>{fmt(saida7d)}</span>
+                      a pagar:{" "}
+                      <ValorComDetalhe itens={itensSaida7d} fmt={fmt}>
+                        <span style={{ color: theme.coral, fontWeight: 700, cursor: itensSaida7d.length > 0 ? "help" : "default" }}>{fmt(saida7d)}</span>
+                      </ValorComDetalhe>
                     </span>
                   </>
                 );
