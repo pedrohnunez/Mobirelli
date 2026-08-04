@@ -2561,11 +2561,11 @@ function MotosView({ motos, persist, clientes, persistClientes, config, lancamen
 const NATUREZAS = ["Operacional", "Administrativo", "Expansão"];
 
 function emptyLancamento() {
-  return { id: uid(), data: todayISO(), tipo: "entrada", natureza: "Operacional", categoria: "", valor: "", descricao: "", forma: "", motoId: "" };
+  return { id: uid(), data: todayISO(), tipo: "entrada", natureza: "Operacional", categoria: "", valor: "", descricao: "", forma: "", motoId: "", parcelas: 1 };
 }
 
 function LancamentoModal({ lancamento, onClose, onSave, onDelete, motos, editando }) {
-  const [form, setForm] = useState({ motoId: "", ...lancamento });
+  const [form, setForm] = useState({ motoId: "", parcelas: 1, ...lancamento });
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
 
   const selecionarMoto = (id) => {
@@ -2629,6 +2629,23 @@ function LancamentoModal({ lancamento, onClose, onSave, onDelete, motos, editand
       </Row2>
       <FieldLabel>Forma de pagamento (opcional)</FieldLabel>
       <input style={inputStyle} value={form.forma} onChange={set("forma")} placeholder="Pix, boleto, cartão..." />
+      {!editando && (
+        <>
+          <FieldLabel>Parcelas</FieldLabel>
+          <input
+            type="number"
+            min="1"
+            style={inputStyle}
+            value={form.parcelas}
+            onChange={(e) => setForm({ ...form, parcelas: Math.max(1, Number(e.target.value) || 1) })}
+          />
+          {Number(form.parcelas) > 1 && (
+            <div className="text-xs -mt-2 mb-3" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+              Esse lançamento entra como a 1ª parcela — as outras {Number(form.parcelas) - 1} entram automaticamente em "Contas futuras", uma por mês.
+            </div>
+          )}
+        </>
+      )}
       <FieldLabel>Descrição (opcional)</FieldLabel>
       <input style={inputStyle} value={form.descricao} onChange={set("descricao")} />
       <div className="flex gap-2">
@@ -2988,9 +3005,32 @@ function FluxoCaixaView({ lancamentos, persist, motos, futuros, persistFuturos }
   const [modal, setModal] = useState(null);
 
   const salvar = async (l) => {
-    const existe = lancamentos.find((x) => x.id === l.id);
-    const next = existe ? lancamentos.map((x) => (x.id === l.id ? l : x)) : [...lancamentos, l];
+    const { parcelas, ...lancamento } = l;
+    const existe = lancamentos.find((x) => x.id === lancamento.id);
+    const next = existe ? lancamentos.map((x) => (x.id === lancamento.id ? lancamento : x)) : [...lancamentos, lancamento];
     await persist(next);
+
+    // compra parcelada — a 1ª parcela é o lançamento de hoje; as demais entram
+    // como contas futuras avulsas, uma por mês, pra aparecer na projeção
+    const n = Number(parcelas) || 1;
+    if (!existe && n > 1) {
+      const [ano, mes, dia] = lancamento.data.split("-").map(Number);
+      const parcelasFuturas = Array.from({ length: n - 1 }, (_, i) => {
+        const d = new Date(ano, mes - 1 + i + 1, dia);
+        return {
+          id: uid(),
+          tipo: lancamento.tipo,
+          descricao: `${lancamento.categoria || lancamento.descricao || "Parcela"} (${i + 2}/${n})`,
+          categoria: lancamento.categoria,
+          valor: lancamento.valor,
+          vencimento: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`,
+          recorrente: false,
+          pago: false,
+          motoId: lancamento.motoId || "",
+        };
+      });
+      await persistFuturos([...(futuros || []), ...parcelasFuturas]);
+    }
     setModal(null);
   };
 
