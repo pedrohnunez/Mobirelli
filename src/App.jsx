@@ -729,7 +729,7 @@ function SelectField({ value, onChange, options }) {
 }
 
 function Row2({ children }) {
-  return <div className="grid grid-cols-2 gap-2">{children}</div>;
+  return <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">{children}</div>;
 }
 
 /* ===========================================================
@@ -3129,14 +3129,14 @@ function RadialStat({ label, percent, color, sublabel, bare }) {
   const offset = c - (clamped / 100) * c;
   return (
     <div
-      className={bare ? "flex items-center gap-3 min-w-0" : "rounded-2xl p-4 flex items-center gap-3 min-w-0 mbr-card-lift"}
+      className={bare ? "flex items-center gap-3 min-w-0" : "rounded-2xl p-5 flex items-center gap-3 min-w-0 mbr-card-lift"}
       style={
         bare
           ? {}
           : {
               background: `linear-gradient(150deg, ${theme.card} 0%, ${theme.card2} 130%)`,
-              border: `1px solid ${theme.cardBorder}`,
-              boxShadow: "0 1px 2px rgba(0,0,0,0.18)",
+              border: `1px solid ${color}55`,
+              boxShadow: `0 2px 12px rgba(0,0,0,0.22), 0 0 28px ${color}1F`,
             }
       }
     >
@@ -4120,8 +4120,10 @@ export default function MobirelliApp() {
         .mbr-card-lift { transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.28s ease; will-change: transform; }
         @media (hover: hover) and (pointer: fine) {
           button:hover { filter: brightness(1.22); }
+          nav button:hover { filter: none; }
+          nav button:hover span:first-child { background: ${hexToRgba(theme.mint, 0.1)}; }
           .mbr-hover-grow:hover { transform: scale(1.16); filter: brightness(1.28); }
-          .mbr-card-lift:hover { transform: translateY(-3px); box-shadow: 0 10px 26px rgba(0,0,0,0.3); }
+          .mbr-card-lift:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(0,0,0,0.24); }
         }
         input, select, textarea, button { font-family: ${BODY_FONT}; }
         input:focus, select:focus, textarea:focus, button:focus-visible {
