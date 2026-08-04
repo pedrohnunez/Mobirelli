@@ -1385,10 +1385,13 @@ function TrackingMap({ link, filterPlaca, height = 320, rounded = true, motos, c
       style: mapStyle,
       center: [-47.0, -22.9],
       zoom: 6,
-      attributionControl: true,
+      attributionControl: false,
     });
     mapObjRef.current = map;
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
+    // atribuição ao OpenStreetMap/MapLibre é exigida pela licença dos dados do mapa —
+    // "compact" mantém isso, só troca a faixa cheia por um botão discreto "i"
+    map.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-right");
 
     async function tick() {
       try {
