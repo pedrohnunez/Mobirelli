@@ -362,47 +362,6 @@ function futurosProximosDias(futuros, motos, dias = 7) {
   return { entrada, saida, itensEntrada: paraLista(itensEntrada), itensSaida: paraLista(itensSaida) };
 }
 
-// detalha item a item o que compõe o total de "a receber"/"a pagar" (12 meses) — mesma
-// lógica de projecaoFuturosPorMes, só que soma por item (moto/categoria) em vez de somar
-// tudo junto, pra poder mostrar "de onde vem" esse valor ao passar o mouse
-function detalheFuturosPorTipo(futuros, motos, tipo, meses = 12) {
-  const todos = [...(futuros || []), ...contratosComoFuturos(motos)];
-  const hoje = new Date();
-  const inicio = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
-  const porItem = new Map();
-
-  const rotulo = (f) => {
-    const moto = motos?.find((m) => m.id === f.motoId);
-    const base = f.descricao || f.categoria || "Item";
-    if (!moto) return base;
-    const placa = formatPlaca(moto.placa);
-    return base.includes(placa) ? base : `${base} (${placa})`;
-  };
-
-  for (let i = 0; i < meses; i++) {
-    const d = new Date(inicio.getFullYear(), inicio.getMonth() + i, 1);
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-    todos.forEach((f) => {
-      if (f.tipo !== tipo || !f.vencimento) return;
-      const valor = Number(f.valor) || 0;
-      const vd = new Date(`${f.vencimento}T00:00:00`);
-      if (f.recorrente) {
-        const inicioRecorrencia = new Date(vd.getFullYear(), vd.getMonth(), 1);
-        const fimRecorrencia = f.dataTermino ? new Date(`${f.dataTermino}T00:00:00`) : null;
-        if (d >= inicioRecorrencia && (!fimRecorrencia || d <= fimRecorrencia)) {
-          const label = rotulo(f);
-          porItem.set(label, (porItem.get(label) || 0) + valor);
-        }
-      } else if (!f.pago && f.vencimento.slice(0, 7) === key) {
-        const label = rotulo(f);
-        porItem.set(label, (porItem.get(label) || 0) + valor);
-      }
-    });
-  }
-
-  return [...porItem.entries()].map(([label, total]) => ({ label, total })).sort((a, b) => b.total - a.total);
-}
-
 // consulta o CEP no ViaCEP (serviço público, gratuito, sem chave) e devolve o endereço
 // pra preencher os campos sozinho — só chama quando o CEP tem os 8 dígitos
 async function buscarEnderecoPorCEP(cep) {
@@ -992,83 +951,83 @@ function ContratoAnexosButton({ anexos, label = "Contrato", tituloPreview, onAbr
   );
 }
 
-// mostra de onde vem um valor (ex: "A receber"), item a item — um botão simples que
-// expande a lista embaixo, mesmo jeito que já funciona nos cards de moto/cliente e no
-// acordeão de meses do Caixa (sem popup flutuante, sem depender de hover)
-function DetalheExpandivel({ itens, fmt }) {
-  const [aberto, setAberto] = useState(false);
-  if (!itens || itens.length === 0) return null;
-  return (
-    <div className="mt-1.5">
-      <button
-        type="button"
-        onClick={() => setAberto((v) => !v)}
-        className="flex items-center gap-1 text-xs font-semibold"
-        style={{ color: theme.blue, fontFamily: BODY_FONT }}
-      >
-        {aberto ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-        {aberto ? "Ocultar detalhes" : "Ver detalhes"}
-      </button>
-      <Collapse open={aberto}>
-        <div className="flex flex-col gap-1 mt-2 pt-2" style={{ borderTop: `1px solid ${theme.cardBorder}` }}>
-          {itens.map((it, i) => (
-            <div key={i} className="flex items-center justify-between gap-3 text-xs" style={{ fontFamily: BODY_FONT }}>
-              <span className="truncate" style={{ color: theme.textMuted }}>
-                {it.label}
-              </span>
-              <span style={{ fontWeight: 700, color: theme.text, flexShrink: 0 }}>{fmt(it.total)}</span>
-            </div>
-          ))}
-        </div>
-      </Collapse>
-    </div>
-  );
-}
-
 // mostra de onde vem um valor passando o mouse por cima (computador) ou tocando nele
-// (celular, já que touch não tem hover de verdade) — usado só nos "Próximos 7 dias",
-// que ficam soltos e pequenos demais pra um botão "Ver detalhes" próprio
+// (celular, já que touch não tem hover de verdade) — usado só nos "Próximos 7 dias".
+// O popover vai num portal pro <body> e usa position:fixed calculado a partir do
+// elemento-gatilho: se ficasse "position:absolute" dentro do card normal, o Reveal (que
+// anima com transform) cria um novo contexto de empilhamento e o card seguinte da página
+// acaba pintando por cima do popover, cortando ele — o portal escapa desse problema.
 function ValorComDetalhe({ children, itens, fmt }) {
   const [aberto, setAberto] = useState(false);
+  const [pos, setPos] = useState(null);
+  const gatilhoRef = useRef(null);
+
+  const abrir = () => {
+    const r = gatilhoRef.current?.getBoundingClientRect();
+    if (!r) return;
+    setPos({ top: r.bottom + 6, left: r.left });
+    setAberto(true);
+  };
+  const fechar = () => setAberto(false);
+
+  useEffect(() => {
+    if (!aberto) return;
+    const onScroll = () => fechar();
+    window.addEventListener("scroll", onScroll, true);
+    window.addEventListener("resize", onScroll);
+    return () => {
+      window.removeEventListener("scroll", onScroll, true);
+      window.removeEventListener("resize", onScroll);
+    };
+  }, [aberto]);
+
   if (!itens || itens.length === 0) return children;
   return (
     <span
+      ref={gatilhoRef}
       className="relative inline-block"
-      onMouseEnter={() => setAberto(true)}
-      onMouseLeave={() => setAberto(false)}
+      onMouseEnter={abrir}
+      onMouseLeave={fechar}
       onClick={(e) => {
         e.stopPropagation();
-        setAberto((v) => !v);
+        aberto ? fechar() : abrir();
       }}
       style={{ cursor: "help" }}
     >
       {children}
-      {aberto && (
-        <>
-          <div
-            className="fixed inset-0 z-20"
-            onClick={(e) => {
-              e.stopPropagation();
-              setAberto(false);
-            }}
-          />
-          <div
-            className="absolute z-30 mt-1 left-0 rounded-xl overflow-hidden mbr-fade-in"
-            style={{ background: theme.panel, border: `1px solid ${theme.cardBorder}`, minWidth: 220, maxWidth: "min(320px, 85vw)", boxShadow: "0 6px 20px rgba(0,0,0,0.4)", padding: 10 }}
-          >
-            {itens.map((it, i) => (
-              <div
-                key={i}
-                className="flex items-center justify-between gap-3 text-xs py-1"
-                style={{ color: theme.text, fontFamily: BODY_FONT, borderBottom: i < itens.length - 1 ? `1px solid ${theme.cardBorder}` : "none" }}
-              >
-                <span className="truncate">{it.label}</span>
-                <span style={{ fontWeight: 700, flexShrink: 0 }}>{fmt(it.total)}</span>
-              </div>
-            ))}
-          </div>
-        </>
-      )}
+      {aberto &&
+        pos &&
+        createPortal(
+          <>
+            <div className="fixed inset-0" style={{ zIndex: 998 }} onClick={fechar} />
+            <div
+              className="fixed rounded-xl overflow-hidden mbr-fade-in"
+              style={{
+                top: pos.top,
+                left: Math.max(8, Math.min(pos.left, window.innerWidth - 232)),
+                zIndex: 999,
+                background: theme.panel,
+                border: `1px solid ${theme.cardBorder}`,
+                minWidth: 220,
+                maxWidth: "min(320px, 90vw)",
+                boxShadow: "0 6px 20px rgba(0,0,0,0.4)",
+                padding: 10,
+              }}
+            >
+              {itens.map((it, i) => (
+                <div
+                  key={i}
+                  className="flex items-center justify-between gap-3 text-xs py-1"
+                  style={{ color: theme.text, fontFamily: BODY_FONT, borderBottom: i < itens.length - 1 ? `1px solid ${theme.cardBorder}` : "none" }}
+                >
+                  <span className="truncate">{it.label}</span>
+                  <span style={{ fontWeight: 700, flexShrink: 0 }}>{fmt(it.total)}</span>
+                </div>
+              ))}
+            </div>
+          </>,
+          document.body
+        )}
     </span>
   );
 }
@@ -4285,14 +4244,12 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
                         A receber (12 meses)
                       </div>
                       <div style={{ fontFamily: HEAD_FONT, fontSize: 18, color: theme.mint }}>{fmt(previstoEntrada12Meses)}</div>
-                      <DetalheExpandivel itens={detalheFuturosPorTipo(futuros, motos, "entrada")} fmt={fmt} />
                     </div>
                     <div>
                       <div className="text-xs uppercase tracking-wide mb-1" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
                         A pagar (12 meses)
                       </div>
                       <div style={{ fontFamily: HEAD_FONT, fontSize: 18, color: theme.coral }}>{fmt(previstoSaida12Meses)}</div>
-                      <DetalheExpandivel itens={detalheFuturosPorTipo(futuros, motos, "saida")} fmt={fmt} />
                     </div>
                     <div>
                       <div className="text-xs uppercase tracking-wide mb-1" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
