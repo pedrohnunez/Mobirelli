@@ -1559,6 +1559,7 @@ function TrackingMap({ link, filterPlaca, height = 320, rounded = true, motos, c
   const markersRef = useRef({});
   const popupRef = useRef(null);
   const tickRef = useRef(null);
+  const primeiraCargaRef = useRef(true);
   const mostrarRastroRef = useRef(false);
   const motosRef = useRef(motos);
   const clientesRef = useRef(clientes);
@@ -1580,6 +1581,7 @@ function TrackingMap({ link, filterPlaca, height = 320, rounded = true, motos, c
   useEffect(() => {
     if (!containerRef.current) return;
     let cancelled = false;
+    primeiraCargaRef.current = true;
 
     const map = new maplibregl.Map({
       container: containerRef.current,
@@ -1676,7 +1678,12 @@ function TrackingMap({ link, filterPlaca, height = 320, rounded = true, motos, c
           }
         });
 
-        if (!bounds.isEmpty()) {
+        // só centraliza sozinho na primeira vez que carrega — do contrário, a cada
+        // atualização (a cada 20s) ele puxava o mapa de volta e desfazia o zoom/posição
+        // que a pessoa tinha ajustado manualmente (ex: clicar numa moto pra acompanhar
+        // ela de perto). Depois disso, só recentraliza no botão "Centralizar".
+        if (!bounds.isEmpty() && primeiraCargaRef.current) {
+          primeiraCargaRef.current = false;
           if (devices.length === 1) {
             map.easeTo({ center: bounds.getCenter(), zoom: 12, duration: 500 });
           } else {
@@ -3097,8 +3104,9 @@ function FluxoCaixaView({ lancamentos, persist, motos, futuros, persistFuturos }
     // 1/3" na lista e continuar aparecendo do jeito certo se abrir pra editar de novo
     const lancamento =
       parcelasNovo > 1 ? { ...base, parcelaAtual: existe?.parcelaAtual || 1, parcelasTotal: parcelasNovo } : { ...base, parcelaAtual: undefined, parcelasTotal: undefined };
-    const next = existe ? lancamentos.map((x) => (x.id === lancamento.id ? lancamento : x)) : [...lancamentos, lancamento];
-    await persist(next);
+
+    let futurosAtualizados = futuros || [];
+    let futurosMudaram = false;
 
     // compra parcelada — a 1ª parcela é o lançamento de hoje, as demais entram como
     // contas futuras avulsas, uma por mês. Só gera as que ainda não existem: se a pessoa
@@ -3106,10 +3114,10 @@ function FluxoCaixaView({ lancamentos, persist, motos, futuros, persistFuturos }
     // aumentar o número depois, gera só a diferença
     if (parcelasNovo > parcelasAntes) {
       const [ano, mes, dia] = lancamento.data.split("-").map(Number);
-      const parcelasFuturas = [];
+      const novasParcelas = [];
       for (let k = parcelasAntes + 1; k <= parcelasNovo; k++) {
         const d = new Date(ano, mes - 1 + (k - 1), dia);
-        parcelasFuturas.push({
+        novasParcelas.push({
           id: uid(),
           tipo: lancamento.tipo,
           descricao: `${lancamento.categoria || lancamento.descricao || "Parcela"} (${k}/${parcelasNovo})`,
@@ -3119,10 +3127,44 @@ function FluxoCaixaView({ lancamentos, persist, motos, futuros, persistFuturos }
           recorrente: false,
           pago: false,
           motoId: lancamento.motoId || "",
+          parcelaAtual: k,
+          parcelasTotal: parcelasNovo,
         });
       }
-      await persistFuturos([...(futuros || []), ...parcelasFuturas]);
+      futurosAtualizados = [...futurosAtualizados, ...novasParcelas];
+      futurosMudaram = true;
     }
+
+    // 1º lançamento de um mês novo — puxa automaticamente pra "Lançado" as parcelas de
+    // compras já em andamento que vencem nesse mesmo mês (ex: parcela 4/12 de uma moto
+    // financiada), em vez de ficar esperando em "Futuros" pra copiar na mão todo mês
+    const mesDoNovo = lancamento.data?.slice(0, 7);
+    const primeiroDoMes = !existe && mesDoNovo && !lancamentos.some((x) => x.data?.slice(0, 7) === mesDoNovo);
+    const promovidos = [];
+    if (primeiroDoMes) {
+      futurosAtualizados = futurosAtualizados.filter((f) => {
+        const elegivel = !f.recorrente && !f.pago && f.parcelasTotal > 1 && f.vencimento?.slice(0, 7) === mesDoNovo;
+        if (!elegivel) return true;
+        promovidos.push({
+          id: uid(),
+          tipo: f.tipo,
+          data: f.vencimento,
+          natureza: "Operacional",
+          categoria: f.categoria,
+          descricao: f.descricao,
+          forma: "",
+          motoId: f.motoId || "",
+          parcelaAtual: f.parcelaAtual,
+          parcelasTotal: f.parcelasTotal,
+        });
+        return false;
+      });
+      if (promovidos.length > 0) futurosMudaram = true;
+    }
+
+    const next = existe ? lancamentos.map((x) => (x.id === lancamento.id ? lancamento : x)) : [...lancamentos, lancamento, ...promovidos];
+    await persist(next);
+    if (futurosMudaram) await persistFuturos(futurosAtualizados);
     setModal(null);
   };
 
