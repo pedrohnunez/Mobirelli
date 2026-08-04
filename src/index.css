@@ -12,6 +12,13 @@ body {
   margin: 0;
 }
 
+.mbr-map .maplibregl-ctrl-top-right {
+  top: var(--mbr-top-inset, 0px);
+}
+.mbr-map .maplibregl-ctrl-bottom-left,
+.mbr-map .maplibregl-ctrl-bottom-right {
+  bottom: var(--mbr-bottom-inset, 0px);
+}
 .mbr-map .maplibregl-ctrl-group {
   background: #183524;
   border: 1px solid #2C4D38;

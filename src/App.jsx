@@ -1245,7 +1245,7 @@ function MapToolButton({ icon: Icon, label, onClick, active }) {
   );
 }
 
-function TrackingMap({ link, filterPlaca, height = 320, rounded = true, motos, clientes }) {
+function TrackingMap({ link, filterPlaca, height = 320, rounded = true, motos, clientes, topInset = 0, bottomInset = 0 }) {
   const containerRef = useRef(null);
   const mapObjRef = useRef(null);
   const markersRef = useRef({});
@@ -1433,10 +1433,15 @@ function TrackingMap({ link, filterPlaca, height = 320, rounded = true, motos, c
   return (
     <div
       className={rounded ? "mbr-map rounded-2xl overflow-hidden relative" : "mbr-map overflow-hidden relative"}
-      style={{ border: rounded ? `1px solid ${theme.cardBorder}` : "none", height }}
+      style={{
+        border: rounded ? `1px solid ${theme.cardBorder}` : "none",
+        height,
+        "--mbr-top-inset": `${topInset}px`,
+        "--mbr-bottom-inset": `${bottomInset}px`,
+      }}
     >
       <div ref={containerRef} style={{ width: "100%", height: "100%" }} />
-      <div className="absolute top-3 left-3 flex gap-3 z-10">
+      <div className="absolute left-3 flex gap-3 z-10" style={{ top: 12 + topInset }}>
         <MapToolButton icon={Crosshair} label="Centralizar" onClick={centralizar} />
         <MapToolButton icon={Route} label="Mostrar rastro" active={mostrarRastro} onClick={alternarRastro} />
         <MapToolButton
@@ -1449,8 +1454,8 @@ function TrackingMap({ link, filterPlaca, height = 320, rounded = true, motos, c
       </div>
 
       <div
-        className="absolute bottom-3 left-3 rounded-xl px-3 py-2 flex flex-col gap-1 z-10"
-        style={{ background: hexToRgba(theme.card, 0.92), border: `1px solid ${theme.cardBorder}` }}
+        className="absolute left-3 rounded-xl px-3 py-2 flex flex-col gap-1 z-10"
+        style={{ bottom: 12 + bottomInset, background: hexToRgba(theme.card, 0.92), border: `1px solid ${theme.cardBorder}` }}
       >
         {RASTREIO_LEGENDA.map((l) => (
           <div key={l.cor} className="flex items-center gap-1.5 text-xs" style={{ color: theme.text, fontFamily: BODY_FONT }}>
@@ -3335,9 +3340,19 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
 =========================================================== */
 const LINK_RASTREIO_PADRAO = "https://web.melocaliza.com.br/sharing/126b3fd40579524296cf586b7625cd97";
 
-function RastreioView({ config, motos, clientes }) {
+function RastreioView({ config, motos, clientes, topInset, bottomInset }) {
   const link = config?.linkRastreioGeral || LINK_RASTREIO_PADRAO;
-  return <TrackingMap link={link} height="100%" rounded={false} motos={motos} clientes={clientes} />;
+  return (
+    <TrackingMap
+      link={link}
+      height="100%"
+      rounded={false}
+      motos={motos}
+      clientes={clientes}
+      topInset={topInset}
+      bottomInset={bottomInset}
+    />
+  );
 }
 
 function ConfiguracoesView({ config, persist }) {
@@ -3645,6 +3660,8 @@ export default function MobirelliApp() {
   const [tab, setTab] = useState("dashboard");
   const headerRef = useRef(null);
   const navRef = useRef(null);
+  // altura real da barra de cima/baixo — usado no Rastreio pra empurrar os controles
+  // do mapa pra fora da faixa que fica por baixo delas (que agora é semitransparente)
   const [chromeHeights, setChromeHeights] = useState({ header: 64, nav: 76 });
 
   useEffect(() => {
@@ -3741,8 +3758,11 @@ export default function MobirelliApp() {
         className="px-4 sm:px-8 py-3 grid items-center sticky top-0 z-40"
         style={{
           gridTemplateColumns: "1fr auto 1fr",
-          background: hexToRgba(theme.panel, 0.82),
-          borderBottom: `1px solid ${theme.cardBorder}`,
+          background:
+            tab === "rastreio"
+              ? `linear-gradient(to bottom, ${hexToRgba(theme.panel, 0.82)} 0%, ${hexToRgba(theme.panel, 0.82)} 50%, ${hexToRgba(theme.panel, 0)} 100%)`
+              : hexToRgba(theme.panel, 0.82),
+          borderBottom: tab === "rastreio" ? "none" : `1px solid ${theme.cardBorder}`,
           backdropFilter: "saturate(1.6) blur(16px)",
           WebkitBackdropFilter: "saturate(1.6) blur(16px)",
         }}
@@ -3764,7 +3784,7 @@ export default function MobirelliApp() {
         className={tab === "rastreio" ? "" : "px-4 sm:px-8 pt-5 max-w-5xl mx-auto"}
         style={
           tab === "rastreio"
-            ? { height: `calc(100vh - ${chromeHeights.header}px - ${chromeHeights.nav}px)`, overflow: "hidden" }
+            ? { position: "fixed", inset: 0, overflow: "hidden", zIndex: 0 }
             : { paddingBottom: "calc(84px + env(safe-area-inset-bottom, 0px))" }
         }
       >
@@ -3806,7 +3826,13 @@ export default function MobirelliApp() {
                 persistFuturos={futurosState.persist}
               />
             ) : tab === "rastreio" ? (
-              <RastreioView config={configState.value} motos={motosState.items} clientes={clientesState.items} />
+              <RastreioView
+                config={configState.value}
+                motos={motosState.items}
+                clientes={clientesState.items}
+                topInset={chromeHeights.header}
+                bottomInset={chromeHeights.nav}
+              />
             ) : (
               <ConfiguracoesView config={configState.value} persist={configState.persist} />
             )}
@@ -3815,10 +3841,14 @@ export default function MobirelliApp() {
       </main>
 
       <nav
+        ref={navRef}
         className="fixed bottom-0 left-0 right-0 z-40 flex items-stretch justify-around px-2 py-1.5"
         style={{
-          background: hexToRgba(theme.panel, 0.82),
-          borderTop: `1px solid ${theme.cardBorder}`,
+          background:
+            tab === "rastreio"
+              ? `linear-gradient(to bottom, ${hexToRgba(theme.panel, 0)} 0%, ${hexToRgba(theme.panel, 0.82)} 50%, ${hexToRgba(theme.panel, 0.82)} 100%)`
+              : hexToRgba(theme.panel, 0.82),
+          borderTop: tab === "rastreio" ? "none" : `1px solid ${theme.cardBorder}`,
           paddingBottom: "calc(6px + env(safe-area-inset-bottom, 0px))",
           backdropFilter: "saturate(1.6) blur(16px)",
           WebkitBackdropFilter: "saturate(1.6) blur(16px)",
