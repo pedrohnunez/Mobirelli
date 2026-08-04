@@ -818,14 +818,15 @@ function AnexoField({ label, linkValue, storageKey, fileName, onChange }) {
   );
 }
 
-// contratos antigos guardavam só 1 arquivo (contratoLink/contratoArquivo) — contratos novos
-// guardam uma lista em "anexos". Isso lê os dois formatos pra não perder nada já salvo.
-function contratoAnexosOf(contrato) {
-  if (!contrato) return [];
-  if (Array.isArray(contrato.anexos)) return contrato.anexos;
-  if (contrato.contratoLink) return [{ link: contrato.contratoLink, fileName: contrato.contratoArquivo || "Contrato" }];
+// campos antigos guardavam só 1 arquivo (ex: contratoLink/contratoArquivo) — os novos
+// guardam uma lista. Isso lê os dois formatos pra não perder nada já salvo.
+function anexosDe(lista, linkAntigo, nomeAntigo) {
+  if (Array.isArray(lista)) return lista;
+  if (linkAntigo) return [{ link: linkAntigo, fileName: nomeAntigo || "Anexo" }];
   return [];
 }
+const contratoAnexosOf = (contrato) => anexosDe(contrato?.anexos, contrato?.contratoLink, contrato?.contratoArquivo);
+const notaFiscalAnexosOf = (moto) => anexosDe(moto?.notaFiscalAnexos, moto?.notaFiscalLink, moto?.notaFiscalArquivo);
 
 // igual ao AnexoField, mas permite anexar vários arquivos (ou vários links) no mesmo campo —
 // útil pro contrato que às vezes vem em várias páginas/fotos separadas
@@ -1367,8 +1368,7 @@ function emptyMoto() {
     dataCompra: todayISO(),
     nfNumero: "",
     valorCompra: "",
-    notaFiscalLink: "",
-    notaFiscalArquivo: "",
+    notaFiscalAnexos: [],
     documentoLink: "",
     documentoArquivo: "",
     certificadoLink: "",
@@ -1716,7 +1716,7 @@ function MotoTrackingBlock({ link, placa }) {
 }
 
 function MotoFormModal({ moto, onClose, onSave, title }) {
-  const [form, setForm] = useState({ ...emptyMoto(), ...moto });
+  const [form, setForm] = useState({ ...emptyMoto(), ...moto, notaFiscalAnexos: notaFiscalAnexosOf(moto) });
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
 
   return (
@@ -1772,12 +1772,11 @@ function MotoFormModal({ moto, onClose, onSave, title }) {
       </Row2>
       <FieldLabel>Nº da nota fiscal</FieldLabel>
       <input style={inputStyle} value={form.nfNumero} onChange={set("nfNumero")} />
-      <AnexoField
+      <AnexoMultiField
         label="Nota fiscal da moto"
-        linkValue={form.notaFiscalLink}
+        anexos={form.notaFiscalAnexos}
         storageKey={`mobirelli-arquivo-nf-${form.id}`}
-        fileName={form.notaFiscalArquivo}
-        onChange={(v) => setForm({ ...form, notaFiscalLink: v.link, notaFiscalArquivo: v.fileName })}
+        onChange={(anexos) => setForm({ ...form, notaFiscalAnexos: anexos })}
       />
       <AnexoField
         label="Documento da moto (CRLV, etc.)"
@@ -2323,15 +2322,16 @@ function MotosView({ motos, persist, clientes, persistClientes, config, lancamen
                   <MotoTrackingBlock link={moto.linkRastreamento || config?.linkRastreioGeral} placa={moto.placa} />
 
                   <div className="flex items-center gap-3 flex-wrap mb-3">
-                    {moto.notaFiscalLink && (
+                    {notaFiscalAnexosOf(moto).map((a, i) => (
                       <button
-                        onClick={() => setPreview({ url: moto.notaFiscalLink, title: `Nota fiscal — ${formatPlaca(moto.placa)}` })}
+                        key={i}
+                        onClick={() => setPreview({ url: a.link, title: `Nota fiscal — ${formatPlaca(moto.placa)}` })}
                         className="inline-flex items-center gap-1 text-xs mbr-hover-grow"
                         style={{ color: theme.blue }}
                       >
-                        <FileText size={12} /> Nota fiscal
+                        <FileText size={12} /> {a.fileName || `Nota fiscal ${i + 1}`}
                       </button>
-                    )}
+                    ))}
                     {moto.documentoLink && (
                       <button
                         onClick={() => setPreview({ url: moto.documentoLink, title: `Documento — ${formatPlaca(moto.placa)}` })}
@@ -4367,7 +4367,7 @@ const SEED_CLIENTES = [
 const SEED_MOTOS = [
   {
     id: "moto-urb5i50", modelo: "JTZ/NK150", placa: "URB5I50", chassi: "99KJCK4PKVM128207", renavam: "1492671867",
-    dataCompra: "2026-05-08", nfNumero: "000009496", valorCompra: 17372.64, notaFiscalLink: "", notaFiscalArquivo: "", status: "alugada",
+    dataCompra: "2026-05-08", nfNumero: "000009496", valorCompra: 17372.64, notaFiscalAnexos: [], status: "alugada",
     contratoAtual: { id: "ctr-urb-1", clienteId: "cli-avant", numeroContrato: 1, numeroClienteMoto: 1, dataInicio: "", dataVencimento: "", valorMensal: 1590, formaPagamento: "Boleto Bancário", anexos: [] },
     historicoContratos: [],
     manutencoes: [
@@ -4380,7 +4380,7 @@ const SEED_MOTOS = [
   },
   {
     id: "moto-uoi5d36", modelo: "JTZ/DK160 S", placa: "UOI5D36", chassi: "99KPCKBCJVM218308", renavam: "1498255997",
-    dataCompra: "2026-06-11", nfNumero: "000009841", valorCompra: 15880.31, notaFiscalLink: "", notaFiscalArquivo: "", status: "alugada",
+    dataCompra: "2026-06-11", nfNumero: "000009841", valorCompra: 15880.31, notaFiscalAnexos: [], status: "alugada",
     contratoAtual: { id: "ctr-uoi-2", clienteId: "cli-andre", numeroContrato: 2, numeroClienteMoto: 2, dataInicio: "", dataVencimento: "", valorMensal: 1428, formaPagamento: "Boleto Bancário", anexos: [] },
     historicoContratos: [
       { id: "ctr-uoi-1", clienteId: "cli-maicon", numeroContrato: 1, numeroClienteMoto: 1, dataInicio: "", dataVencimento: "", valorMensal: 1600, formaPagamento: "Boleto Bancário", anexos: [], encerradoEm: "" },
@@ -4389,28 +4389,28 @@ const SEED_MOTOS = [
   },
   {
     id: "moto-uou1d13", modelo: "JTZ/DK160 S", placa: "UOU1D13", chassi: "99KPCKBCJVM220650", renavam: "1501043355",
-    dataCompra: "2026-06-27", nfNumero: "000009981", valorCompra: 15810.31, notaFiscalLink: "", notaFiscalArquivo: "", status: "alugada",
+    dataCompra: "2026-06-27", nfNumero: "000009981", valorCompra: 15810.31, notaFiscalAnexos: [], status: "alugada",
     contratoAtual: { id: "ctr-uou-1", clienteId: "cli-celio", numeroContrato: 1, numeroClienteMoto: 1, dataInicio: "", dataVencimento: "", valorMensal: 1600, formaPagamento: "Boleto Bancário", anexos: [] },
     historicoContratos: [],
     manutencoes: [],
   },
   {
     id: "moto-uon6i43", modelo: "JTZ/DK160 S", placa: "UON6I43", chassi: "99KPCKBCJVM220655", renavam: "1501070379",
-    dataCompra: "2026-06-27", nfNumero: "000009982", valorCompra: 15810.31, notaFiscalLink: "", notaFiscalArquivo: "", status: "alugada",
+    dataCompra: "2026-06-27", nfNumero: "000009982", valorCompra: 15810.31, notaFiscalAnexos: [], status: "alugada",
     contratoAtual: { id: "ctr-uon-1", clienteId: "cli-luciano", numeroContrato: 1, numeroClienteMoto: 1, dataInicio: "", dataVencimento: "", valorMensal: 1440, formaPagamento: "Boleto Bancário", anexos: [] },
     historicoContratos: [],
     manutencoes: [{ id: "mnt-uon-1", data: "2026-07-08", tipo: "Pneu", valorGasto: 160, local: "Turella Com. Motopeças", garantia: false }],
   },
   {
     id: "moto-uoo1a56", modelo: "JTZ/DK160 S", placa: "UOO1A56", chassi: "99KPCKBCJVM220675", renavam: "1503860997",
-    dataCompra: "2026-07-16", nfNumero: "000010159", valorCompra: 15810.31, notaFiscalLink: "", notaFiscalArquivo: "", status: "alugada",
+    dataCompra: "2026-07-16", nfNumero: "000010159", valorCompra: 15810.31, notaFiscalAnexos: [], status: "alugada",
     contratoAtual: { id: "ctr-uoo-1", clienteId: "cli-thiago", numeroContrato: 1, numeroClienteMoto: 1, dataInicio: "", dataVencimento: "", valorMensal: 1400, formaPagamento: "Boleto Bancário", anexos: [] },
     historicoContratos: [],
     manutencoes: [],
   },
   {
     id: "moto-upm5c78", modelo: "JTZ/DK160 S", placa: "UPM5C78", chassi: "99KPCKBCJVM220331", renavam: "1503855217",
-    dataCompra: "2026-07-16", nfNumero: "000010158", valorCompra: 15810.31, notaFiscalLink: "", notaFiscalArquivo: "", status: "preparacao",
+    dataCompra: "2026-07-16", nfNumero: "000010158", valorCompra: 15810.31, notaFiscalAnexos: [], status: "preparacao",
     contratoAtual: null,
     historicoContratos: [],
     manutencoes: [],
