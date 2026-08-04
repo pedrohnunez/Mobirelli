@@ -2616,7 +2616,7 @@ function emptyLancamento() {
 }
 
 function LancamentoModal({ lancamento, onClose, onSave, onDelete, motos, editando }) {
-  const [form, setForm] = useState({ motoId: "", parcelas: 1, ...lancamento });
+  const [form, setForm] = useState({ motoId: "", parcelas: lancamento?.parcelasTotal || 1, ...lancamento });
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
 
   const selecionarMoto = (id) => {
@@ -2690,7 +2690,9 @@ function LancamentoModal({ lancamento, onClose, onSave, onDelete, motos, editand
       />
       {Number(form.parcelas) > 1 && (
         <div className="text-xs -mt-2 mb-3" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
-          Esse lançamento entra como a 1ª parcela — as outras {Number(form.parcelas) - 1} entram automaticamente em "Contas futuras", uma por mês.
+          {Number(form.parcelas) > (lancamento?.parcelasTotal || 1)
+            ? `Esse lançamento entra como a 1ª parcela — as outras ${Number(form.parcelas) - (lancamento?.parcelasTotal || 1)} entram automaticamente em "Contas futuras", uma por mês.`
+            : `Marcado como parcela 1 de ${Number(form.parcelas)}.`}
         </div>
       )}
       <FieldLabel>Descrição (opcional)</FieldLabel>
@@ -3052,33 +3054,39 @@ function FluxoCaixaView({ lancamentos, persist, motos, futuros, persistFuturos }
   const [modal, setModal] = useState(null);
 
   const salvar = async (l) => {
-    const { parcelas, ...lancamento } = l;
-    const existe = lancamentos.find((x) => x.id === lancamento.id);
+    const { parcelas, ...base } = l;
+    const existe = lancamentos.find((x) => x.id === base.id);
+    const parcelasAntes = existe?.parcelasTotal || 1;
+    const parcelasNovo = Number(parcelas) || 1;
+
+    // guarda quantas parcelas foram usadas direto no lançamento, pra mostrar "Parcela
+    // 1/3" na lista e continuar aparecendo do jeito certo se abrir pra editar de novo
+    const lancamento =
+      parcelasNovo > 1 ? { ...base, parcelaAtual: existe?.parcelaAtual || 1, parcelasTotal: parcelasNovo } : { ...base, parcelaAtual: undefined, parcelasTotal: undefined };
     const next = existe ? lancamentos.map((x) => (x.id === lancamento.id ? lancamento : x)) : [...lancamentos, lancamento];
     await persist(next);
 
     // compra parcelada — a 1ª parcela é o lançamento de hoje, as demais entram como
-    // contas futuras avulsas, uma por mês. Funciona tanto ao criar quanto ao editar (ex:
-    // lançou avulso e só depois percebeu que era parcelado); como "parcelas" nunca é
-    // salvo no lançamento (some no destructuring acima), reabrir pra editar sempre volta
-    // pro padrão 1, então isso só dispara de novo se a pessoa marcar >1 outra vez
-    const n = Number(parcelas) || 1;
-    if (n > 1) {
+    // contas futuras avulsas, uma por mês. Só gera as que ainda não existem: se a pessoa
+    // só reabriu e salvou de novo sem mudar o número de parcelas, não duplica nada; se
+    // aumentar o número depois, gera só a diferença
+    if (parcelasNovo > parcelasAntes) {
       const [ano, mes, dia] = lancamento.data.split("-").map(Number);
-      const parcelasFuturas = Array.from({ length: n - 1 }, (_, i) => {
-        const d = new Date(ano, mes - 1 + i + 1, dia);
-        return {
+      const parcelasFuturas = [];
+      for (let k = parcelasAntes + 1; k <= parcelasNovo; k++) {
+        const d = new Date(ano, mes - 1 + (k - 1), dia);
+        parcelasFuturas.push({
           id: uid(),
           tipo: lancamento.tipo,
-          descricao: `${lancamento.categoria || lancamento.descricao || "Parcela"} (${i + 2}/${n})`,
+          descricao: `${lancamento.categoria || lancamento.descricao || "Parcela"} (${k}/${parcelasNovo})`,
           categoria: lancamento.categoria,
           valor: lancamento.valor,
           vencimento: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`,
           recorrente: false,
           pago: false,
           motoId: lancamento.motoId || "",
-        };
-      });
+        });
+      }
       await persistFuturos([...(futuros || []), ...parcelasFuturas]);
     }
     setModal(null);
@@ -3214,7 +3222,17 @@ function FluxoCaixaView({ lancamentos, persist, motos, futuros, persistFuturos }
                         }}
                       >
                         <div>
-                          <div style={{ color: theme.text, fontFamily: BODY_FONT, fontWeight: 600 }}>{l.categoria || "Sem categoria"}</div>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span style={{ color: theme.text, fontFamily: BODY_FONT, fontWeight: 600 }}>{l.categoria || "Sem categoria"}</span>
+                            {l.parcelasTotal > 1 && (
+                              <span
+                                className="text-xs font-semibold rounded-full px-2"
+                                style={{ background: hexToRgba(theme.blue, 0.16), color: theme.blue, fontFamily: BODY_FONT }}
+                              >
+                                Parcela {l.parcelaAtual || 1}/{l.parcelasTotal}
+                              </span>
+                            )}
+                          </div>
                           <div style={{ color: theme.textMuted, fontFamily: BODY_FONT, fontSize: 12 }}>
                             {formatDate(l.data)}
                             {l.descricao ? ` · ${l.descricao}` : ""}
