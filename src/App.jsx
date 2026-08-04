@@ -111,8 +111,8 @@ function buildTheme(config) {
   return {
     bg,
     panel: mixColors(bg, text, 0.07),
-    card: mixColors(bg, text, 0.11),
-    card2: mixColors(bg, text, 0.17),
+    card: mixColors(bg, text, 0.09),
+    card2: mixColors(bg, text, 0.14),
     cardBorder: mixColors(bg, text, 0.26),
     text,
     textMuted: mixColors(bg, text, 0.55),
@@ -3464,8 +3464,9 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
         </div>
       </Reveal>
 
+      <div className={retornoPorMoto.length > 0 ? "grid grid-cols-1 lg:grid-cols-[1.3fr_1fr] gap-3 mb-4" : ""}>
       <Reveal delay={0}>
-      <div className="rounded-2xl p-4 mb-4 mbr-card-lift" style={{ background: `linear-gradient(150deg, ${theme.card} 0%, ${theme.card2} 130%)`, border: `1px solid ${theme.cardBorder}` }}>
+      <div className={`rounded-2xl p-4 mbr-card-lift ${retornoPorMoto.length > 0 ? "" : "mb-4"}`} style={{ background: `linear-gradient(150deg, ${theme.card} 0%, ${theme.card2} 130%)`, border: `1px solid ${theme.cardBorder}` }}>
         <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
           <SectionTitle color={theme.mint} className="">Entradas, saídas e lucro</SectionTitle>
           <div className="flex items-center gap-2 flex-wrap">
@@ -3593,7 +3594,7 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
 
       {retornoPorMoto.length > 0 && (
         <Reveal delay={40}>
-          <div className="rounded-2xl p-4 mb-4 mbr-card-lift" style={{ background: `linear-gradient(150deg, ${theme.card} 0%, ${theme.card2} 130%)`, border: `1px solid ${theme.cardBorder}` }}>
+          <div className="rounded-2xl p-4 mbr-card-lift" style={{ background: `linear-gradient(150deg, ${theme.card} 0%, ${theme.card2} 130%)`, border: `1px solid ${theme.cardBorder}` }}>
             <SectionTitle color={theme.amber} className="mb-1">Retorno do investimento por moto</SectionTitle>
             <div className="flex flex-wrap gap-4 mt-3">
               {retornoPorMoto.map((r) => {
@@ -3640,6 +3641,7 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
           </div>
         </Reveal>
       )}
+      </div>
 
       {(futuros || []).length > 0 && (
         <Reveal delay={50}>
