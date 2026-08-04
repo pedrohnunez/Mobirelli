@@ -4030,9 +4030,10 @@ export default function MobirelliApp() {
         className="px-4 sm:px-8 py-3 grid items-center sticky top-0 z-40"
         style={{
           gridTemplateColumns: "1fr auto 1fr",
+          paddingTop: "calc(0.75rem + env(safe-area-inset-top, 0px))",
           background:
             tab === "rastreio"
-              ? `linear-gradient(to bottom, ${hexToRgba(theme.panel, 0.9)} 0%, ${hexToRgba(theme.panel, 0.9)} 50%, ${hexToRgba(theme.panel, 0)} 100%)`
+              ? `linear-gradient(to bottom, ${theme.panel} 0%, ${theme.panel} 50%, ${hexToRgba(theme.panel, 0)} 100%)`
               : hexToRgba(theme.panel, 0.82),
           borderBottom: tab === "rastreio" ? "none" : `1px solid ${theme.cardBorder}`,
           backdropFilter: tab === "rastreio" ? "none" : "saturate(1.6) blur(16px)",
@@ -4053,7 +4054,7 @@ export default function MobirelliApp() {
       </header>
 
       <main
-        className={tab === "rastreio" ? "" : "px-4 sm:px-8 pt-5 max-w-5xl mx-auto"}
+        className={tab === "rastreio" ? "" : "px-4 sm:px-8 pt-5 max-w-5xl mx-auto lg:max-w-7xl"}
         style={
           tab === "rastreio"
             ? { position: "fixed", inset: 0, overflow: "hidden", zIndex: 0 }
@@ -4118,7 +4119,7 @@ export default function MobirelliApp() {
         style={{
           background:
             tab === "rastreio"
-              ? `linear-gradient(to bottom, ${hexToRgba(theme.panel, 0)} 0%, ${hexToRgba(theme.panel, 0.9)} 50%, ${hexToRgba(theme.panel, 0.9)} 100%)`
+              ? `linear-gradient(to bottom, ${hexToRgba(theme.panel, 0)} 0%, ${theme.panel} 50%, ${theme.panel} 100%)`
               : hexToRgba(theme.panel, 0.82),
           borderTop: tab === "rastreio" ? "none" : `1px solid ${theme.cardBorder}`,
           paddingBottom: "calc(6px + env(safe-area-inset-bottom, 0px))",
