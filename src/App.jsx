@@ -218,8 +218,9 @@ function custosDaMoto(moto, lancamentos) {
 }
 
 // projeta os próximos `meses` meses (a partir do mês atual) somando as contas futuras —
-// as recorrentes (ex: contabilidade) contam em todo mês a partir do vencimento cadastrado,
-// as avulsas (ex: imposto de renda) só contam no mês do próprio vencimento
+// as recorrentes (ex: contabilidade, aluguel de uma moto fixo) contam em todo mês a partir
+// do vencimento cadastrado, as avulsas (ex: imposto de renda) só contam no mês do próprio
+// vencimento. Entradas e saídas são somadas separadamente pra dar o saldo previsto do mês.
 function projecaoFuturosPorMes(futuros, meses = 12) {
   const hoje = new Date();
   const inicio = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
@@ -227,29 +228,44 @@ function projecaoFuturosPorMes(futuros, meses = 12) {
   for (let i = 0; i < meses; i++) {
     const d = new Date(inicio.getFullYear(), inicio.getMonth() + i, 1);
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-    let total = 0;
+    let entrada = 0;
+    let saida = 0;
     (futuros || []).forEach((f) => {
       if (!f.vencimento) return;
       const vd = new Date(`${f.vencimento}T00:00:00`);
+      const valor = Number(f.valor) || 0;
+      const conta = f.tipo === "entrada" ? (v) => (entrada += v) : (v) => (saida += v);
       if (f.recorrente) {
         const inicioRecorrencia = new Date(vd.getFullYear(), vd.getMonth(), 1);
-        if (d >= inicioRecorrencia) total += Number(f.valor) || 0;
+        if (d >= inicioRecorrencia) conta(valor);
       } else if (!f.pago && f.vencimento.slice(0, 7) === key) {
-        total += Number(f.valor) || 0;
+        conta(valor);
       }
     });
-    resultado.push({ key, mes: monthLabel(key), total });
+    resultado.push({ key, mes: monthLabel(key), entrada, saida, saldo: entrada - saida });
   }
   return resultado;
 }
 
 function totaisFuturos(futuros) {
-  const fixoMensal = (futuros || []).filter((f) => f.recorrente).reduce((s, f) => s + (Number(f.valor) || 0), 0);
-  const avulsosPendentes = (futuros || [])
-    .filter((f) => !f.recorrente && !f.pago)
-    .reduce((s, f) => s + (Number(f.valor) || 0), 0);
-  const previsto12Meses = projecaoFuturosPorMes(futuros, 12).reduce((s, m) => s + m.total, 0);
-  return { fixoMensal, avulsosPendentes, previsto12Meses };
+  const recorrentes = (futuros || []).filter((f) => f.recorrente);
+  const fixoMensalSaida = recorrentes.filter((f) => f.tipo !== "entrada").reduce((s, f) => s + (Number(f.valor) || 0), 0);
+  const fixoMensalEntrada = recorrentes.filter((f) => f.tipo === "entrada").reduce((s, f) => s + (Number(f.valor) || 0), 0);
+  const avulsosPendentes = (futuros || []).filter((f) => !f.recorrente && !f.pago);
+  const avulsosPendentesSaida = avulsosPendentes.filter((f) => f.tipo !== "entrada").reduce((s, f) => s + (Number(f.valor) || 0), 0);
+  const avulsosPendentesEntrada = avulsosPendentes.filter((f) => f.tipo === "entrada").reduce((s, f) => s + (Number(f.valor) || 0), 0);
+  const projecao = projecaoFuturosPorMes(futuros, 12);
+  const previstoSaida12Meses = projecao.reduce((s, m) => s + m.saida, 0);
+  const previstoEntrada12Meses = projecao.reduce((s, m) => s + m.entrada, 0);
+  return {
+    fixoMensalSaida,
+    fixoMensalEntrada,
+    avulsosPendentesSaida,
+    avulsosPendentesEntrada,
+    previstoSaida12Meses,
+    previstoEntrada12Meses,
+    saldoPrevisto12Meses: previstoEntrada12Meses - previstoSaida12Meses,
+  };
 }
 
 // consulta o CEP no ViaCEP (serviço público, gratuito, sem chave) e devolve o endereço
@@ -2355,17 +2371,48 @@ function LancamentoModal({ lancamento, onClose, onSave, onDelete, motos, editand
 }
 
 function emptyFuturo() {
-  return { id: uid(), descricao: "", categoria: "", valor: "", vencimento: todayISO(), recorrente: false, pago: false };
+  return {
+    id: uid(),
+    tipo: "saida",
+    descricao: "",
+    categoria: "",
+    valor: "",
+    vencimento: todayISO(),
+    recorrente: false,
+    pago: false,
+  };
 }
 
 function FuturoModal({ futuro, onClose, onSave, onDelete, editando }) {
-  const [form, setForm] = useState(futuro);
+  const [form, setForm] = useState({ tipo: "saida", ...futuro });
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
+  const isEntrada = form.tipo === "entrada";
 
   return (
     <Modal title={editando ? "Editar conta futura" : "Nova conta futura"} onClose={onClose}>
+      <div className="flex gap-2 mb-3">
+        {["saida", "entrada"].map((t) => (
+          <button
+            key={t}
+            onClick={() => setForm({ ...form, tipo: t })}
+            className="flex-1 rounded-xl py-2 text-sm font-semibold"
+            style={{
+              background: form.tipo === t ? (t === "entrada" ? theme.mint : theme.coral) : "transparent",
+              color: form.tipo === t ? theme.mintText : theme.textMuted,
+              border: `1px solid ${theme.cardBorder}`,
+            }}
+          >
+            {t === "entrada" ? "Recebimento futuro" : "Conta a pagar"}
+          </button>
+        ))}
+      </div>
       <FieldLabel>Descrição</FieldLabel>
-      <input style={inputStyle} value={form.descricao} onChange={set("descricao")} placeholder="Contabilidade, Imposto de renda..." />
+      <input
+        style={inputStyle}
+        value={form.descricao}
+        onChange={set("descricao")}
+        placeholder={isEntrada ? "Aluguel de moto fixo, venda agendada..." : "Contabilidade, Imposto de renda..."}
+      />
       <FieldLabel>Categoria (opcional)</FieldLabel>
       <input style={inputStyle} value={form.categoria} onChange={set("categoria")} placeholder="Imposto, serviço, taxa..." />
       <Row2>
@@ -2385,7 +2432,7 @@ function FuturoModal({ futuro, onClose, onSave, onDelete, editando }) {
       {!form.recorrente && (
         <label className="flex items-center gap-2 mb-3 text-sm" style={{ color: theme.text, fontFamily: BODY_FONT }}>
           <input type="checkbox" checked={form.pago} onChange={(e) => setForm({ ...form, pago: e.target.checked })} />
-          Já foi pago
+          {isEntrada ? "Já foi recebido" : "Já foi pago"}
         </label>
       )}
       <div className="flex gap-2">
@@ -2421,12 +2468,47 @@ function FuturosView({ futuros, persist }) {
   };
   const excluir = async (id) => persist(futuros.filter((x) => x.id !== id));
 
-  const { fixoMensal, avulsosPendentes, previsto12Meses } = totaisFuturos(futuros);
+  const { fixoMensalSaida, fixoMensalEntrada, avulsosPendentesSaida, avulsosPendentesEntrada, previstoSaida12Meses, previstoEntrada12Meses, saldoPrevisto12Meses } =
+    totaisFuturos(futuros);
   const projecao = projecaoFuturosPorMes(futuros, 12);
-  const maxProjecao = Math.max(1, ...projecao.map((m) => m.total));
+  const maxProjecao = Math.max(1, ...projecao.map((m) => Math.max(m.entrada, m.saida)));
 
   const recorrentes = futuros.filter((f) => f.recorrente);
   const avulsos = [...futuros.filter((f) => !f.recorrente)].sort((a, b) => (a.vencimento > b.vencimento ? 1 : -1));
+
+  const FuturoRow = ({ f }) => (
+    <div
+      key={f.id}
+      onClick={() => setModal(f)}
+      className="flex items-center justify-between px-4 py-3 rounded-2xl cursor-pointer"
+      style={{ background: theme.card, border: `1px solid ${theme.cardBorder}`, opacity: f.pago ? 0.55 : 1 }}
+    >
+      <div>
+        <div style={{ color: theme.text, fontFamily: BODY_FONT, fontWeight: 600, textDecoration: f.pago ? "line-through" : "none" }}>
+          {f.descricao || "Sem descrição"}
+        </div>
+        <div style={{ color: theme.textMuted, fontFamily: BODY_FONT, fontSize: 12 }}>
+          {f.recorrente ? `Todo mês · a partir de ${formatDate(f.vencimento)}` : `Vence em ${formatDate(f.vencimento)}`}
+          {f.pago && (f.tipo === "entrada" ? " · Recebido" : " · Pago")}
+        </div>
+      </div>
+      <div className="flex items-center gap-3">
+        <span style={{ color: f.tipo === "entrada" ? theme.mint : theme.coral, fontFamily: HEAD_FONT, fontSize: 16 }}>
+          {f.tipo === "entrada" ? "+" : "-"} {formatCurrency(f.valor)}
+        </span>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            excluir(f.id);
+          }}
+          className="mbr-hover-grow"
+          style={{ color: theme.textMuted }}
+        >
+          <Trash2 size={14} />
+        </button>
+      </div>
+    </div>
+  );
 
   return (
     <div>
@@ -2443,42 +2525,55 @@ function FuturosView({ futuros, persist }) {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
         <div className="rounded-2xl p-4" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
           <div className="text-xs uppercase tracking-wide mb-1" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
-            Fixo por mês
+            A receber (12 meses)
           </div>
-          <div style={{ fontFamily: HEAD_FONT, fontSize: 20, color: theme.text }}>{formatCurrency(fixoMensal)}</div>
+          <div style={{ fontFamily: HEAD_FONT, fontSize: 20, color: theme.mint }}>{formatCurrency(previstoEntrada12Meses)}</div>
+          <div className="text-xs mt-0.5" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+            fixo/mês: {formatCurrency(fixoMensalEntrada)} · avulso: {formatCurrency(avulsosPendentesEntrada)}
+          </div>
         </div>
         <div className="rounded-2xl p-4" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
           <div className="text-xs uppercase tracking-wide mb-1" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
-            Avulsos a pagar
+            A pagar (12 meses)
           </div>
-          <div style={{ fontFamily: HEAD_FONT, fontSize: 20, color: theme.coral }}>{formatCurrency(avulsosPendentes)}</div>
+          <div style={{ fontFamily: HEAD_FONT, fontSize: 20, color: theme.coral }}>{formatCurrency(previstoSaida12Meses)}</div>
+          <div className="text-xs mt-0.5" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+            fixo/mês: {formatCurrency(fixoMensalSaida)} · avulso: {formatCurrency(avulsosPendentesSaida)}
+          </div>
         </div>
         <div className="rounded-2xl p-4" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
           <div className="text-xs uppercase tracking-wide mb-1" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
-            Previsto (12 meses)
+            Saldo previsto (12 meses)
           </div>
-          <div style={{ fontFamily: HEAD_FONT, fontSize: 20, color: theme.amber }}>{formatCurrency(previsto12Meses)}</div>
+          <div style={{ fontFamily: HEAD_FONT, fontSize: 20, color: saldoPrevisto12Meses >= 0 ? theme.mint : theme.coral }}>
+            {formatCurrency(saldoPrevisto12Meses)}
+          </div>
         </div>
       </div>
 
       <div className="rounded-2xl p-4 mb-4" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
         <h3 style={{ fontFamily: HEAD_FONT, fontSize: 16, color: theme.text }} className="mb-3">
-          Previsão de gastos por mês
+          Previsão por mês
         </h3>
         {futuros.length === 0 ? (
           <div className="text-xs" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
             Cadastre uma conta futura pra ver a previsão aqui.
           </div>
         ) : (
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-3">
             {projecao.map((m) => (
               <div key={m.key}>
                 <div className="flex justify-between text-xs mb-1" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
                   <span>{m.mes}</span>
-                  <span>{formatCurrency(m.total)}</span>
+                  <span style={{ color: m.saldo >= 0 ? theme.mint : theme.coral, fontWeight: 600 }}>{formatCurrency(m.saldo)}</span>
                 </div>
-                <div style={{ height: 6, borderRadius: 3, background: theme.bg, overflow: "hidden" }}>
-                  <div style={{ height: "100%", width: `${(m.total / maxProjecao) * 100}%`, background: theme.amber }} />
+                <div className="flex flex-col gap-1">
+                  <div style={{ height: 5, borderRadius: 3, background: theme.bg, overflow: "hidden" }}>
+                    <div style={{ height: "100%", width: `${(m.entrada / maxProjecao) * 100}%`, background: theme.mint }} />
+                  </div>
+                  <div style={{ height: 5, borderRadius: 3, background: theme.bg, overflow: "hidden" }}>
+                    <div style={{ height: "100%", width: `${(m.saida / maxProjecao) * 100}%`, background: theme.coral }} />
+                  </div>
                 </div>
               </div>
             ))}
@@ -2489,36 +2584,11 @@ function FuturosView({ futuros, persist }) {
       {recorrentes.length > 0 && (
         <div className="mb-4">
           <div className="text-xs uppercase tracking-wide mb-2" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
-            Mensalidades fixas
+            Fixos mensais
           </div>
           <div className="flex flex-col gap-2">
             {recorrentes.map((f) => (
-              <div
-                key={f.id}
-                onClick={() => setModal(f)}
-                className="flex items-center justify-between px-4 py-3 rounded-2xl cursor-pointer"
-                style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}
-              >
-                <div>
-                  <div style={{ color: theme.text, fontFamily: BODY_FONT, fontWeight: 600 }}>{f.descricao || "Sem descrição"}</div>
-                  <div style={{ color: theme.textMuted, fontFamily: BODY_FONT, fontSize: 12 }}>
-                    Todo mês · a partir de {formatDate(f.vencimento)}
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span style={{ color: theme.coral, fontFamily: HEAD_FONT, fontSize: 16 }}>{formatCurrency(f.valor)}</span>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      excluir(f.id);
-                    }}
-                    className="mbr-hover-grow"
-                    style={{ color: theme.textMuted }}
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                </div>
-              </div>
+              <FuturoRow key={f.id} f={f} />
             ))}
           </div>
         </div>
@@ -2526,7 +2596,7 @@ function FuturosView({ futuros, persist }) {
 
       <div>
         <div className="text-xs uppercase tracking-wide mb-2" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
-          Contas avulsas
+          Avulsos
         </div>
         {avulsos.length === 0 ? (
           <div className="rounded-2xl p-6 text-center" style={{ background: theme.card, color: theme.textMuted, fontFamily: BODY_FONT, border: `1px solid ${theme.cardBorder}` }}>
@@ -2535,34 +2605,7 @@ function FuturosView({ futuros, persist }) {
         ) : (
           <div className="flex flex-col gap-2">
             {avulsos.map((f) => (
-              <div
-                key={f.id}
-                onClick={() => setModal(f)}
-                className="flex items-center justify-between px-4 py-3 rounded-2xl cursor-pointer"
-                style={{ background: theme.card, border: `1px solid ${theme.cardBorder}`, opacity: f.pago ? 0.55 : 1 }}
-              >
-                <div>
-                  <div style={{ color: theme.text, fontFamily: BODY_FONT, fontWeight: 600, textDecoration: f.pago ? "line-through" : "none" }}>
-                    {f.descricao || "Sem descrição"}
-                  </div>
-                  <div style={{ color: theme.textMuted, fontFamily: BODY_FONT, fontSize: 12 }}>
-                    Vence em {formatDate(f.vencimento)} {f.pago && "· Pago"}
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span style={{ color: theme.coral, fontFamily: HEAD_FONT, fontSize: 16 }}>{formatCurrency(f.valor)}</span>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      excluir(f.id);
-                    }}
-                    className="mbr-hover-grow"
-                    style={{ color: theme.textMuted }}
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                </div>
-              </div>
+              <FuturoRow key={f.id} f={f} />
             ))}
           </div>
         )}
@@ -3234,26 +3277,28 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {(() => {
-                const { fixoMensal, avulsosPendentes, previsto12Meses } = totaisFuturos(futuros);
+                const { previstoEntrada12Meses, previstoSaida12Meses, saldoPrevisto12Meses } = totaisFuturos(futuros);
                 return (
                   <>
                     <div>
                       <div className="text-xs uppercase tracking-wide mb-1" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
-                        Fixo por mês
+                        A receber (12 meses)
                       </div>
-                      <div style={{ fontFamily: HEAD_FONT, fontSize: 18, color: theme.text }}>{formatCurrency(fixoMensal)}</div>
+                      <div style={{ fontFamily: HEAD_FONT, fontSize: 18, color: theme.mint }}>{formatCurrency(previstoEntrada12Meses)}</div>
                     </div>
                     <div>
                       <div className="text-xs uppercase tracking-wide mb-1" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
-                        Avulsos a pagar
+                        A pagar (12 meses)
                       </div>
-                      <div style={{ fontFamily: HEAD_FONT, fontSize: 18, color: theme.coral }}>{formatCurrency(avulsosPendentes)}</div>
+                      <div style={{ fontFamily: HEAD_FONT, fontSize: 18, color: theme.coral }}>{formatCurrency(previstoSaida12Meses)}</div>
                     </div>
                     <div>
                       <div className="text-xs uppercase tracking-wide mb-1" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
-                        Previsto (12 meses)
+                        Saldo previsto
                       </div>
-                      <div style={{ fontFamily: HEAD_FONT, fontSize: 18, color: theme.amber }}>{formatCurrency(previsto12Meses)}</div>
+                      <div style={{ fontFamily: HEAD_FONT, fontSize: 18, color: saldoPrevisto12Meses >= 0 ? theme.mint : theme.coral }}>
+                        {formatCurrency(saldoPrevisto12Meses)}
+                      </div>
                     </div>
                   </>
                 );
