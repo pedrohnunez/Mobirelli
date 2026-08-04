@@ -42,6 +42,7 @@ import {
 import {
   ResponsiveContainer,
   ComposedChart,
+  AreaChart,
   Bar,
   Area,
   Line,
@@ -3068,11 +3069,11 @@ function CountUp({ value, format, duration = 900 }) {
   return <>{format ? format(display) : Math.round(display)}</>;
 }
 
-function HeroStat({ label, value, format = formatCurrency, icon: Icon, accent, deltaPercent, deltaLabel }) {
+function HeroStat({ label, value, format = formatCurrency, icon: Icon, accent, deltaPercent, deltaLabel, sparkData, fill }) {
   const hasDelta = deltaPercent !== null && deltaPercent !== undefined && Number.isFinite(deltaPercent);
   return (
     <div
-      className="rounded-2xl p-5 flex flex-col gap-2 min-w-0 mbr-card-lift"
+      className={`rounded-2xl p-5 flex flex-col gap-2 min-w-0 mbr-card-lift${fill ? " h-full" : ""}`}
       style={{
         background: `linear-gradient(150deg, ${theme.card} 0%, ${theme.card2} 130%)`,
         border: `1px solid ${accent}55`,
@@ -3117,6 +3118,21 @@ function HeroStat({ label, value, format = formatCurrency, icon: Icon, accent, d
           {deltaPercent >= 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
           {Math.abs(deltaPercent).toFixed(0)}% {deltaLabel}
         </span>
+      )}
+      {sparkData && sparkData.length > 1 && (
+        <div style={{ flex: 1, minHeight: 46, marginTop: 4 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={sparkData} margin={{ top: 2, right: 0, bottom: 0, left: 0 }}>
+              <defs>
+                <linearGradient id="mbrSparkFill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={accent} stopOpacity={0.5} />
+                  <stop offset="100%" stopColor={accent} stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <Area type="monotone" dataKey="v" stroke={accent} strokeWidth={2} fill="url(#mbrSparkFill)" isAnimationActive={true} dot={false} />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
       )}
     </div>
   );
@@ -3238,6 +3254,18 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
     };
   });
 
+  // mini-gráfico de tendência do faturamento — sempre os últimos meses com dados,
+  // independente do filtro (3m/6m/12m/tudo) escolhido pro gráfico principal
+  const sparkMeses = Math.min(6, mesesDisponiveis);
+  const sparkFaturamento = Array.from({ length: sparkMeses }, (_, i) => {
+    const abs = fimAbs - (sparkMeses - 1 - i);
+    const ano = Math.floor(abs / 12);
+    const mesN = (abs % 12) + 1;
+    const key = `${ano}-${String(mesN).padStart(2, "0")}`;
+    const v = lancamentos.filter((l) => l.tipo === "entrada" && l.data?.slice(0, 7) === key).reduce((s, l) => s + Number(l.valor), 0);
+    return { v };
+  });
+
   const porNatureza = NATUREZAS.map((n) => ({
     natureza: n,
     total: lancamentos.filter((l) => l.tipo === "saida" && l.natureza === n).reduce((s, l) => s + Number(l.valor), 0),
@@ -3334,9 +3362,10 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
         </div>
       )}
 
-      {/* KPIs principais — os números que uma empresa acompanha primeiro */}
+      {/* KPIs principais — Faturamento vira um card alto com mini-gráfico, e Lucro +
+          Margem se completam empilhados do lado, formando a mesma altura */}
       <Reveal>
-        <div className="grid gap-3 mb-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
+        <div className="grid grid-cols-1 sm:grid-cols-[1.3fr_1fr] gap-3 mb-3">
           <HeroStat
             label={`Faturamento (${rotuloMes})`}
             value={entradasMes}
@@ -3344,21 +3373,26 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
             accent={theme.mint}
             deltaPercent={deltaFaturamento}
             deltaLabel={`vs ${rotuloMesAnterior}`}
+            sparkData={sparkFaturamento}
+            fill
           />
-          <HeroStat
-            label={`${lucroMes >= 0 ? "Lucro" : "Prejuízo"} (${rotuloMes})`}
-            value={Math.abs(lucroMes)}
-            icon={Wallet}
-            accent={lucroMes >= 0 ? theme.mint : theme.coral}
-            deltaPercent={deltaLucro}
-            deltaLabel={`vs ${rotuloMesAnterior}`}
-          />
-          <RadialStat
-            label={`Margem de lucro (${rotuloMes})`}
-            percent={margemLucro}
-            color={lucroMes >= 0 ? theme.mint : theme.coral}
-            sublabel={entradasMes > 0 ? `${margemLucro.toFixed(1)}%` : "sem faturamento"}
-          />
+          <div className="grid grid-rows-2 gap-3">
+            <HeroStat
+              label={`${lucroMes >= 0 ? "Lucro" : "Prejuízo"} (${rotuloMes})`}
+              value={Math.abs(lucroMes)}
+              icon={Wallet}
+              accent={lucroMes >= 0 ? theme.mint : theme.coral}
+              deltaPercent={deltaLucro}
+              deltaLabel={`vs ${rotuloMesAnterior}`}
+              fill
+            />
+            <RadialStat
+              label={`Margem de lucro (${rotuloMes})`}
+              percent={margemLucro}
+              color={lucroMes >= 0 ? theme.mint : theme.coral}
+              sublabel={entradasMes > 0 ? `${margemLucro.toFixed(1)}%` : "sem faturamento"}
+            />
+          </div>
         </div>
       </Reveal>
       {mesRef !== mesCalendario && (
@@ -4105,7 +4139,7 @@ export default function MobirelliApp() {
     <div
       style={{
         backgroundColor: theme.bg,
-        backgroundImage: `radial-gradient(circle at 12% -8%, ${theme.mint}26 0%, transparent 42%), radial-gradient(circle at 105% 8%, ${theme.blue}20 0%, transparent 38%), radial-gradient(circle at 50% 115%, ${theme.amber}14 0%, transparent 40%)`,
+        backgroundImage: `radial-gradient(circle at 12% -8%, ${theme.mint}12 0%, transparent 38%), radial-gradient(circle at 105% 8%, ${theme.blue}0F 0%, transparent 34%), radial-gradient(circle at 50% 115%, ${theme.amber}0A 0%, transparent 36%)`,
         backgroundAttachment: "fixed",
         minHeight: "100vh",
         fontFamily: BODY_FONT,
