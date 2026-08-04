@@ -2906,6 +2906,7 @@ function FuturosView({ futuros, persist, motos }) {
 
   const FuturoRow = ({ f }) => {
     const motoLigada = motos?.find((m) => m.id === f.motoId);
+    const diaDoMes = f.diaVencimento || (f.vencimento ? new Date(`${f.vencimento}T00:00:00`).getDate() : null);
     return (
     <div
       key={f.id}
@@ -2918,7 +2919,7 @@ function FuturosView({ futuros, persist, motos }) {
           {f.descricao || "Sem descrição"}
         </div>
         <div style={{ color: theme.textMuted, fontFamily: BODY_FONT, fontSize: 12 }}>
-          {f.recorrente ? `Todo mês · a partir de ${formatDate(f.vencimento)}` : `Vence em ${formatDate(f.vencimento)}`}
+          {f.recorrente ? `Recorrente · todo dia ${diaDoMes}` : `Vence em ${formatDate(f.vencimento)}`}
           {f.pago && (f.tipo === "entrada" ? " · Recebido" : " · Pago")}
           {motoLigada && ` · ${formatPlaca(motoLigada.placa)}`}
         </div>
