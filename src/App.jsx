@@ -2342,24 +2342,24 @@ function MotosView({ motos, persist, clientes, persistClientes, config, lancamen
                   <MotoTrackingBlock link={moto.linkRastreamento || config?.linkRastreioGeral} placa={moto.placa} />
 
                   <div className="flex items-center gap-3 flex-wrap mb-3">
-                    {notaFiscalAnexosOf(moto).map((a, i) => (
+                    {notaFiscalAnexosOf(moto).map((a, i, lista) => (
                       <button
                         key={`nf-${i}`}
                         onClick={() => setPreview({ url: a.link, title: `Nota fiscal — ${formatPlaca(moto.placa)}` })}
                         className="inline-flex items-center gap-1 text-xs mbr-hover-grow"
                         style={{ color: theme.blue }}
                       >
-                        <FileText size={12} /> {a.fileName || `Nota fiscal ${i + 1}`}
+                        <FileText size={12} /> {lista.length > 1 ? `Nota fiscal ${i + 1}` : "Nota fiscal"}
                       </button>
                     ))}
-                    {notaFiscalFabricaAnexosOf(moto).map((a, i) => (
+                    {notaFiscalFabricaAnexosOf(moto).map((a, i, lista) => (
                       <button
                         key={`nff-${i}`}
                         onClick={() => setPreview({ url: a.link, title: `Nota fiscal de fábrica — ${formatPlaca(moto.placa)}` })}
                         className="inline-flex items-center gap-1 text-xs mbr-hover-grow"
                         style={{ color: theme.blue }}
                       >
-                        <FileText size={12} /> {a.fileName || `Nota fiscal de fábrica ${i + 1}`}
+                        <FileText size={12} /> {lista.length > 1 ? `Nota fiscal de fábrica ${i + 1}` : "Nota fiscal de fábrica"}
                       </button>
                     ))}
                     {moto.documentoLink && (
