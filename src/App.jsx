@@ -686,11 +686,18 @@ function Collapse({ open, children }) {
   const [height, setHeight] = useState(0);
 
   useEffect(() => {
-    if (open && innerRef.current) {
-      setHeight(innerRef.current.scrollHeight);
-    } else {
+    const el = innerRef.current;
+    if (!open || !el) {
       setHeight(0);
+      return;
     }
+    setHeight(el.scrollHeight);
+    // reajusta se o conteúdo mudar de altura depois de aberto (ex: a fonte do Google
+    // Fonts ainda carregando na 1ª vez) — sem isso, a medida antiga ficava pequena
+    // demais e cortava o final da lista sem dar pra perceber que faltava conteúdo
+    const observer = new ResizeObserver(() => setHeight(el.scrollHeight));
+    observer.observe(el);
+    return () => observer.disconnect();
   }, [open, children]);
 
   return (
@@ -1015,6 +1022,54 @@ function DetalheExpandivel({ itens, fmt }) {
         </div>
       </Collapse>
     </div>
+  );
+}
+
+// mostra de onde vem um valor passando o mouse por cima (computador) ou tocando nele
+// (celular, já que touch não tem hover de verdade) — usado só nos "Próximos 7 dias",
+// que ficam soltos e pequenos demais pra um botão "Ver detalhes" próprio
+function ValorComDetalhe({ children, itens, fmt }) {
+  const [aberto, setAberto] = useState(false);
+  if (!itens || itens.length === 0) return children;
+  return (
+    <span
+      className="relative inline-block"
+      onMouseEnter={() => setAberto(true)}
+      onMouseLeave={() => setAberto(false)}
+      onClick={(e) => {
+        e.stopPropagation();
+        setAberto((v) => !v);
+      }}
+      style={{ cursor: "help" }}
+    >
+      {children}
+      {aberto && (
+        <>
+          <div
+            className="fixed inset-0 z-20"
+            onClick={(e) => {
+              e.stopPropagation();
+              setAberto(false);
+            }}
+          />
+          <div
+            className="absolute z-30 mt-1 left-0 rounded-xl overflow-hidden mbr-fade-in"
+            style={{ background: theme.panel, border: `1px solid ${theme.cardBorder}`, minWidth: 220, maxWidth: "min(320px, 85vw)", boxShadow: "0 6px 20px rgba(0,0,0,0.4)", padding: 10 }}
+          >
+            {itens.map((it, i) => (
+              <div
+                key={i}
+                className="flex items-center justify-between gap-3 text-xs py-1"
+                style={{ color: theme.text, fontFamily: BODY_FONT, borderBottom: i < itens.length - 1 ? `1px solid ${theme.cardBorder}` : "none" }}
+              >
+                <span className="truncate">{it.label}</span>
+                <span style={{ fontWeight: 700, flexShrink: 0 }}>{fmt(it.total)}</span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </span>
   );
 }
 
@@ -4216,26 +4271,35 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
                 );
               })()}
             </div>
-            <div className="mt-3 pt-3" style={{ borderTop: `1px solid ${theme.cardBorder}` }}>
-              {(() => {
-                const { entrada: entrada7d, saida: saida7d, itensEntrada: itensEntrada7d, itensSaida: itensSaida7d } = futurosProximosDias(futuros, motos, 7);
-                return (
-                  <>
-                    <div className="flex gap-4 flex-wrap">
-                      <span className="text-xs" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
-                        Próximos 7 dias — a receber: <span style={{ color: theme.mint, fontWeight: 700 }}>{fmt(entrada7d)}</span>
-                      </span>
-                      <span className="text-xs" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
-                        a pagar: <span style={{ color: theme.coral, fontWeight: 700 }}>{fmt(saida7d)}</span>
-                      </span>
-                    </div>
-                    <div className="flex gap-6 flex-wrap">
-                      <DetalheExpandivel itens={itensEntrada7d} fmt={fmt} />
-                      <DetalheExpandivel itens={itensSaida7d} fmt={fmt} />
-                    </div>
-                  </>
-                );
-              })()}
+            <div className="mt-4 pt-4" style={{ borderTop: `1px solid ${theme.cardBorder}` }}>
+              <div className="text-xs uppercase tracking-wide mb-2" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+                Próximos 7 dias
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                {(() => {
+                  const { entrada: entrada7d, saida: saida7d, itensEntrada: itensEntrada7d, itensSaida: itensSaida7d } = futurosProximosDias(futuros, motos, 7);
+                  return (
+                    <>
+                      <div>
+                        <div className="text-xs mb-1" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+                          A receber
+                        </div>
+                        <ValorComDetalhe itens={itensEntrada7d} fmt={fmt}>
+                          <div style={{ fontFamily: HEAD_FONT, fontSize: 18, color: theme.mint }}>{fmt(entrada7d)}</div>
+                        </ValorComDetalhe>
+                      </div>
+                      <div>
+                        <div className="text-xs mb-1" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+                          A pagar
+                        </div>
+                        <ValorComDetalhe itens={itensSaida7d} fmt={fmt}>
+                          <div style={{ fontFamily: HEAD_FONT, fontSize: 18, color: theme.coral }}>{fmt(saida7d)}</div>
+                        </ValorComDetalhe>
+                      </div>
+                    </>
+                  );
+                })()}
+              </div>
             </div>
           </div>
         </Reveal>
