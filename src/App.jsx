@@ -1777,7 +1777,10 @@ function TrackingMap({ link, filterPlaca, height = 320, rounded = true, motos, c
 
               if (popupRef.current) popupRef.current.remove();
               popupChaveRef.current = chave;
-              popupRef.current = new maplibregl.Popup({ closeButton: true, offset: 28, className: "mbr-map-popup" })
+              // o pino (bolinha + etiqueta da placa) tem ~37px de altura acima do ponto —
+              // offset menor que isso fazia o popup tampar um pouco o ícone; com 48px sobra
+              // uma folguinha e o ícone fica 100% visível abaixo do balão
+              popupRef.current = new maplibregl.Popup({ closeButton: true, offset: 48, className: "mbr-map-popup" })
                 .setLngLat(ll)
                 .setHTML(rastreioPopupHtml(entry.placa, entry.device, moto, cliente?.nome))
                 .addTo(map);
@@ -4181,6 +4184,10 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
                   <stop offset="0%" stopColor={theme.blue} stopOpacity={0.35} />
                   <stop offset="100%" stopColor={theme.blue} stopOpacity={0} />
                 </linearGradient>
+                <linearGradient id="mbrGradLucro" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={theme.amber} stopOpacity={0.4} />
+                  <stop offset="100%" stopColor={theme.amber} stopOpacity={0} />
+                </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke={theme.cardBorder} vertical={false} />
               <XAxis dataKey="mes" stroke={theme.textMuted} fontSize={12} axisLine={false} tickLine={false} />
@@ -4232,12 +4239,13 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
                   activeDot={{ r: 4 }}
                 />
               )}
-              <Line
+              <Area
                 yAxisId="right"
                 type="monotone"
                 dataKey="Lucro"
                 stroke={theme.amber}
                 strokeWidth={2.5}
+                fill="url(#mbrGradLucro)"
                 dot={{ r: 3, fill: theme.amber, strokeWidth: 0 }}
                 activeDot={{ r: 5 }}
               />
