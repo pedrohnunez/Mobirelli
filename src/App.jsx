@@ -3384,23 +3384,61 @@ function FluxoCaixaView({ lancamentos, persist, motos, clientes, futuros, persis
   const [expandido, setExpandido] = useState(mesesOrdenados[0] || null);
   const [view, setView] = useState("lancado");
 
+  const viewToggleRef = useRef(null);
+  const viewSlotRefs = useRef({});
+  const [viewPillRect, setViewPillRect] = useState(null);
+
+  // mesma pílula deslizante do menu de baixo, só que aqui entre "Lançado"/"Futuros" —
+  // mede a posição do botão ativo e anima a faixa verde até ali em vez de simplesmente
+  // trocar o fundo do botão na hora
+  useEffect(() => {
+    const medir = () => {
+      const slot = viewSlotRefs.current[view];
+      const container = viewToggleRef.current;
+      if (!slot || !container) return;
+      const slotRect = slot.getBoundingClientRect();
+      const containerRect = container.getBoundingClientRect();
+      setViewPillRect({ left: slotRect.left - containerRect.left, top: slotRect.top - containerRect.top, width: slotRect.width, height: slotRect.height });
+    };
+    medir();
+    window.addEventListener("resize", medir);
+    return () => window.removeEventListener("resize", medir);
+  }, [view]);
+
   return (
     <div>
       <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
         <h2 style={{ fontFamily: HEAD_FONT, fontSize: 22, fontWeight: 800, color: theme.mint }}>Fluxo de caixa</h2>
         <div className="flex items-center gap-2">
-          <div className="flex rounded-xl p-1" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
+          <div ref={viewToggleRef} className="relative flex rounded-xl p-1" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
+            {viewPillRect && (
+              <span
+                className="absolute rounded-lg"
+                style={{
+                  left: 0,
+                  top: viewPillRect.top,
+                  width: viewPillRect.width,
+                  height: viewPillRect.height,
+                  background: theme.mint,
+                  willChange: "transform",
+                  transform: `translateX(${viewPillRect.left}px)`,
+                  transition: "transform 0.28s cubic-bezier(0.32, 0.72, 0, 1)",
+                }}
+              />
+            )}
             {[
               { id: "lancado", label: "Lançado" },
               { id: "futuros", label: "Futuros" },
             ].map((v) => (
               <button
                 key={v.id}
+                ref={(el) => (viewSlotRefs.current[v.id] = el)}
                 onClick={() => setView(v.id)}
-                className="rounded-lg px-3 py-1.5 text-sm font-semibold"
+                className="relative rounded-lg px-3 py-1.5 text-sm font-semibold"
                 style={{
-                  background: view === v.id ? theme.mint : "transparent",
                   color: view === v.id ? theme.mintText : theme.textMuted,
+                  transition: "color 0.15s ease",
+                  zIndex: 1,
                 }}
               >
                 {v.label}
@@ -5100,7 +5138,7 @@ export default function MobirelliApp() {
           paddingTop: "calc(0.75rem + env(safe-area-inset-top, 0px))",
           background:
             tab === "rastreio"
-              ? `linear-gradient(to bottom, ${theme.panel} 0%, ${theme.panel} 50%, ${hexToRgba(theme.panel, 0)} 100%)`
+              ? `linear-gradient(to bottom, ${hexToRgba(theme.panel, 0.88)} 0%, ${hexToRgba(theme.panel, 0.88)} 25%, ${hexToRgba(theme.panel, 0)} 100%)`
               : hexToRgba(theme.panel, 0.82),
           borderBottom: tab === "rastreio" ? "none" : `1px solid ${theme.cardBorder}`,
           backdropFilter: tab === "rastreio" ? "none" : "saturate(1.6) blur(16px)",
@@ -5187,7 +5225,7 @@ export default function MobirelliApp() {
         style={{
           background:
             tab === "rastreio"
-              ? `linear-gradient(to bottom, ${hexToRgba(theme.panel, 0)} 0%, ${theme.panel} 50%, ${theme.panel} 100%)`
+              ? `linear-gradient(to bottom, ${hexToRgba(theme.panel, 0)} 0%, ${hexToRgba(theme.panel, 0.88)} 75%, ${hexToRgba(theme.panel, 0.88)} 100%)`
               : hexToRgba(theme.panel, 0.82),
           borderTop: tab === "rastreio" ? "none" : `1px solid ${theme.cardBorder}`,
           paddingBottom: "calc(6px + env(safe-area-inset-bottom, 0px))",
