@@ -4907,6 +4907,8 @@ export default function MobirelliApp() {
   const [tab, setTab] = useState("dashboard");
   const headerRef = useRef(null);
   const navRef = useRef(null);
+  const tabSlotRefs = useRef({});
+  const [pilulaRect, setPilulaRect] = useState(null);
   // altura real da barra de cima/baixo — usado no Rastreio pra empurrar os controles
   // do mapa pra fora da faixa que fica por baixo delas (que agora é semitransparente)
   const [chromeHeights, setChromeHeights] = useState({ header: 64, nav: 76 });
@@ -4973,6 +4975,23 @@ export default function MobirelliApp() {
     { id: "config", label: "Ajustes", icon: Settings },
   ];
 
+  // mede a posição do ícone da aba ativa pra "pílula" verde deslizar até ali (em vez de
+  // simplesmente aparecer/desaparecer em cada aba) — precisa medir de novo sempre que a
+  // aba muda ou a tela redimensiona, já que os botões são distribuídos com flex
+  useEffect(() => {
+    const medir = () => {
+      const slot = tabSlotRefs.current[tab];
+      const navEl = navRef.current;
+      if (!slot || !navEl) return;
+      const slotRect = slot.getBoundingClientRect();
+      const navRect = navEl.getBoundingClientRect();
+      setPilulaRect({ left: slotRect.left - navRect.left, top: slotRect.top - navRect.top, width: slotRect.width, height: slotRect.height });
+    };
+    medir();
+    window.addEventListener("resize", medir);
+    return () => window.removeEventListener("resize", medir);
+  }, [tab]);
+
   return (
     <div
       style={{
@@ -5010,8 +5029,6 @@ export default function MobirelliApp() {
         .mbr-skel { animation: mbrPulse 1.3s ease-in-out infinite; border-radius: 10px; background: ${theme.card}; }
         @keyframes mbrFadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
         .mbr-fade-in { animation: mbrFadeIn 0.24s ease both; }
-        @keyframes mbrTabPop { from { transform: scale(0.85); } to { transform: scale(1); } }
-        .mbr-tab-pop { animation: mbrTabPop 0.22s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
       `}</style>
 
       <header
@@ -5117,6 +5134,20 @@ export default function MobirelliApp() {
           WebkitBackdropFilter: tab === "rastreio" ? "none" : "saturate(1.6) blur(16px)",
         }}
       >
+        {pilulaRect && (
+          <span
+            className="absolute rounded-full"
+            style={{
+              left: pilulaRect.left,
+              top: pilulaRect.top,
+              width: pilulaRect.width,
+              height: pilulaRect.height,
+              background: hexToRgba(theme.mint, 0.16),
+              zIndex: -1,
+              transition: "left 0.32s cubic-bezier(0.34, 1.56, 0.64, 1), width 0.32s cubic-bezier(0.34, 1.56, 0.64, 1)",
+            }}
+          />
+        )}
         {tabs.map((t) => {
           const Icon = t.icon;
           const active = tab === t.id;
@@ -5128,14 +5159,9 @@ export default function MobirelliApp() {
               style={{ color: active ? theme.mint : theme.textMuted, background: "none", transition: "color 0.15s ease, transform 0.18s ease" }}
             >
               <span
-                key={active}
-                className={active ? "rounded-full flex items-center justify-center mbr-tab-pop" : "rounded-full flex items-center justify-center"}
-                style={{
-                  width: 40,
-                  height: 26,
-                  background: active ? hexToRgba(theme.mint, 0.16) : "transparent",
-                  transition: "background 0.15s ease, color 0.15s ease",
-                }}
+                ref={(el) => (tabSlotRefs.current[t.id] = el)}
+                className="relative rounded-full flex items-center justify-center"
+                style={{ width: 40, height: 26, zIndex: 1 }}
               >
                 <Icon size={19} strokeWidth={active ? 2.4 : 2} className="mbr-tab-icon" />
               </span>
