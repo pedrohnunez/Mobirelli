@@ -5141,8 +5141,11 @@ export default function MobirelliApp() {
               ? `linear-gradient(to bottom, ${hexToRgba(theme.panel, 0.9)} 0%, ${hexToRgba(theme.panel, 0.9)} 50%, ${hexToRgba(theme.panel, 0)} 100%)`
               : hexToRgba(theme.panel, 0.82),
           borderBottom: tab === "rastreio" ? "none" : `1px solid ${theme.cardBorder}`,
-          backdropFilter: tab === "rastreio" ? "none" : "saturate(1.6) blur(16px)",
-          WebkitBackdropFilter: tab === "rastreio" ? "none" : "saturate(1.6) blur(16px)",
+          // no Rastreio essa faixa fica por cima do mapa (não de um fundo sólido), então
+          // sem o borrão de vidro igual às outras abas ela ficava com uma aparência
+          // "seca"/recortada em vez de translúcida — agora borra o mapa por baixo dela também
+          backdropFilter: "saturate(1.6) blur(16px)",
+          WebkitBackdropFilter: "saturate(1.6) blur(16px)",
         }}
       >
         <div />
@@ -5229,8 +5232,8 @@ export default function MobirelliApp() {
               : hexToRgba(theme.panel, 0.82),
           borderTop: tab === "rastreio" ? "none" : `1px solid ${theme.cardBorder}`,
           paddingBottom: "calc(6px + env(safe-area-inset-bottom, 0px))",
-          backdropFilter: tab === "rastreio" ? "none" : "saturate(1.6) blur(16px)",
-          WebkitBackdropFilter: tab === "rastreio" ? "none" : "saturate(1.6) blur(16px)",
+          backdropFilter: "saturate(1.6) blur(16px)",
+          WebkitBackdropFilter: "saturate(1.6) blur(16px)",
         }}
       >
         {pilulaRect && (
