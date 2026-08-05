@@ -1766,7 +1766,10 @@ function TrackingMap({ link, filterPlaca, height = 320, rounded = true, motos, c
               const cliente = moto?.contratoAtual ? clientesRef.current?.find((c) => c.id === moto.contratoAtual.clienteId) : null;
 
               if (popupRef.current) popupRef.current.remove();
-              popupRef.current = new maplibregl.Popup({ closeButton: true, offset: 28, className: "mbr-map-popup" })
+              // o pino (bolinha + etiqueta da placa) fica todo ACIMA do ponto marcado
+              // (anchor "bottom" do Marker) — força o popup a abrir por BAIXO do ponto
+              // (anchor "top") pra não tampar o ícone
+              popupRef.current = new maplibregl.Popup({ closeButton: true, anchor: "top", offset: 14, className: "mbr-map-popup" })
                 .setLngLat(ll)
                 .setHTML(rastreioPopupHtml(entry.placa, entry.device, moto, cliente?.nome))
                 .addTo(map);
@@ -3001,7 +3004,7 @@ function FuturoModal({ futuro, onClose, onSave, onDelete, editando, motos }) {
   );
 }
 
-function FuturosView({ futuros, persist, motos }) {
+function FuturosView({ futuros, persist, motos, clientes }) {
   const [modal, setModal] = useState(null);
 
   const salvar = async (fOrLista) => {
@@ -3023,6 +3026,29 @@ function FuturosView({ futuros, persist, motos }) {
 
   const recorrentes = futuros.filter((f) => f.recorrente);
   const avulsos = [...futuros.filter((f) => !f.recorrente)].sort((a, b) => (a.vencimento > b.vencimento ? 1 : -1));
+
+  // agenda de cobrança: agrupa por dia do mês quem tem que ser cobrado — pensado pra
+  // quando tiver muitas motos/clientes e ficar difícil lembrar "quem vence quando" só
+  // olhando a lista corrida de contratos/recorrentes
+  const cobrancasPorDia = (() => {
+    const entradasRecorrentes = [...contratos, ...futuros.filter((f) => f.recorrente && f.tipo === "entrada")];
+    const porDia = new Map();
+    entradasRecorrentes.forEach((f) => {
+      const dia = f.diaVencimento || (f.vencimento ? new Date(`${f.vencimento}T00:00:00`).getDate() : null);
+      if (!dia) return;
+      const moto = motos?.find((m) => m.id === f.motoId);
+      const cliente = moto?.contratoAtual ? clientes?.find((c) => c.id === moto.contratoAtual.clienteId) : null;
+      const item = {
+        id: f.id,
+        label: cliente?.nome || f.descricao || f.categoria || "Recebimento",
+        sub: moto ? formatPlaca(moto.placa) : null,
+        valor: Number(f.valor) || 0,
+      };
+      if (!porDia.has(dia)) porDia.set(dia, []);
+      porDia.get(dia).push(item);
+    });
+    return [...porDia.entries()].sort((a, b) => a[0] - b[0]);
+  })();
 
   const FuturoRow = ({ f }) => {
     const motoLigada = motos?.find((m) => m.id === f.motoId);
@@ -3103,6 +3129,44 @@ function FuturosView({ futuros, persist, motos }) {
           </div>
         </div>
       </div>
+
+      {cobrancasPorDia.length > 0 && (
+        <div className="rounded-2xl p-4 mb-4" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
+          <h3 style={{ fontFamily: HEAD_FONT, fontSize: 16, color: theme.text }} className="mb-1">
+            Agenda de cobranças
+          </h3>
+          <div className="text-xs mb-3" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+            Todo mês, nesses dias — pra saber quem cobrar e quando.
+          </div>
+          <div className="flex flex-col">
+            {cobrancasPorDia.map(([dia, itens], i) => (
+              <div
+                key={dia}
+                className="flex items-start gap-3 py-2.5"
+                style={{ borderTop: i === 0 ? "none" : `1px solid ${theme.cardBorder}` }}
+              >
+                <div
+                  className="flex-shrink-0 flex items-center justify-center rounded-lg"
+                  style={{ width: 38, height: 38, background: hexToRgba(theme.blue, 0.16), color: theme.blue, fontFamily: HEAD_FONT, fontWeight: 800, fontSize: 13 }}
+                >
+                  {String(dia).padStart(2, "0")}
+                </div>
+                <div className="flex-1 flex flex-col gap-1 min-w-0">
+                  {itens.map((it) => (
+                    <div key={it.id} className="flex items-center justify-between gap-2 text-xs" style={{ fontFamily: BODY_FONT }}>
+                      <span className="truncate" style={{ color: theme.text }}>
+                        {it.label}
+                        {it.sub ? ` · ${it.sub}` : ""}
+                      </span>
+                      <span style={{ color: theme.mint, fontWeight: 700, flexShrink: 0 }}>{formatCurrency(it.valor)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="rounded-2xl p-4 mb-4" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
         <h3 style={{ fontFamily: HEAD_FONT, fontSize: 16, color: theme.text }} className="mb-3">
@@ -3212,7 +3276,7 @@ function FuturosView({ futuros, persist, motos }) {
   );
 }
 
-function FluxoCaixaView({ lancamentos, persist, motos, futuros, persistFuturos }) {
+function FluxoCaixaView({ lancamentos, persist, motos, clientes, futuros, persistFuturos }) {
   const [modal, setModal] = useState(null);
 
   const salvar = async (l) => {
@@ -3338,7 +3402,7 @@ function FluxoCaixaView({ lancamentos, persist, motos, futuros, persistFuturos }
       </div>
 
       {view === "futuros" ? (
-        <FuturosView futuros={futuros || []} persist={persistFuturos} motos={motos} />
+        <FuturosView futuros={futuros || []} persist={persistFuturos} motos={motos} clientes={clientes} />
       ) : (
         <>
       {ordenados.length === 0 && (
@@ -5005,6 +5069,7 @@ export default function MobirelliApp() {
                 lancamentos={fluxoState.items}
                 persist={fluxoState.persist}
                 motos={motosState.items}
+                clientes={clientesState.items}
                 futuros={futurosState.items}
                 persistFuturos={futurosState.persist}
               />
