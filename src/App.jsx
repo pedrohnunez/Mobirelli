@@ -3846,19 +3846,35 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
   const [mesEscolhido, setMesEscolhido] = useState(null);
   const mesRef = mesEscolhido || mesAutoDetectado;
   const podeAvancarMes = mesRef < mesCalendario;
+  const [direcaoMes, setDirecaoMes] = useState(0); // -1 = voltou, 1 = avançou
   const irParaMesAnteriorRef = () => {
+    setDirecaoMes(-1);
     const [ano, mesN] = mesRef.split("-").map(Number);
     const d = new Date(ano, mesN - 2, 1);
     setMesEscolhido(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
   };
   const irParaProximoMesRef = () => {
     if (!podeAvancarMes) return;
+    setDirecaoMes(1);
     const [ano, mesN] = mesRef.split("-").map(Number);
     const d = new Date(ano, mesN, 1);
     setMesEscolhido(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
   };
   const noMes = (data) => data?.slice(0, 7) === mesRef;
   const rotuloMes = monthLabel(mesRef);
+
+  // guarda o rótulo do mês anterior por um instante pra poder animar ele "saindo" pro
+  // lado enquanto o novo mês "entra" do lado oposto, feito um carrossel
+  const rotuloMesAtualRef = useRef(rotuloMes);
+  const [rotuloMesSaindo, setRotuloMesSaindo] = useState(null);
+  useEffect(() => {
+    if (rotuloMesAtualRef.current !== rotuloMes) {
+      setRotuloMesSaindo(rotuloMesAtualRef.current);
+      rotuloMesAtualRef.current = rotuloMes;
+      const t = setTimeout(() => setRotuloMesSaindo(null), 320);
+      return () => clearTimeout(t);
+    }
+  }, [rotuloMes]);
 
   const entradasMes = lancamentos.filter((l) => l.tipo === "entrada" && noMes(l.data)).reduce((s, l) => s + Number(l.valor), 0);
   const saidasOperacionaisMes = lancamentos
@@ -3880,6 +3896,25 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
   const mesesDisponiveis = fimAbs - inicioAbs + 1;
 
   const [periodoGrafico, setPeriodoGrafico] = useState("tudo"); // "3m" | "6m" | "12m" | "tudo"
+  const periodoToggleRef = useRef(null);
+  const periodoSlotRefs = useRef({});
+  const [periodoPillRect, setPeriodoPillRect] = useState(null);
+
+  // mesma pílula deslizante do menu de baixo, agora no seletor 3m/6m/12m/Tudo do gráfico
+  useEffect(() => {
+    const medir = () => {
+      const slot = periodoSlotRefs.current[periodoGrafico];
+      const container = periodoToggleRef.current;
+      if (!slot || !container) return;
+      const slotRect = slot.getBoundingClientRect();
+      const containerRect = container.getBoundingClientRect();
+      setPeriodoPillRect({ left: slotRect.left - containerRect.left, top: slotRect.top - containerRect.top, width: slotRect.width, height: slotRect.height });
+    };
+    medir();
+    window.addEventListener("resize", medir);
+    return () => window.removeEventListener("resize", medir);
+  }, [periodoGrafico]);
+
   const [mostrarInvestimentos, setMostrarInvestimentos] = useState(false);
   const [verTodasRetorno, setVerTodasRetorno] = useState(false);
   const [valoresOcultos, setValoresOcultos] = useState(false);
@@ -4008,11 +4043,31 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
             <button onClick={irParaMesAnteriorRef} className="mbr-hover-grow flex items-center justify-center rounded-full" style={{ width: 26, height: 26, color: theme.text }}>
               <ChevronLeft size={16} />
             </button>
-            <span
-              className="text-xs font-semibold text-center"
-              style={{ color: theme.text, fontFamily: BODY_FONT, minWidth: 74 }}
-            >
-              {rotuloMes}
+            <span className="relative inline-block overflow-hidden align-middle" style={{ minWidth: 74, height: 15 }}>
+              {rotuloMesSaindo && (
+                <span
+                  key={`saindo-${rotuloMesSaindo}`}
+                  className="absolute inset-0 text-xs font-semibold text-center"
+                  style={{
+                    color: theme.text,
+                    fontFamily: BODY_FONT,
+                    animation: `${direcaoMes >= 0 ? "mbrMesSaiEsquerda" : "mbrMesSaiDireita"} 0.32s cubic-bezier(0.32, 0.72, 0, 1) both`,
+                  }}
+                >
+                  {rotuloMesSaindo}
+                </span>
+              )}
+              <span
+                key={`entra-${rotuloMes}`}
+                className="absolute inset-0 text-xs font-semibold text-center"
+                style={{
+                  color: theme.text,
+                  fontFamily: BODY_FONT,
+                  animation: rotuloMesSaindo ? `${direcaoMes >= 0 ? "mbrMesEntraDireita" : "mbrMesEntraEsquerda"} 0.32s cubic-bezier(0.32, 0.72, 0, 1) both` : "none",
+                }}
+              >
+                {rotuloMes}
+              </span>
             </span>
             <button
               onClick={irParaProximoMesRef}
@@ -4166,7 +4221,22 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
         <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
           <SectionTitle color={theme.mint} className="">Entradas, saídas e lucro</SectionTitle>
           <div className="flex items-center gap-2 flex-wrap">
-            <div className="flex rounded-full overflow-hidden" style={{ border: `1px solid ${theme.cardBorder}` }}>
+            <div ref={periodoToggleRef} className="relative flex rounded-full overflow-hidden" style={{ border: `1px solid ${theme.cardBorder}` }}>
+              {periodoPillRect && (
+                <span
+                  className="absolute rounded-full"
+                  style={{
+                    left: 0,
+                    top: periodoPillRect.top,
+                    width: periodoPillRect.width,
+                    height: periodoPillRect.height,
+                    background: theme.mint,
+                    willChange: "transform",
+                    transform: `translateX(${periodoPillRect.left}px)`,
+                    transition: "transform 0.28s cubic-bezier(0.32, 0.72, 0, 1)",
+                  }}
+                />
+              )}
               {[
                 { id: "3m", label: "3m" },
                 { id: "6m", label: "6m" },
@@ -4175,11 +4245,13 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
               ].map((op) => (
                 <button
                   key={op.id}
+                  ref={(el) => (periodoSlotRefs.current[op.id] = el)}
                   onClick={() => setPeriodoGrafico(op.id)}
-                  className="text-xs font-semibold px-2.5 py-1"
+                  className="relative text-xs font-semibold px-2.5 py-1"
                   style={{
-                    background: periodoGrafico === op.id ? theme.mint : "transparent",
                     color: periodoGrafico === op.id ? theme.mintText : theme.textMuted,
+                    transition: "color 0.15s ease",
+                    zIndex: 1,
                   }}
                 >
                   {op.label}
@@ -4245,6 +4317,21 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
                 contentStyle={{ background: theme.panel, border: `1px solid ${theme.cardBorder}`, borderRadius: 12, color: theme.text }}
               />
               <Legend />
+              {/* Lucro vem PRIMEIRO (mais embaixo na pilha de desenho) porque usa uma escala
+                  (eixo direito) diferente da de Entradas/Saídas — o "zero" dele cai numa
+                  altura de tela diferente do de Entradas/Saídas, então o preenchimento dele
+                  podia acabar desenhado por cima da LINHA das outras duas (não só do fundo).
+                  Desenhando-o antes, Entradas e Saídas sempre ficam por cima, nunca tampadas. */}
+              <Area
+                yAxisId="right"
+                type="monotone"
+                dataKey="Lucro"
+                stroke={theme.amber}
+                strokeWidth={2.5}
+                fill="url(#mbrGradLucro)"
+                dot={{ r: 3, fill: theme.amber, strokeWidth: 0 }}
+                activeDot={{ r: 5 }}
+              />
               <Area
                 yAxisId="left"
                 type="monotone"
@@ -4277,16 +4364,6 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
                   activeDot={{ r: 4 }}
                 />
               )}
-              <Area
-                yAxisId="right"
-                type="monotone"
-                dataKey="Lucro"
-                stroke={theme.amber}
-                strokeWidth={2.5}
-                fill="url(#mbrGradLucro)"
-                dot={{ r: 3, fill: theme.amber, strokeWidth: 0 }}
-                activeDot={{ r: 5 }}
-              />
             </ComposedChart>
           </ResponsiveContainer>
         </div>

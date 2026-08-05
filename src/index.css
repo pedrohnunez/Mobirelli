@@ -12,6 +12,13 @@ body {
   margin: 0;
 }
 
+/* carrossel do seletor de mês (Início) — o mês antigo sai pra um lado enquanto o
+   novo entra do outro, dependendo se avançou ou voltou */
+@keyframes mbrMesSaiEsquerda { from { transform: translateX(0); opacity: 1; } to { transform: translateX(-16px); opacity: 0; } }
+@keyframes mbrMesSaiDireita { from { transform: translateX(0); opacity: 1; } to { transform: translateX(16px); opacity: 0; } }
+@keyframes mbrMesEntraDireita { from { transform: translateX(16px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+@keyframes mbrMesEntraEsquerda { from { transform: translateX(-16px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
 .mbr-map .maplibregl-ctrl-top-right {
   top: var(--mbr-top-inset, 0px);
 }
