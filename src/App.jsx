@@ -1666,6 +1666,7 @@ function TrackingMap({ link, filterPlaca, height = 320, rounded = true, motos, c
   const mapObjRef = useRef(null);
   const markersRef = useRef({});
   const popupRef = useRef(null);
+  const popupChaveRef = useRef(null);
   const tickRef = useRef(null);
   const primeiraCargaRef = useRef(true);
   const seguindoRef = useRef(null);
@@ -1744,6 +1745,15 @@ function TrackingMap({ link, filterPlaca, height = 320, rounded = true, motos, c
             if (seguindoRef.current === chave) {
               map.easeTo({ center: [lng, lat], duration: 900 });
             }
+            // se o popup aberto é o dessa moto, ele também acompanha — sem isso, a câmera
+            // seguia o ícone mas o balão de informações (com a velocidade) ficava parado
+            // no lugar antigo, "descolando" da moto conforme ela andava
+            if (popupChaveRef.current === chave && popupRef.current) {
+              popupRef.current.setLngLat([lng, lat]);
+              const moto = motosRef.current?.find((m) => (m.placa || "").toUpperCase() === placa.toUpperCase());
+              const cliente = moto?.contratoAtual ? clientesRef.current?.find((c) => c.id === moto.contratoAtual.clienteId) : null;
+              popupRef.current.setHTML(rastreioPopupHtml(placa, d, moto, cliente?.nome));
+            }
           } else {
             const el = document.createElement("div");
             el.className = "mbr-map-marker";
@@ -1766,13 +1776,14 @@ function TrackingMap({ link, filterPlaca, height = 320, rounded = true, motos, c
               const cliente = moto?.contratoAtual ? clientesRef.current?.find((c) => c.id === moto.contratoAtual.clienteId) : null;
 
               if (popupRef.current) popupRef.current.remove();
-              // o pino (bolinha + etiqueta da placa) fica todo ACIMA do ponto marcado
-              // (anchor "bottom" do Marker) — força o popup a abrir por BAIXO do ponto
-              // (anchor "top") pra não tampar o ícone
-              popupRef.current = new maplibregl.Popup({ closeButton: true, anchor: "top", offset: 14, className: "mbr-map-popup" })
+              popupChaveRef.current = chave;
+              popupRef.current = new maplibregl.Popup({ closeButton: true, offset: 28, className: "mbr-map-popup" })
                 .setLngLat(ll)
                 .setHTML(rastreioPopupHtml(entry.placa, entry.device, moto, cliente?.nome))
                 .addTo(map);
+              popupRef.current.on("close", () => {
+                if (popupChaveRef.current === chave) popupChaveRef.current = null;
+              });
             });
           }
           bounds.extend([lng, lat]);
@@ -1804,6 +1815,10 @@ function TrackingMap({ link, filterPlaca, height = 320, rounded = true, motos, c
             markersRef.current[chave].marker.remove();
             delete markersRef.current[chave];
             if (seguindoRef.current === chave) seguindoRef.current = null;
+            if (popupChaveRef.current === chave) {
+              popupRef.current?.remove();
+              popupChaveRef.current = null;
+            }
           }
         });
 

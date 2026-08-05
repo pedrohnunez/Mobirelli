@@ -48,15 +48,17 @@ body {
   cursor: pointer;
 }
 .mbr-map-popup .maplibregl-popup-content {
-  background: #183524;
+  background: rgba(24, 53, 36, 0.68);
+  backdrop-filter: saturate(1.6) blur(16px);
+  -webkit-backdrop-filter: saturate(1.6) blur(16px);
   border: 1px solid #2C4D38;
   border-radius: 12px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
   padding: 10px 12px;
 }
 .mbr-map-popup .maplibregl-popup-tip {
-  border-top-color: #183524 !important;
-  border-bottom-color: #183524 !important;
+  border-top-color: rgba(24, 53, 36, 0.68) !important;
+  border-bottom-color: rgba(24, 53, 36, 0.68) !important;
 }
 .mbr-map-popup .maplibregl-popup-close-button {
   color: #8AA894;
