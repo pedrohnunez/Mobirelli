@@ -1640,6 +1640,53 @@ function rastreioPopupHtml(placa, device, moto, clienteNome) {
   `;
 }
 
+// borrão progressivo — usado nas barras de cima/baixo do Rastreio, que ficam por
+// cima do mapa (não de um fundo sólido). Backdrop-filter só aceita um valor fixo de
+// blur por elemento, então pra simular um borrão que vai AUMENTANDO conforme chega
+// na borda da tela (em vez de um borrão uniforme), empilha várias camadas com o
+// mesmo blur, cada uma "revelada" (via máscara) só numa faixa cada vez mais estreita
+// perto da borda — perto da borda várias camadas se somam (mais borrado), perto de
+// onde o degradê de opacidade começa nenhuma camada aparece (sem blur, nítido)
+function BorraProgressiva({ lado }) {
+  const camadas =
+    lado === "topo"
+      ? [
+          { ate: 60, fim: 78 },
+          { ate: 45, fim: 62 },
+          { ate: 30, fim: 46 },
+          { ate: 12, fim: 30 },
+        ]
+      : [
+          { de: 40, inicio: 22 },
+          { de: 55, inicio: 38 },
+          { de: 70, inicio: 54 },
+          { de: 88, inicio: 70 },
+        ];
+  return (
+    <div className="absolute inset-0" style={{ zIndex: -1, pointerEvents: "none" }}>
+      {camadas.map((c, i) => {
+        const mask =
+          lado === "topo"
+            ? `linear-gradient(to bottom, #000 0%, #000 ${c.ate}%, transparent ${c.fim}%)`
+            : `linear-gradient(to bottom, transparent ${c.inicio}%, #000 ${c.de}%, #000 100%)`;
+        return (
+          <div
+            key={i}
+            style={{
+              position: "absolute",
+              inset: 0,
+              backdropFilter: "blur(4px)",
+              WebkitBackdropFilter: "blur(4px)",
+              maskImage: mask,
+              WebkitMaskImage: mask,
+            }}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
 function MapToolButton({ icon: Icon, label, onClick, active }) {
   return (
     <button
@@ -5215,13 +5262,14 @@ export default function MobirelliApp() {
           paddingTop: "calc(0.75rem + env(safe-area-inset-top, 0px))",
           background:
             tab === "rastreio"
-              ? `linear-gradient(to bottom, ${hexToRgba(theme.panel, 0.84)} 0%, ${hexToRgba(theme.panel, 0.84)} 50%, ${hexToRgba(theme.panel, 0)} 100%)`
+              ? `linear-gradient(to bottom, ${hexToRgba(theme.panel, 0.9)} 0%, ${hexToRgba(theme.panel, 0.9)} 50%, ${hexToRgba(theme.panel, 0)} 100%)`
               : hexToRgba(theme.panel, 0.82),
           borderBottom: tab === "rastreio" ? "none" : `1px solid ${theme.cardBorder}`,
           backdropFilter: tab === "rastreio" ? "none" : "saturate(1.6) blur(16px)",
           WebkitBackdropFilter: tab === "rastreio" ? "none" : "saturate(1.6) blur(16px)",
         }}
       >
+        {tab === "rastreio" && <BorraProgressiva lado="topo" />}
         <div />
         <div className="flex justify-center">
           <Wordmark logoDataUrl={configState.value.logoDataUrl} logoSize={configState.value.logoSize} />
@@ -5302,7 +5350,7 @@ export default function MobirelliApp() {
         style={{
           background:
             tab === "rastreio"
-              ? `linear-gradient(to bottom, ${hexToRgba(theme.panel, 0)} 0%, ${hexToRgba(theme.panel, 0.84)} 50%, ${hexToRgba(theme.panel, 0.84)} 100%)`
+              ? `linear-gradient(to bottom, ${hexToRgba(theme.panel, 0)} 0%, ${hexToRgba(theme.panel, 0.9)} 50%, ${hexToRgba(theme.panel, 0.9)} 100%)`
               : hexToRgba(theme.panel, 0.82),
           borderTop: tab === "rastreio" ? "none" : `1px solid ${theme.cardBorder}`,
           paddingBottom: "calc(6px + env(safe-area-inset-bottom, 0px))",
@@ -5310,6 +5358,7 @@ export default function MobirelliApp() {
           WebkitBackdropFilter: tab === "rastreio" ? "none" : "saturate(1.6) blur(16px)",
         }}
       >
+        {tab === "rastreio" && <BorraProgressiva lado="base" />}
         {pilulaRect && (
           <span
             onPointerDown={iniciarArrasto}
