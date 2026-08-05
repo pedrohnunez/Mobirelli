@@ -4992,6 +4992,59 @@ export default function MobirelliApp() {
     return () => window.removeEventListener("resize", medir);
   }, [tab]);
 
+  // arrastar a pílula pro lado troca de aba também, igual num seletor de segmentos do
+  // iOS — guarda o centro de cada aba (medido só uma vez, no início do arrasto) pra achar
+  // qual fica mais perto do dedo quando soltar
+  const dragInfoRef = useRef(null);
+  const dragLeftRef = useRef(null);
+  const [arrastando, setArrastando] = useState(false);
+  const [dragLeft, setDragLeft] = useState(null);
+
+  const iniciarArrasto = (e) => {
+    const navEl = navRef.current;
+    if (!navEl || !pilulaRect) return;
+    const navRect = navEl.getBoundingClientRect();
+    const centros = tabs.map((t) => {
+      const el = tabSlotRefs.current[t.id];
+      const r = el.getBoundingClientRect();
+      return { id: t.id, center: r.left - navRect.left + r.width / 2 };
+    });
+    dragInfoRef.current = { startClientX: e.clientX, startLeft: pilulaRect.left, centros, maxLeft: navRect.width - pilulaRect.width };
+    dragLeftRef.current = pilulaRect.left;
+    setArrastando(true);
+    setDragLeft(pilulaRect.left);
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+
+  const moverArrasto = (e) => {
+    const info = dragInfoRef.current;
+    if (!info) return;
+    const delta = e.clientX - info.startClientX;
+    const novo = Math.max(0, Math.min(info.maxLeft, info.startLeft + delta));
+    dragLeftRef.current = novo;
+    setDragLeft(novo);
+  };
+
+  const soltarArrasto = () => {
+    const info = dragInfoRef.current;
+    if (!info) return;
+    const centroAtual = (dragLeftRef.current ?? info.startLeft) + pilulaRect.width / 2;
+    let maisProximo = info.centros[0];
+    let menorDist = Infinity;
+    info.centros.forEach((c) => {
+      const d = Math.abs(c.center - centroAtual);
+      if (d < menorDist) {
+        menorDist = d;
+        maisProximo = c;
+      }
+    });
+    dragInfoRef.current = null;
+    dragLeftRef.current = null;
+    setDragLeft(null);
+    setArrastando(false);
+    if (maisProximo.id !== tab) setTab(maisProximo.id);
+  };
+
   return (
     <div
       style={{
@@ -5136,15 +5189,26 @@ export default function MobirelliApp() {
       >
         {pilulaRect && (
           <span
+            onPointerDown={iniciarArrasto}
+            onPointerMove={moverArrasto}
+            onPointerUp={soltarArrasto}
+            onPointerCancel={soltarArrasto}
             className="absolute rounded-full"
             style={{
-              left: pilulaRect.left,
+              left: 0,
               top: pilulaRect.top,
               width: pilulaRect.width,
               height: pilulaRect.height,
               background: hexToRgba(theme.mint, 0.16),
               zIndex: -1,
-              transition: "left 0.32s cubic-bezier(0.34, 1.56, 0.64, 1), width 0.32s cubic-bezier(0.34, 1.56, 0.64, 1)",
+              cursor: "grab",
+              touchAction: "none",
+              willChange: "transform",
+              // transform em vez de "left" — anima só na composição da GPU, sem
+              // recalcular layout a cada quadro, então fica fluido em qualquer taxa de
+              // atualização da tela (inclusive 120Hz), em vez de travar feito antes
+              transform: `translateX(${(arrastando ? dragLeft : pilulaRect.left) ?? 0}px)`,
+              transition: arrastando ? "none" : "transform 0.28s cubic-bezier(0.32, 0.72, 0, 1)",
             }}
           />
         )}
@@ -5156,7 +5220,15 @@ export default function MobirelliApp() {
               key={t.id}
               onClick={() => setTab(t.id)}
               className="flex-1 flex flex-col items-center gap-1 py-1.5"
-              style={{ color: active ? theme.mint : theme.textMuted, background: "none", transition: "color 0.15s ease, transform 0.18s ease" }}
+              style={{
+                color: active ? theme.mint : theme.textMuted,
+                background: "none",
+                transition: "color 0.15s ease, transform 0.18s ease",
+                // na aba ativa, o botão "cede o lugar" pra pílula (que fica embaixo dele
+                // nessa mesma área) poder receber o toque/arrasto — clicar nela de
+                // qualquer jeito não faria nada, já que é a aba em que já se está
+                pointerEvents: active ? "none" : "auto",
+              }}
             >
               <span
                 ref={(el) => (tabSlotRefs.current[t.id] = el)}
@@ -5165,7 +5237,7 @@ export default function MobirelliApp() {
               >
                 <Icon size={19} strokeWidth={active ? 2.4 : 2} className="mbr-tab-icon" />
               </span>
-              <span style={{ fontSize: 10.5, fontWeight: active ? 700 : 500, fontFamily: BODY_FONT, transition: "font-weight 0.15s ease" }}>
+              <span style={{ fontSize: 10.5, fontWeight: active ? 700 : 500, fontFamily: BODY_FONT, transition: "font-weight 0.15s ease", pointerEvents: "auto" }}>
                 {t.label}
               </span>
             </button>
