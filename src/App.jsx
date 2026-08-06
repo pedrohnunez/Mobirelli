@@ -1,6 +1,5 @@
-import React, { useState, useEffect, useCallback, useRef, useId } from "react";
+import React, { useState, useEffect, useLayoutEffect, useCallback, useRef, useId } from "react";
 import { createPortal } from "react-dom";
-import { motion, AnimatePresence } from "framer-motion";
 import * as maplibregl from "maplibre-gl";
 import mapStyle from "./mapStyle.json";
 
@@ -3158,16 +3157,13 @@ function FuturosView({ futuros, persist, motos, clientes }) {
   return (
     <div>
       <div className="flex items-center justify-end mb-4">
-        <motion.button
-          initial={{ opacity: 0, scale: 0.85, y: -8 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          transition={{ duration: 0.28, ease: [0.32, 0.72, 0, 1] }}
+        <button
           onClick={() => setModal(emptyFuturo())}
-          className="flex items-center gap-1 rounded-xl px-3 py-2 text-sm font-semibold"
-          style={{ background: theme.mint, color: theme.mintText }}
+          className="flex items-center gap-1 rounded-xl px-3 py-2 text-sm font-semibold mbr-fade-in"
+          style={{ background: theme.mint, color: theme.mintText, animationDelay: "200ms" }}
         >
           <Plus size={16} /> Nova conta futura
-        </motion.button>
+        </button>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
@@ -3434,6 +3430,20 @@ function FluxoCaixaView({ lancamentos, persist, motos, clientes, futuros, persis
 
   const [expandido, setExpandido] = useState(mesesOrdenados[0] || null);
   const [view, setView] = useState("lancado");
+  // some suavemente em vez de cortar na hora: continua montado mais um instante
+  // enquanto a opacidade cai, só desmonta de fato depois
+  const [botaoNovoMontado, setBotaoNovoMontado] = useState(view === "lancado");
+  const [botaoNovoVisivel, setBotaoNovoVisivel] = useState(view === "lancado");
+  useEffect(() => {
+    if (view === "lancado") {
+      setBotaoNovoMontado(true);
+      const id = requestAnimationFrame(() => setBotaoNovoVisivel(true));
+      return () => cancelAnimationFrame(id);
+    }
+    setBotaoNovoVisivel(false);
+    const t = setTimeout(() => setBotaoNovoMontado(false), 220);
+    return () => clearTimeout(t);
+  }, [view]);
 
   const viewToggleRef = useRef(null);
   const viewSlotRefs = useRef({});
@@ -3496,22 +3506,21 @@ function FluxoCaixaView({ lancamentos, persist, motos, clientes, futuros, persis
               </button>
             ))}
           </div>
-          <AnimatePresence>
-            {view === "lancado" && (
-              <motion.button
-                key="novo"
-                initial={{ opacity: 0, scale: 0.8, y: -6 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.8, y: -6 }}
-                transition={{ duration: 0.22, ease: [0.32, 0.72, 0, 1] }}
-                onClick={() => setModal(emptyLancamento())}
-                className="flex items-center gap-1 rounded-xl px-3 py-2 text-sm font-semibold"
-                style={{ background: theme.mint, color: theme.mintText }}
-              >
-                <Plus size={16} /> Novo
-              </motion.button>
-            )}
-          </AnimatePresence>
+          {botaoNovoMontado && (
+            <button
+              onClick={() => setModal(emptyLancamento())}
+              className="flex items-center gap-1 rounded-xl px-3 py-2 text-sm font-semibold"
+              style={{
+                background: theme.mint,
+                color: theme.mintText,
+                opacity: botaoNovoVisivel ? 1 : 0,
+                transform: botaoNovoVisivel ? "scale(1)" : "scale(0.85)",
+                transition: "opacity 0.2s ease, transform 0.2s ease",
+              }}
+            >
+              <Plus size={16} /> Novo
+            </button>
+          )}
         </div>
       </div>
 
@@ -3988,19 +3997,6 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
   const noMes = (data) => data?.slice(0, 7) === mesRef;
   const rotuloMes = monthLabel(mesRef);
 
-  // guarda o rótulo do mês anterior por um instante pra poder animar ele "saindo" pro
-  // lado enquanto o novo mês "entra" do lado oposto, feito um carrossel
-  const rotuloMesAtualRef = useRef(rotuloMes);
-  const [rotuloMesSaindo, setRotuloMesSaindo] = useState(null);
-  useEffect(() => {
-    if (rotuloMesAtualRef.current !== rotuloMes) {
-      setRotuloMesSaindo(rotuloMesAtualRef.current);
-      rotuloMesAtualRef.current = rotuloMes;
-      const t = setTimeout(() => setRotuloMesSaindo(null), 320);
-      return () => clearTimeout(t);
-    }
-  }, [rotuloMes]);
-
   const entradasMes = lancamentos.filter((l) => l.tipo === "entrada" && noMes(l.data)).reduce((s, l) => s + Number(l.valor), 0);
   const saidasOperacionaisMes = lancamentos
     .filter((l) => l.tipo === "saida" && l.natureza !== "Expansão" && noMes(l.data))
@@ -4170,41 +4166,30 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
     <div>
       <div className="flex items-center justify-between gap-2 mb-4 flex-wrap">
         <h2 style={{ fontFamily: HEAD_FONT, fontSize: 22, fontWeight: 800, color: theme.mint }}>Visão geral</h2>
-        <motion.div layout className="flex items-center gap-2 flex-wrap">
-          <motion.button
-            layout
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
             onClick={() => setValoresOcultos((v) => !v)}
             className="mbr-hover-grow flex items-center justify-center rounded-full"
             title={valoresOcultos ? "Mostrar valores" : "Ocultar valores"}
-            style={{ width: 34, height: 34, background: theme.card, border: `1px solid ${theme.cardBorder}`, color: theme.text }}
+            style={{ width: 34, height: 34, background: theme.card, border: `1px solid ${theme.cardBorder}`, color: theme.text, transition: "transform 0.18s ease" }}
           >
             {valoresOcultos ? <EyeOff size={16} /> : <Eye size={16} />}
-          </motion.button>
-          <motion.div layout className="flex items-center gap-1 rounded-full px-1.5 py-1" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
+          </button>
+          <div className="flex items-center gap-1 rounded-full px-1.5 py-1" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
             <button onClick={irParaMesAnteriorRef} className="mbr-hover-grow flex items-center justify-center rounded-full" style={{ width: 26, height: 26, color: theme.text }}>
               <ChevronLeft size={16} />
             </button>
             <span className="relative inline-block overflow-hidden align-middle" style={{ minWidth: 74, height: 15 }}>
-              {rotuloMesSaindo && (
-                <span
-                  key={`saindo-${rotuloMesSaindo}`}
-                  className="absolute inset-0 text-xs font-semibold text-center"
-                  style={{
-                    color: theme.text,
-                    fontFamily: BODY_FONT,
-                    animation: `${direcaoMes >= 0 ? "mbrMesSaiEsquerda" : "mbrMesSaiDireita"} 0.32s cubic-bezier(0.32, 0.72, 0, 1) both`,
-                  }}
-                >
-                  {rotuloMesSaindo}
-                </span>
-              )}
+              {/* um span só, remontado (via key) a cada mês — sem manter o texto antigo
+                  na tela junto com o novo, então nunca tem risco de um ficar sobreposto
+                  no outro, misturando as letras dos dois meses por um instante */}
               <span
-                key={`entra-${rotuloMes}`}
+                key={rotuloMes}
                 className="absolute inset-0 text-xs font-semibold text-center"
                 style={{
                   color: theme.text,
                   fontFamily: BODY_FONT,
-                  animation: rotuloMesSaindo ? `${direcaoMes >= 0 ? "mbrMesEntraDireita" : "mbrMesEntraEsquerda"} 0.32s cubic-bezier(0.32, 0.72, 0, 1) both` : "none",
+                  animation: `${direcaoMes >= 0 ? "mbrMesEntraDireita" : "mbrMesEntraEsquerda"} 0.26s cubic-bezier(0.32, 0.72, 0, 1) both`,
                 }}
               >
                 {rotuloMes}
@@ -4218,25 +4203,17 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
             >
               <ChevronRight size={16} />
             </button>
-            <AnimatePresence>
-              {mesEscolhido && (
-                <motion.button
-                  key="atual"
-                  layout
-                  initial={{ opacity: 0, scale: 0.6, width: 0, marginLeft: 0 }}
-                  animate={{ opacity: 1, scale: 1, width: "auto", marginLeft: 4 }}
-                  exit={{ opacity: 0, scale: 0.6, width: 0, marginLeft: 0 }}
-                  transition={{ duration: 0.24, ease: [0.32, 0.72, 0, 1] }}
-                  onClick={() => setMesEscolhido(null)}
-                  className="text-xs font-semibold rounded-full px-2 py-1"
-                  style={{ background: hexToRgba(theme.mint, 0.16), color: theme.mint, fontFamily: BODY_FONT, overflow: "hidden", whiteSpace: "nowrap" }}
-                >
-                  Atual
-                </motion.button>
-              )}
-            </AnimatePresence>
-          </motion.div>
-        </motion.div>
+            {mesEscolhido && (
+              <button
+                onClick={() => setMesEscolhido(null)}
+                className="text-xs font-semibold rounded-full px-2 py-1 ml-1 mbr-fade-in"
+                style={{ background: hexToRgba(theme.mint, 0.16), color: theme.mint, fontFamily: BODY_FONT, whiteSpace: "nowrap" }}
+              >
+                Atual
+              </button>
+            )}
+          </div>
+        </div>
       </div>
 
       {vencidas > 0 && (
