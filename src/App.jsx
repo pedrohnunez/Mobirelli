@@ -3811,12 +3811,12 @@ function BordaCometa({ color }) {
             height={rh}
             rx={rx}
             fill="none"
-            stroke={color}
+            stroke={hexToRgba(color, 0.55)}
             strokeWidth="1"
             strokeLinecap="round"
             strokeDasharray={`${dash} ${Math.max(1, perimetro - dash)}`}
             className="mbr-borda-cometa"
-            style={{ "--mbr-perimetro-neg": `${-perimetro}px`, filter: `drop-shadow(0 0 2.5px ${color})` }}
+            style={{ "--mbr-perimetro-neg": `${-perimetro}px`, filter: `drop-shadow(0 0 1.5px ${hexToRgba(color, 0.45)})` }}
           />
         </svg>
       )}

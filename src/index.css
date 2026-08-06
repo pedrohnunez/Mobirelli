@@ -55,11 +55,11 @@ body {
    próximo cometa nascia antes do primeiro terminar de atravessar a linha */
 .mbr-linha-cometa.recharts-line-curve,
 .mbr-linha-cometa .recharts-line-curve {
-  stroke-dasharray: 22 2000;
-  animation: mbrCometaLinha 3.4s linear infinite;
+  stroke-dasharray: 22 1500;
+  animation: mbrCometaLinha 2.7s linear infinite;
 }
 @keyframes mbrCometaLinha {
-  from { stroke-dashoffset: 2022; }
+  from { stroke-dashoffset: 1522; }
   to { stroke-dashoffset: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
