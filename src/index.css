@@ -33,14 +33,17 @@ body {
 }
 
 /* "cometa" de luz correndo ao longo da mini-linha dentro do card — um traço claro e
-   curto que percorre a curva da esquerda pra direita, some, e recomeça do início */
+   curto que percorre a curva da esquerda pra direita, some, e recomeça do início. O vão
+   (o "2000" abaixo) tem que ser bem maior que a linha mais larga que existir no site
+   (o card de Faturamento pode ficar bem largo no desktop) — com um vão pequeno, o
+   próximo cometa nascia antes do primeiro terminar de atravessar a linha */
 .mbr-linha-cometa.recharts-line-curve,
 .mbr-linha-cometa .recharts-line-curve {
-  stroke-dasharray: 26 420;
-  animation: mbrCometaLinha 2.6s linear infinite;
+  stroke-dasharray: 22 2000;
+  animation: mbrCometaLinha 3.4s linear infinite;
 }
 @keyframes mbrCometaLinha {
-  from { stroke-dashoffset: 446; }
+  from { stroke-dashoffset: 2022; }
   to { stroke-dashoffset: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -48,16 +51,22 @@ body {
   .mbr-linha-cometa .recharts-line-curve { animation: none; }
 }
 
-/* luzinha pulsando na ponta do arco preenchido dos anéis (Taxa de ocupação etc.) */
-.mbr-ponta-pulsante {
-  animation: mbrPulsarPonta 1.8s ease-in-out infinite;
+/* mesma ideia do cometa da linha, só que orbitando um anel (Taxa de ocupação, Margem de
+   lucro, Retorno por moto etc.) — sem sair da parte preenchida do arco: gira só entre o
+   início do arco (0deg) e o ângulo onde o preenchimento termina (--mbr-anel-fim,
+   calculado por instância), sumindo e recomeçando, igual o cometa da linha */
+.mbr-cometa-anel {
+  animation: mbrCometaAnel 3.6s linear infinite;
+  opacity: 0;
 }
-@keyframes mbrPulsarPonta {
-  0%, 100% { opacity: 0.6; r: 2.6; }
-  50% { opacity: 1; r: 4; }
+@keyframes mbrCometaAnel {
+  0% { transform: rotate(0deg); opacity: 0; }
+  6% { opacity: 0.7; }
+  90% { opacity: 0.7; }
+  100% { transform: rotate(var(--mbr-anel-fim, 360deg)); opacity: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .mbr-ponta-pulsante { animation: none; }
+  .mbr-cometa-anel { animation: none; opacity: 0; }
 }
 
 .mbr-map .maplibregl-ctrl-top-right {

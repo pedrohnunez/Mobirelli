@@ -3768,26 +3768,32 @@ function HeroStat({ label, value, format = formatCurrency, icon: Icon, accent, d
   const hasDelta = deltaPercent !== null && deltaPercent !== undefined && Number.isFinite(deltaPercent);
   const gradId = `mbrSparkFill-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
   const brilho = mixColors(accent, "#FFFFFF", 0.65);
+  // em zero não é "bom" nem "mau" — não faz sentido destacar com luz verde ou vermelha,
+  // então nesses casos o card fica neutro, sem brilho nenhum (só quando tem pra qual lado
+  // pender é que a cor — já escolhida verde/vermelha por quem chama — aparece)
+  const semDestaque = !value;
   return (
     <div
       className={`relative rounded-2xl overflow-hidden mbr-card-lift${fill ? " h-full" : ""}`}
-      style={{ padding: 1, background: `${accent}55` }}
+      style={{ padding: 1, background: semDestaque ? theme.cardBorder : `${accent}55` }}
     >
       {/* faixa de luz girando por baixo — só aparece na fresta de 1px ao redor, já que
           o conteúdo (abaixo) cobre o miolo todo; a cor de base da borda fica fixa,
-          isso só soma um brilho que passeia por cima, pra não ficar tudo estático */}
-      <div
-        className="absolute mbr-borda-viajante"
-        style={{
-          inset: "-60%",
-          background: `conic-gradient(from 0deg, transparent 0deg, transparent 300deg, ${brilho} 330deg, ${brilho} 345deg, transparent 360deg)`,
-        }}
-      />
+          isso só soma um brilho sutil que passeia por cima, pra não ficar tudo estático */}
+      {!semDestaque && (
+        <div
+          className="absolute mbr-borda-viajante"
+          style={{
+            inset: "-60%",
+            background: `conic-gradient(from 0deg, transparent 0deg, transparent 300deg, ${hexToRgba(brilho, 0.55)} 330deg, ${hexToRgba(brilho, 0.55)} 345deg, transparent 360deg)`,
+          }}
+        />
+      )}
       <div
         className={`relative rounded-2xl p-5 flex flex-col gap-2 min-w-0${fill ? " h-full" : ""}`}
         style={{
           background: `linear-gradient(150deg, ${theme.card} 0%, ${theme.card2} 130%)`,
-          boxShadow: `0 2px 12px rgba(0,0,0,0.22), 0 0 28px ${accent}1F`,
+          boxShadow: semDestaque ? "0 2px 12px rgba(0,0,0,0.22)" : `0 2px 12px rgba(0,0,0,0.22), 0 0 28px ${accent}1F`,
         }}
       >
         <div className="flex items-center justify-between gap-2 min-w-0">
@@ -3842,8 +3848,22 @@ function HeroStat({ label, value, format = formatCurrency, icon: Icon, accent, d
                 <Area type="monotone" dataKey="v" stroke={accent} strokeWidth={2} fill={`url(#${gradId})`} isAnimationActive={true} dot={false} />
                 {/* segundo traçado por cima, igualzinho, só que com um trechinho claro
                     "correndo" ao longo da curva — a linha verde original fica fixa
-                    embaixo, essa aqui é só o brilho passeando por cima dela */}
-                <Line type="monotone" dataKey="v" stroke={brilho} strokeWidth={2} dot={false} isAnimationActive={false} className="mbr-linha-cometa" />
+                    embaixo, essa aqui é só o brilho passeando por cima dela. o vão entre
+                    um "cometa" e o outro precisa ser bem maior que a linha mais larga
+                    possível (cards grandes no desktop), senão o próximo já nasce antes
+                    do primeiro terminar */}
+                {!semDestaque && (
+                  <Line
+                    type="monotone"
+                    dataKey="v"
+                    stroke={brilho}
+                    strokeOpacity={0.55}
+                    strokeWidth={2}
+                    dot={false}
+                    isAnimationActive={false}
+                    className="mbr-linha-cometa"
+                  />
+                )}
               </ComposedChart>
             </ResponsiveContainer>
           </div>
@@ -3853,15 +3873,37 @@ function HeroStat({ label, value, format = formatCurrency, icon: Icon, accent, d
   );
 }
 
+// "cometa" que gira só dentro da parte preenchida de um anel/arco (0% até onde o
+// preenchimento termina) — o mesmo efeito usado nas linhas, padronizado pra qualquer
+// gráfico circular do site (Taxa de ocupação, Margem de lucro, Retorno por moto...)
+function AnelCometa({ cx, cy, r, clamped, color }) {
+  if (!clamped || clamped <= 0) return null;
+  const anguloFimDeg = (clamped / 100) * 360;
+  return (
+    <g transform={`rotate(-90 ${cx} ${cy})`}>
+      <circle
+        cx={cx + r}
+        cy={cy}
+        r="2.3"
+        fill={color}
+        className="mbr-cometa-anel"
+        style={{
+          "--mbr-anel-fim": `${anguloFimDeg}deg`,
+          transformBox: "view-box",
+          transformOrigin: `${cx}px ${cy}px`,
+          filter: `drop-shadow(0 0 3px ${color})`,
+        }}
+      />
+    </g>
+  );
+}
+
 function RadialStat({ label, percent, color, sublabel, bare }) {
   const clamped = Math.max(0, Math.min(100, percent || 0));
   const r = 26;
   const c = 2 * Math.PI * r;
   const offset = c - (clamped / 100) * c;
-  // ponta do arco preenchido — onde a "luz pulsante" fica, pra o anel não parecer parado
-  const anguloPontaRad = ((-90 + (clamped / 100) * 360) * Math.PI) / 180;
-  const pontaX = 32 + r * Math.cos(anguloPontaRad);
-  const pontaY = 32 + r * Math.sin(anguloPontaRad);
+  const semDestaque = clamped === 0;
   return (
     <div
       className={bare ? "flex items-center gap-3 min-w-0" : "rounded-2xl p-5 flex items-center gap-3 min-w-0 mbr-card-lift"}
@@ -3870,8 +3912,8 @@ function RadialStat({ label, percent, color, sublabel, bare }) {
           ? {}
           : {
               background: `linear-gradient(150deg, ${theme.card} 0%, ${theme.card2} 130%)`,
-              border: `1px solid ${color}55`,
-              boxShadow: `0 2px 12px rgba(0,0,0,0.22), 0 0 28px ${color}1F`,
+              border: `1px solid ${semDestaque ? theme.cardBorder : `${color}55`}`,
+              boxShadow: semDestaque ? "0 2px 12px rgba(0,0,0,0.22)" : `0 2px 12px rgba(0,0,0,0.22), 0 0 28px ${color}1F`,
             }
       }
     >
@@ -3893,16 +3935,7 @@ function RadialStat({ label, percent, color, sublabel, bare }) {
         <text x="32" y="37" textAnchor="middle" fontSize="14" fontWeight="700" fill={theme.text} style={{ fontFamily: HEAD_FONT }}>
           <CountUp value={clamped} format={(v) => `${Math.round(v)}%`} />
         </text>
-        {clamped > 1 && (
-          <circle
-            cx={pontaX}
-            cy={pontaY}
-            r="3.2"
-            fill={color}
-            className="mbr-ponta-pulsante"
-            style={{ filter: `drop-shadow(0 0 4px ${color})` }}
-          />
-        )}
+        <AnelCometa cx={32} cy={32} r={r} clamped={clamped} color={color} />
       </svg>
       <div className="flex flex-col gap-0.5 min-w-0">
         <span className="text-xs uppercase tracking-wide" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
@@ -4548,6 +4581,7 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
                       <text x="42" y="48" textAnchor="middle" fontSize="16" fontWeight="700" fill={theme.text} style={{ fontFamily: HEAD_FONT }}>
                         <CountUp value={clamped} format={(v) => `${Math.round(v)}%`} />
                       </text>
+                      <AnelCometa cx={42} cy={42} r={raio} clamped={clamped} color={cor} />
                     </svg>
                     <span style={{ fontFamily: "monospace", fontWeight: 700, fontSize: 12, color: theme.text, transition: "color 0.15s ease" }}>
                       {formatPlaca(r.placa)}
