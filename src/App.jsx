@@ -1675,8 +1675,8 @@ function BorraProgressiva({ lado }) {
             style={{
               position: "absolute",
               inset: 0,
-              backdropFilter: "blur(2px)",
-              WebkitBackdropFilter: "blur(2px)",
+              backdropFilter: "blur(1px)",
+              WebkitBackdropFilter: "blur(1px)",
               maskImage: mask,
               WebkitMaskImage: mask,
             }}
@@ -3963,6 +3963,31 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
   }, [periodoGrafico]);
 
   const [mostrarInvestimentos, setMostrarInvestimentos] = useState(false);
+  // pra sumir com uma transição em vez de desaparecer seco: continua montada mais um
+  // instante enquanto a opacidade vai a zero, só desmonta de fato depois
+  const [investMontada, setInvestMontada] = useState(false);
+  const [investOpaca, setInvestOpaca] = useState(false);
+  const idRef2 = useRef(null);
+  useEffect(() => {
+    if (mostrarInvestimentos) {
+      setInvestMontada(true);
+      // dois rAF em sequência garantem que o navegador realmente pintou um quadro com
+      // a opacidade em 0 antes de mudar pra 1 — só com um, às vezes as duas mudanças
+      // de estado caem no mesmo commit e a transição de CSS nunca chega a "disparar"
+      const id1 = requestAnimationFrame(() => {
+        const id2 = requestAnimationFrame(() => setInvestOpaca(true));
+        idRef2.current = id2;
+      });
+      return () => {
+        cancelAnimationFrame(id1);
+        if (idRef2.current) cancelAnimationFrame(idRef2.current);
+      };
+    }
+    setInvestOpaca(false);
+    const t = setTimeout(() => setInvestMontada(false), 300);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mostrarInvestimentos]);
   const [verTodasRetorno, setVerTodasRetorno] = useState(false);
   const [valoresOcultos, setValoresOcultos] = useState(false);
   const fmt = valoresOcultos ? () => "R$ ••••••" : formatCurrency;
@@ -4321,8 +4346,10 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
         <div className="flex gap-4 mb-3 text-xs flex-wrap" style={{ fontFamily: BODY_FONT }}>
           <span style={{ color: theme.mint }}>Entradas no período: {fmt(chartData.reduce((s, d) => s + d.Entradas, 0))}</span>
           <span style={{ color: theme.coral }}>Saídas no período: {fmt(chartData.reduce((s, d) => s + d.Saídas, 0))}</span>
-          {mostrarInvestimentos && (
-            <span style={{ color: theme.blue }}>Investido no período: {fmt(chartData.reduce((s, d) => s + d.Investimentos, 0))}</span>
+          {investMontada && (
+            <span style={{ color: theme.blue, opacity: investOpaca ? 1 : 0, transition: "opacity 0.3s ease" }}>
+              Investido no período: {fmt(chartData.reduce((s, d) => s + d.Investimentos, 0))}
+            </span>
           )}
         </div>
         <div style={{ width: "100%", height: 260 }}>
@@ -4405,7 +4432,7 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
                 dot={false}
                 activeDot={{ r: 4 }}
               />
-              {mostrarInvestimentos && (
+              {investMontada && (
                 <Area
                   yAxisId="left"
                   type="monotone"
@@ -4413,6 +4440,10 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
                   stroke={theme.blue}
                   strokeWidth={2.5}
                   fill="url(#mbrGradInvest)"
+                  strokeOpacity={investOpaca ? 1 : 0}
+                  fillOpacity={investOpaca ? 1 : 0}
+                  style={{ transition: "fill-opacity 0.3s ease, stroke-opacity 0.3s ease" }}
+                  isAnimationActive={false}
                   dot={false}
                   activeDot={{ r: 4 }}
                 />

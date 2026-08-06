@@ -56,8 +56,8 @@ body {
 }
 .mbr-map-popup .maplibregl-popup-content {
   background: rgba(24, 53, 36, 0.28);
-  backdrop-filter: saturate(1.8) blur(20px);
-  -webkit-backdrop-filter: saturate(1.8) blur(20px);
+  backdrop-filter: saturate(1.8) blur(6px);
+  -webkit-backdrop-filter: saturate(1.8) blur(6px);
   border: 1px solid rgba(44, 77, 56, 0.6);
   border-radius: 12px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
