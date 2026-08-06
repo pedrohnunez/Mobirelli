@@ -1675,8 +1675,8 @@ function BorraProgressiva({ lado }) {
             style={{
               position: "absolute",
               inset: 0,
-              backdropFilter: "blur(4px)",
-              WebkitBackdropFilter: "blur(4px)",
+              backdropFilter: "blur(2px)",
+              WebkitBackdropFilter: "blur(2px)",
               maskImage: mask,
               WebkitMaskImage: mask,
             }}
@@ -4373,6 +4373,12 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
                 yAxisId="right"
                 type="monotone"
                 dataKey="Lucro"
+                // sem isso, quando o lucro fica negativo o preenchimento "inverte" e
+                // aparece ACIMA da linha (a área é sempre calculada até o zero, então em
+                // valores negativos ela sobe em vez de descer) — com baseValue="dataMin"
+                // o preenchimento sempre vai da linha até o menor valor do gráfico,
+                // ficando sempre por baixo, nunca por cima
+                baseValue="dataMin"
                 stroke={theme.amber}
                 strokeWidth={2.5}
                 fill="url(#mbrGradLucro)"
