@@ -3264,6 +3264,17 @@ function FuturosView({ futuros, persist, motos, clientes }) {
                   dot={{ r: 3, fill: theme.amber, strokeWidth: 0 }}
                   activeDot={{ r: 5 }}
                 />
+                <Line
+                  type="monotone"
+                  dataKey="saldo"
+                  stroke={mixColors(theme.amber, "#FFFFFF", 0.65)}
+                  strokeOpacity={0.55}
+                  strokeWidth={2}
+                  dot={false}
+                  isAnimationActive={false}
+                  legendType="none"
+                  className="mbr-linha-cometa"
+                />
               </ComposedChart>
             </ResponsiveContainer>
           </div>
@@ -3882,6 +3893,25 @@ function HeroStat({ label, value, format = formatCurrency, icon: Icon, accent, d
   );
 }
 
+// barrinha de progresso (Motos que mais faturam, Gastos por natureza etc.) com o mesmo
+// "cometa" de luz atravessando — só dentro da parte já preenchida, nunca no trilho vazio
+function BarraComCometa({ pct, color }) {
+  const brilho = mixColors(color, "#FFFFFF", 0.65);
+  const largura = Math.max(0, Math.min(100, pct || 0));
+  return (
+    <div style={{ height: 6, borderRadius: 3, background: theme.bg, overflow: "hidden" }}>
+      <div style={{ height: "100%", width: `${largura}%`, background: color, position: "relative", overflow: "hidden", borderRadius: 3 }}>
+        {largura > 0 && (
+          <div
+            className="absolute inset-y-0 mbr-cometa-barra"
+            style={{ width: "40%", background: `linear-gradient(90deg, transparent, ${hexToRgba(brilho, 0.65)}, transparent)` }}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
 // "cometa" que gira só dentro da parte preenchida de um anel/arco (0% até onde o
 // preenchimento termina) — o mesmo efeito usado nas linhas, padronizado pra qualquer
 // gráfico circular do site (Taxa de ocupação, Margem de lucro, Retorno por moto...)
@@ -3913,19 +3943,10 @@ function RadialStat({ label, percent, color, sublabel, bare }) {
   const c = 2 * Math.PI * r;
   const offset = c - (clamped / 100) * c;
   const semDestaque = clamped === 0;
-  return (
-    <div
-      className={bare ? "flex items-center gap-3 min-w-0" : "rounded-2xl p-5 flex items-center gap-3 min-w-0 mbr-card-lift"}
-      style={
-        bare
-          ? {}
-          : {
-              background: `linear-gradient(150deg, ${theme.card} 0%, ${theme.card2} 130%)`,
-              border: `1px solid ${semDestaque ? theme.cardBorder : `${color}55`}`,
-              boxShadow: semDestaque ? "0 2px 12px rgba(0,0,0,0.22)" : `0 2px 12px rgba(0,0,0,0.22), 0 0 28px ${color}1F`,
-            }
-      }
-    >
+  const brilho = mixColors(color, "#FFFFFF", 0.65);
+
+  const conteudo = (
+    <>
       <svg width={64} height={64} viewBox="0 0 64 64" style={{ flexShrink: 0 }}>
         <circle cx="32" cy="32" r={r} fill="none" stroke={theme.cardBorder} strokeWidth="7" />
         <circle
@@ -3955,6 +3976,35 @@ function RadialStat({ label, percent, color, sublabel, bare }) {
             {sublabel}
           </span>
         )}
+      </div>
+    </>
+  );
+
+  if (bare) {
+    return <div className="flex items-center gap-3 min-w-0">{conteudo}</div>;
+  }
+
+  // mesmo tratamento de "luz girando na borda do card" que os cards do topo (Faturamento,
+  // Lucro) já têm, padronizado aqui também
+  return (
+    <div className="relative rounded-2xl overflow-hidden mbr-card-lift" style={{ padding: 1, background: semDestaque ? theme.cardBorder : `${color}55` }}>
+      {!semDestaque && (
+        <div
+          className="absolute mbr-borda-viajante"
+          style={{
+            inset: "-60%",
+            background: `conic-gradient(from 0deg, transparent 0deg, transparent 300deg, ${hexToRgba(brilho, 0.55)} 330deg, ${hexToRgba(brilho, 0.55)} 345deg, transparent 360deg)`,
+          }}
+        />
+      )}
+      <div
+        className="relative rounded-2xl p-5 flex items-center gap-3 min-w-0"
+        style={{
+          background: `linear-gradient(150deg, ${theme.card} 0%, ${theme.card2} 130%)`,
+          boxShadow: semDestaque ? "0 2px 12px rgba(0,0,0,0.22)" : `0 2px 12px rgba(0,0,0,0.22), 0 0 28px ${color}1F`,
+        }}
+      >
+        {conteudo}
       </div>
     </div>
   );
@@ -4466,6 +4516,18 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
                 dot={{ r: 3, fill: theme.amber, strokeWidth: 0 }}
                 activeDot={{ r: 5 }}
               />
+              <Line
+                yAxisId="right"
+                type="monotone"
+                dataKey="Lucro"
+                stroke={mixColors(theme.amber, "#FFFFFF", 0.65)}
+                strokeOpacity={0.55}
+                strokeWidth={2}
+                dot={false}
+                isAnimationActive={false}
+                legendType="none"
+                className="mbr-linha-cometa"
+              />
               <Area
                 yAxisId="left"
                 type="monotone"
@@ -4475,6 +4537,18 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
                 fill="url(#mbrGradEntradas)"
                 dot={false}
                 activeDot={{ r: 4 }}
+              />
+              <Line
+                yAxisId="left"
+                type="monotone"
+                dataKey="Entradas"
+                stroke={mixColors(theme.mint, "#FFFFFF", 0.65)}
+                strokeOpacity={0.55}
+                strokeWidth={2}
+                dot={false}
+                isAnimationActive={false}
+                legendType="none"
+                className="mbr-linha-cometa"
               />
               <Area
                 yAxisId="left"
@@ -4486,23 +4560,51 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
                 dot={false}
                 activeDot={{ r: 4 }}
               />
+              <Line
+                yAxisId="left"
+                type="monotone"
+                dataKey="Saídas"
+                stroke={mixColors(theme.coral, "#FFFFFF", 0.65)}
+                strokeOpacity={0.55}
+                strokeWidth={2}
+                dot={false}
+                isAnimationActive={false}
+                legendType="none"
+                className="mbr-linha-cometa"
+              />
               {investMontada && (
-                <Area
-                  yAxisId="left"
-                  type="monotone"
-                  dataKey="Investimentos"
-                  stroke={theme.blue}
-                  strokeWidth={2.5}
-                  fill="url(#mbrGradInvest)"
-                  strokeOpacity={investOpaca ? 1 : 0}
-                  fillOpacity={investOpaca ? 1 : 0}
-                  style={{ transition: "fill-opacity 0.3s ease, stroke-opacity 0.3s ease" }}
-                  isAnimationActive={investOpaca}
-                  animationDuration={900}
-                  animationEasing="ease-out"
-                  dot={false}
-                  activeDot={{ r: 4 }}
-                />
+                <>
+                  <Area
+                    yAxisId="left"
+                    type="monotone"
+                    dataKey="Investimentos"
+                    stroke={theme.blue}
+                    strokeWidth={2.5}
+                    fill="url(#mbrGradInvest)"
+                    strokeOpacity={investOpaca ? 1 : 0}
+                    fillOpacity={investOpaca ? 1 : 0}
+                    style={{ transition: "fill-opacity 0.3s ease, stroke-opacity 0.3s ease" }}
+                    isAnimationActive={investOpaca}
+                    animationDuration={900}
+                    animationEasing="ease-out"
+                    dot={false}
+                    activeDot={{ r: 4 }}
+                  />
+                  {investOpaca && (
+                    <Line
+                      yAxisId="left"
+                      type="monotone"
+                      dataKey="Investimentos"
+                      stroke={mixColors(theme.blue, "#FFFFFF", 0.65)}
+                      strokeOpacity={0.55}
+                      strokeWidth={2}
+                      dot={false}
+                      isAnimationActive={false}
+                      legendType="none"
+                      className="mbr-linha-cometa"
+                    />
+                  )}
+                </>
               )}
             </ComposedChart>
           </ResponsiveContainer>
@@ -4656,9 +4758,7 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
                     <span>{formatPlaca(m.placa)}</span>
                     <span>{fmt(m.total)}</span>
                   </div>
-                  <div style={{ height: 6, borderRadius: 3, background: theme.bg, overflow: "hidden" }}>
-                    <div style={{ height: "100%", width: `${(m.total / maxFaturamentoMoto) * 100}%`, background: theme.mint }} />
-                  </div>
+                  <BarraComCometa pct={(m.total / maxFaturamentoMoto) * 100} color={theme.mint} />
                 </div>
               ))}
             </div>
@@ -4674,9 +4774,7 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
                   <span>{n.natureza}</span>
                   <span>{fmt(n.total)}</span>
                 </div>
-                <div style={{ height: 6, borderRadius: 3, background: theme.bg, overflow: "hidden" }}>
-                  <div style={{ height: "100%", width: `${(n.total / maxNatureza) * 100}%`, background: theme.amber }} />
-                </div>
+                <BarraComCometa pct={(n.total / maxNatureza) * 100} color={theme.amber} />
               </div>
             ))}
           </div>
@@ -4692,9 +4790,7 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
                     <span>{formatPlaca(m.placa)}</span>
                     <span>{fmt(m.total)}</span>
                   </div>
-                  <div style={{ height: 6, borderRadius: 3, background: theme.bg, overflow: "hidden" }}>
-                    <div style={{ height: "100%", width: `${(m.total / maxManutencao) * 100}%`, background: theme.coral }} />
-                  </div>
+                  <BarraComCometa pct={(m.total / maxManutencao) * 100} color={theme.coral} />
                 </div>
               ))}
             </div>

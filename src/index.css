@@ -51,6 +51,20 @@ body {
   .mbr-linha-cometa .recharts-line-curve { animation: none; }
 }
 
+/* mesma ideia do cometa da linha, só que atravessando uma barrinha de progresso (Motos
+   que mais faturam, Gastos por natureza etc.) — o vão (300%) garante que só passa um de
+   cada vez, mesmo em barras bem cheias/largas */
+.mbr-cometa-barra {
+  animation: mbrCometaBarra 2.8s linear infinite;
+}
+@keyframes mbrCometaBarra {
+  from { transform: translateX(-120%); }
+  to { transform: translateX(300%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mbr-cometa-barra { animation: none; }
+}
+
 /* mesma ideia do cometa da linha, só que orbitando um anel (Taxa de ocupação, Margem de
    lucro, Retorno por moto etc.) — sem sair da parte preenchida do arco: gira só entre o
    início do arco (0deg) e o ângulo onde o preenchimento termina (--mbr-anel-fim,
