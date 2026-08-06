@@ -3819,7 +3819,7 @@ function BordaCometa({ color }) {
             height={rh}
             rx={rx}
             fill="none"
-            stroke={hexToRgba(color, 0.4)}
+            stroke={hexToRgba(color, 0.22)}
             strokeWidth="3"
             strokeLinecap="round"
             strokeDasharray={dasharray}
@@ -3833,7 +3833,7 @@ function BordaCometa({ color }) {
             height={rh}
             rx={rx}
             fill="none"
-            stroke={hexToRgba(color, 0.85)}
+            stroke={hexToRgba(color, 0.5)}
             strokeWidth="1"
             strokeLinecap="round"
             strokeDasharray={dasharray}
