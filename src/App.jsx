@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, useId } from "react";
 import { createPortal } from "react-dom";
+import { motion, AnimatePresence } from "framer-motion";
 import * as maplibregl from "maplibre-gl";
 import mapStyle from "./mapStyle.json";
 
@@ -3157,13 +3158,16 @@ function FuturosView({ futuros, persist, motos, clientes }) {
   return (
     <div>
       <div className="flex items-center justify-end mb-4">
-        <button
+        <motion.button
+          initial={{ opacity: 0, scale: 0.85, y: -8 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          transition={{ duration: 0.28, ease: [0.32, 0.72, 0, 1] }}
           onClick={() => setModal(emptyFuturo())}
           className="flex items-center gap-1 rounded-xl px-3 py-2 text-sm font-semibold"
           style={{ background: theme.mint, color: theme.mintText }}
         >
           <Plus size={16} /> Nova conta futura
-        </button>
+        </motion.button>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
@@ -3492,15 +3496,22 @@ function FluxoCaixaView({ lancamentos, persist, motos, clientes, futuros, persis
               </button>
             ))}
           </div>
-          {view === "lancado" && (
-            <button
-              onClick={() => setModal(emptyLancamento())}
-              className="flex items-center gap-1 rounded-xl px-3 py-2 text-sm font-semibold"
-              style={{ background: theme.mint, color: theme.mintText }}
-            >
-              <Plus size={16} /> Novo
-            </button>
-          )}
+          <AnimatePresence>
+            {view === "lancado" && (
+              <motion.button
+                key="novo"
+                initial={{ opacity: 0, scale: 0.8, y: -6 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.8, y: -6 }}
+                transition={{ duration: 0.22, ease: [0.32, 0.72, 0, 1] }}
+                onClick={() => setModal(emptyLancamento())}
+                className="flex items-center gap-1 rounded-xl px-3 py-2 text-sm font-semibold"
+                style={{ background: theme.mint, color: theme.mintText }}
+              >
+                <Plus size={16} /> Novo
+              </motion.button>
+            )}
+          </AnimatePresence>
         </div>
       </div>
 
@@ -4126,16 +4137,17 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
     <div>
       <div className="flex items-center justify-between gap-2 mb-4 flex-wrap">
         <h2 style={{ fontFamily: HEAD_FONT, fontSize: 22, fontWeight: 800, color: theme.mint }}>Visão geral</h2>
-        <div className="flex items-center gap-2 flex-wrap">
-          <button
+        <motion.div layout className="flex items-center gap-2 flex-wrap">
+          <motion.button
+            layout
             onClick={() => setValoresOcultos((v) => !v)}
             className="mbr-hover-grow flex items-center justify-center rounded-full"
             title={valoresOcultos ? "Mostrar valores" : "Ocultar valores"}
             style={{ width: 34, height: 34, background: theme.card, border: `1px solid ${theme.cardBorder}`, color: theme.text }}
           >
             {valoresOcultos ? <EyeOff size={16} /> : <Eye size={16} />}
-          </button>
-          <div className="flex items-center gap-1 rounded-full px-1.5 py-1" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
+          </motion.button>
+          <motion.div layout className="flex items-center gap-1 rounded-full px-1.5 py-1" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
             <button onClick={irParaMesAnteriorRef} className="mbr-hover-grow flex items-center justify-center rounded-full" style={{ width: 26, height: 26, color: theme.text }}>
               <ChevronLeft size={16} />
             </button>
@@ -4173,17 +4185,25 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
             >
               <ChevronRight size={16} />
             </button>
-            {mesEscolhido && (
-              <button
-                onClick={() => setMesEscolhido(null)}
-                className="text-xs font-semibold rounded-full px-2 py-1 ml-1"
-                style={{ background: hexToRgba(theme.mint, 0.16), color: theme.mint, fontFamily: BODY_FONT }}
-              >
-                Atual
-              </button>
-            )}
-          </div>
-        </div>
+            <AnimatePresence>
+              {mesEscolhido && (
+                <motion.button
+                  key="atual"
+                  layout
+                  initial={{ opacity: 0, scale: 0.6, width: 0, marginLeft: 0 }}
+                  animate={{ opacity: 1, scale: 1, width: "auto", marginLeft: 4 }}
+                  exit={{ opacity: 0, scale: 0.6, width: 0, marginLeft: 0 }}
+                  transition={{ duration: 0.24, ease: [0.32, 0.72, 0, 1] }}
+                  onClick={() => setMesEscolhido(null)}
+                  className="text-xs font-semibold rounded-full px-2 py-1"
+                  style={{ background: hexToRgba(theme.mint, 0.16), color: theme.mint, fontFamily: BODY_FONT, overflow: "hidden", whiteSpace: "nowrap" }}
+                >
+                  Atual
+                </motion.button>
+              )}
+            </AnimatePresence>
+          </motion.div>
+        </motion.div>
       </div>
 
       {vencidas > 0 && (
