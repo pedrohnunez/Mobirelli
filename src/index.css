@@ -19,17 +19,33 @@ body {
 @keyframes mbrMesEntraDireita { from { transform: translateX(20px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 @keyframes mbrMesEntraEsquerda { from { transform: translateX(-20px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 
-/* brilho girando ao redor dos cards de destaque (Faturamento, Lucro/Prejuízo) — a cor
-   de base da borda fica parada, só esse reflexo mais claro passeia por cima */
-.mbr-borda-viajante {
-  animation: mbrGiraBorda 4.5s linear infinite;
+/* botão "Atual" que aparece do lado dos meses — em vez de só surgir (opacity), ele
+   cresce horizontalmente até o tamanho final, como se abrisse espaço pra si mesmo. O
+   max-width final (70px) é generoso o bastante pra nunca cortar o texto "Atual" */
+@keyframes mbrBotaoAtualEntra {
+  from { max-width: 0; opacity: 0; margin-left: 0; padding-left: 0; padding-right: 0; }
+  to { max-width: 70px; opacity: 1; }
 }
-@keyframes mbrGiraBorda {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+.mbr-botao-atual-entra {
+  animation: mbrBotaoAtualEntra 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 @media (prefers-reduced-motion: reduce) {
-  .mbr-borda-viajante { animation: none; }
+  .mbr-botao-atual-entra { animation: none; }
+}
+
+/* brilho percorrendo a borda dos cards de destaque (Faturamento, Lucro/Prejuízo, Margem
+   de lucro) — um traço SVG desenhado sobre o contorno real do card (medido via
+   ResizeObserver, ver BordaCometa em App.jsx), que dá a volta completa e sem costura.
+   O vão (dash+gap = perímetro exato) faz o traço voltar pro início exatamente onde ele
+   tinha saído, sem repique nem salto */
+.mbr-borda-cometa {
+  animation: mbrBordaCometaAnim 5s linear infinite;
+}
+@keyframes mbrBordaCometaAnim {
+  to { stroke-dashoffset: var(--mbr-perimetro-neg, -600px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mbr-borda-cometa { animation: none; }
 }
 
 /* "cometa" de luz correndo ao longo da mini-linha dentro do card — um traço claro e

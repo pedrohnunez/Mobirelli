@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useLayoutEffect, useCallback, useRef, useId } from "react";
+import React, { useState, useEffect, useLayoutEffect, useCallback, useRef, useId, forwardRef, useImperativeHandle } from "react";
 import { createPortal } from "react-dom";
 import * as maplibregl from "maplibre-gl";
 import mapStyle from "./mapStyle.json";
@@ -3069,8 +3069,11 @@ function FuturoModal({ futuro, onClose, onSave, onDelete, editando, motos }) {
   );
 }
 
-function FuturosView({ futuros, persist, motos, clientes }) {
+const FuturosView = forwardRef(function FuturosView({ futuros, persist, motos, clientes }, ref) {
   const [modal, setModal] = useState(null);
+  // o botão "Nova conta futura" mora no cabeçalho compartilhado com "Lançado" (vira o
+  // "Novo" de lá, ver FluxoCaixaView) — aqui só expõe um jeito de abrir o modal de fora
+  useImperativeHandle(ref, () => ({ abrirNovo: () => setModal(emptyFuturo()) }));
 
   const salvar = async (fOrLista) => {
     const lista = Array.isArray(fOrLista) ? fOrLista : [fOrLista];
@@ -3156,16 +3159,6 @@ function FuturosView({ futuros, persist, motos, clientes }) {
 
   return (
     <div>
-      <div className="flex items-center justify-end mb-4">
-        <button
-          onClick={() => setModal(emptyFuturo())}
-          className="flex items-center gap-1 rounded-xl px-3 py-2 text-sm font-semibold mbr-fade-in"
-          style={{ background: theme.mint, color: theme.mintText, animationDelay: "200ms" }}
-        >
-          <Plus size={16} /> Nova conta futura
-        </button>
-      </div>
-
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
         <div className="rounded-2xl p-4" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
           <div className="text-xs uppercase tracking-wide mb-1" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
@@ -3350,7 +3343,7 @@ function FuturosView({ futuros, persist, motos, clientes }) {
       )}
     </div>
   );
-}
+});
 
 function FluxoCaixaView({ lancamentos, persist, motos, clientes, futuros, persistFuturos }) {
   const [modal, setModal] = useState(null);
@@ -3441,20 +3434,7 @@ function FluxoCaixaView({ lancamentos, persist, motos, clientes, futuros, persis
 
   const [expandido, setExpandido] = useState(mesesOrdenados[0] || null);
   const [view, setView] = useState("lancado");
-  // some suavemente em vez de cortar na hora: continua montado mais um instante
-  // enquanto a opacidade cai, só desmonta de fato depois
-  const [botaoNovoMontado, setBotaoNovoMontado] = useState(view === "lancado");
-  const [botaoNovoVisivel, setBotaoNovoVisivel] = useState(view === "lancado");
-  useEffect(() => {
-    if (view === "lancado") {
-      setBotaoNovoMontado(true);
-      const id = requestAnimationFrame(() => setBotaoNovoVisivel(true));
-      return () => cancelAnimationFrame(id);
-    }
-    setBotaoNovoVisivel(false);
-    const t = setTimeout(() => setBotaoNovoMontado(false), 220);
-    return () => clearTimeout(t);
-  }, [view]);
+  const futurosViewRef = useRef(null);
 
   const viewToggleRef = useRef(null);
   const viewSlotRefs = useRef({});
@@ -3517,26 +3497,31 @@ function FluxoCaixaView({ lancamentos, persist, motos, clientes, futuros, persis
               </button>
             ))}
           </div>
-          {botaoNovoMontado && (
-            <button
-              onClick={() => setModal(emptyLancamento())}
-              className="flex items-center gap-1 rounded-xl px-3 py-2 text-sm font-semibold"
-              style={{
-                background: theme.mint,
-                color: theme.mintText,
-                opacity: botaoNovoVisivel ? 1 : 0,
-                transform: botaoNovoVisivel ? "scale(1)" : "scale(0.85)",
-                transition: "opacity 0.2s ease, transform 0.2s ease",
-              }}
-            >
-              <Plus size={16} /> Novo
-            </button>
-          )}
+          {/* um botão só que "vira" o outro ao trocar de aba — mesmo elemento, o texto
+              troca (num único span remontado, sem dois textos coexistindo) e a caixa
+              cresce/encolhe pra caber, em vez de um botão sumir aqui e outro nascer
+              solto em outro lugar da tela (era isso que ficava "esquisito") */}
+          <button
+            onClick={() => (view === "lancado" ? setModal(emptyLancamento()) : futurosViewRef.current?.abrirNovo())}
+            className="flex items-center gap-1 rounded-xl px-3 py-2 text-sm font-semibold overflow-hidden"
+            style={{
+              background: theme.mint,
+              color: theme.mintText,
+              whiteSpace: "nowrap",
+              width: view === "lancado" ? 96 : 190,
+              transition: "width 0.32s cubic-bezier(0.22, 1, 0.36, 1)",
+            }}
+          >
+            <Plus size={16} style={{ flexShrink: 0 }} />
+            <span key={view} className="mbr-rotulo-troca" style={{ display: "inline-block" }}>
+              {view === "lancado" ? "Novo" : "Nova conta futura"}
+            </span>
+          </button>
         </div>
       </div>
 
       {view === "futuros" ? (
-        <FuturosView futuros={futuros || []} persist={persistFuturos} motos={motos} clientes={clientes} />
+        <FuturosView ref={futurosViewRef} futuros={futuros || []} persist={persistFuturos} motos={motos} clientes={clientes} />
       ) : (
         <>
       {ordenados.length === 0 && (
@@ -3784,36 +3769,82 @@ function CountUp({ value, format, duration = 900 }) {
   return <>{format ? format(display) : Math.round(display)}</>;
 }
 
+// luz que percorre a borda de um card retangular arredondado, sem deformar nas bordas
+// retas — em vez do truque de conic-gradient (que fica fino perto dos cantos e "engorda"
+// perto do meio das bordas retas, porque grau-a-grau não é a mesma distância física em
+// todo canto de um retângulo), desenha um contorno em SVG do tamanho real do card e anda
+// com stroke-dashoffset — a mesma técnica dos anéis, só que num contorno reto em vez de
+// um círculo, então a espessura fica igual em qualquer ponto da volta
+function BordaCometa({ color }) {
+  const wrapRef = useRef(null);
+  const [dim, setDim] = useState(null);
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const medir = () => setDim({ w: el.offsetWidth, h: el.offsetHeight });
+    medir();
+    const ro = new ResizeObserver(medir);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const inset = 1;
+  const rx = 15;
+  const w = dim?.w || 0;
+  const h = dim?.h || 0;
+  const rw = Math.max(0, w - inset * 2);
+  const rh = Math.max(0, h - inset * 2);
+  const perimetro = rw > 0 && rh > 0 ? 2 * Math.max(0, rw - 2 * rx) + 2 * Math.max(0, rh - 2 * rx) + 2 * Math.PI * rx : 0;
+  const dash = Math.max(20, perimetro * 0.16);
+  return (
+    <div ref={wrapRef} className="absolute inset-0" style={{ pointerEvents: "none" }}>
+      {perimetro > 0 && (
+        <svg width={w} height={h} style={{ position: "absolute", top: 0, left: 0, overflow: "visible" }}>
+          {/* stroke fininho sobre o retângulo real do card (medido de verdade, não um
+              contorno inflado) — a espessura visual é sempre a mesma em qualquer ponto da
+              borda, cantos ou lados retos, porque é uma largura de traço fixa, não um
+              gradiente angular (esse era o problema da versão antiga em conic-gradient:
+              ficava fino perto dos cantos e "gordo" no meio dos lados horizontais) */}
+          <rect
+            x={inset}
+            y={inset}
+            width={rw}
+            height={rh}
+            rx={rx}
+            fill="none"
+            stroke={color}
+            strokeWidth="1"
+            strokeLinecap="round"
+            strokeDasharray={`${dash} ${Math.max(1, perimetro - dash)}`}
+            className="mbr-borda-cometa"
+            style={{ "--mbr-perimetro-neg": `${-perimetro}px`, filter: `drop-shadow(0 0 2.5px ${color})` }}
+          />
+        </svg>
+      )}
+    </div>
+  );
+}
+
 function HeroStat({ label, value, format = formatCurrency, icon: Icon, accent, deltaPercent, deltaLabel, sparkData, fill }) {
   const hasDelta = deltaPercent !== null && deltaPercent !== undefined && Number.isFinite(deltaPercent);
   const gradId = `mbrSparkFill-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
   const brilho = mixColors(accent, "#FFFFFF", 0.65);
-  // em zero não é "bom" nem "mau" — não faz sentido destacar com luz verde ou vermelha,
-  // então nesses casos o card fica neutro, sem brilho nenhum (só quando tem pra qual lado
-  // pender é que a cor — já escolhida verde/vermelha por quem chama — aparece)
+  // em zero não é "bom" nem "mau" — não faz sentido destacar com luz verde ou vermelha
+  // girando no CARD, então nesses casos a borda fica neutra (só a luz da linha do
+  // gráfico continua, essa não depende do valor estar em zero ou não)
   const semDestaque = !value;
   return (
     <div
-      className={`relative rounded-2xl overflow-hidden mbr-card-lift${fill ? " h-full" : ""}`}
-      style={{ padding: 1, background: semDestaque ? theme.cardBorder : `${accent}55` }}
+      className={`relative rounded-2xl mbr-card-lift${fill ? " h-full" : ""}`}
+      style={{
+        background: `linear-gradient(150deg, ${theme.card} 0%, ${theme.card2} 130%)`,
+        border: `1px solid ${semDestaque ? theme.cardBorder : `${accent}55`}`,
+        boxShadow: semDestaque ? "0 2px 12px rgba(0,0,0,0.22)" : `0 2px 12px rgba(0,0,0,0.22), 0 0 28px ${accent}1F`,
+      }}
     >
-      {/* faixa de luz girando por baixo — só aparece na fresta de 1px ao redor, já que
-          o conteúdo (abaixo) cobre o miolo todo; a cor de base da borda fica fixa,
-          isso só soma um brilho sutil que passeia por cima, pra não ficar tudo estático */}
-      {!semDestaque && (
-        <div
-          className="absolute mbr-borda-viajante"
-          style={{
-            inset: "-60%",
-            background: `conic-gradient(from 0deg, transparent 0deg, transparent 300deg, ${hexToRgba(brilho, 0.55)} 330deg, ${hexToRgba(brilho, 0.55)} 345deg, transparent 360deg)`,
-          }}
-        />
-      )}
+      {!semDestaque && <BordaCometa color={brilho} />}
       <div
-        className={`relative rounded-2xl p-5 flex flex-col gap-2 min-w-0${fill ? " h-full" : ""}`}
+        className={`relative p-5 flex flex-col gap-2 min-w-0${fill ? " h-full" : ""}`}
         style={{
-          background: `linear-gradient(150deg, ${theme.card} 0%, ${theme.card2} 130%)`,
-          boxShadow: semDestaque ? "0 2px 12px rgba(0,0,0,0.22)" : `0 2px 12px rgba(0,0,0,0.22), 0 0 28px ${accent}1F`,
         }}
       >
         <div className="flex items-center justify-between gap-2 min-w-0">
@@ -3871,19 +3902,18 @@ function HeroStat({ label, value, format = formatCurrency, icon: Icon, accent, d
                     embaixo, essa aqui é só o brilho passeando por cima dela. o vão entre
                     um "cometa" e o outro precisa ser bem maior que a linha mais larga
                     possível (cards grandes no desktop), senão o próximo já nasce antes
-                    do primeiro terminar */}
-                {!semDestaque && (
-                  <Line
-                    type="monotone"
-                    dataKey="v"
-                    stroke={brilho}
-                    strokeOpacity={0.55}
-                    strokeWidth={2}
-                    dot={false}
-                    isAnimationActive={false}
-                    className="mbr-linha-cometa"
-                  />
-                )}
+                    do primeiro terminar. Essa luz da linha NÃO depende do valor estar
+                    zerado — isso é diferente da luz que gira em volta do card */}
+                <Line
+                  type="monotone"
+                  dataKey="v"
+                  stroke={brilho}
+                  strokeOpacity={0.55}
+                  strokeWidth={2}
+                  dot={false}
+                  isAnimationActive={false}
+                  className="mbr-linha-cometa"
+                />
               </ComposedChart>
             </ResponsiveContainer>
           </div>
@@ -3987,25 +4017,16 @@ function RadialStat({ label, percent, color, sublabel, bare }) {
   // mesmo tratamento de "luz girando na borda do card" que os cards do topo (Faturamento,
   // Lucro) já têm, padronizado aqui também
   return (
-    <div className="relative rounded-2xl overflow-hidden mbr-card-lift" style={{ padding: 1, background: semDestaque ? theme.cardBorder : `${color}55` }}>
-      {!semDestaque && (
-        <div
-          className="absolute mbr-borda-viajante"
-          style={{
-            inset: "-60%",
-            background: `conic-gradient(from 0deg, transparent 0deg, transparent 300deg, ${hexToRgba(brilho, 0.55)} 330deg, ${hexToRgba(brilho, 0.55)} 345deg, transparent 360deg)`,
-          }}
-        />
-      )}
-      <div
-        className="relative rounded-2xl p-5 flex items-center gap-3 min-w-0"
-        style={{
-          background: `linear-gradient(150deg, ${theme.card} 0%, ${theme.card2} 130%)`,
-          boxShadow: semDestaque ? "0 2px 12px rgba(0,0,0,0.22)" : `0 2px 12px rgba(0,0,0,0.22), 0 0 28px ${color}1F`,
-        }}
-      >
-        {conteudo}
-      </div>
+    <div
+      className="relative rounded-2xl p-5 flex items-center gap-3 min-w-0 mbr-card-lift"
+      style={{
+        background: `linear-gradient(150deg, ${theme.card} 0%, ${theme.card2} 130%)`,
+        border: `1px solid ${semDestaque ? theme.cardBorder : `${color}55`}`,
+        boxShadow: semDestaque ? "0 2px 12px rgba(0,0,0,0.22)" : `0 2px 12px rgba(0,0,0,0.22), 0 0 28px ${color}1F`,
+      }}
+    >
+      {!semDestaque && <BordaCometa color={brilho} />}
+      {conteudo}
     </div>
   );
 }
@@ -4256,8 +4277,8 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
             {mesEscolhido && (
               <button
                 onClick={() => setMesEscolhido(null)}
-                className="text-xs font-semibold rounded-full px-2 py-1 ml-1 mbr-fade-in"
-                style={{ background: hexToRgba(theme.mint, 0.16), color: theme.mint, fontFamily: BODY_FONT, whiteSpace: "nowrap" }}
+                className="text-xs font-semibold rounded-full px-2 py-1 ml-1 mbr-botao-atual-entra"
+                style={{ background: hexToRgba(theme.mint, 0.16), color: theme.mint, fontFamily: BODY_FONT, whiteSpace: "nowrap", overflow: "hidden" }}
               >
                 Atual
               </button>
@@ -5442,6 +5463,8 @@ export default function MobirelliApp() {
         .mbr-skel { animation: mbrPulse 1.3s ease-in-out infinite; border-radius: 10px; background: ${theme.card}; }
         @keyframes mbrFadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
         .mbr-fade-in { animation: mbrFadeIn 0.24s ease both; }
+        @keyframes mbrRotuloTroca { from { opacity: 0; } to { opacity: 1; } }
+        .mbr-rotulo-troca { animation: mbrRotuloTroca 0.22s ease both; animation-delay: 0.08s; }
       `}</style>
 
       <header
