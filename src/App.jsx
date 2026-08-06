@@ -4050,6 +4050,18 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
   const mesAutoDetectado = mesesComDados.has(mesCalendario) ? mesCalendario : [...mesesComDados].sort().pop() || mesCalendario;
   const [mesEscolhido, setMesEscolhido] = useState(null);
   const mesRef = mesEscolhido || mesAutoDetectado;
+  // o botão "Atual" precisa encolher de volta ao ser clicado, não só sumir na hora — por
+  // isso continua montado mais um instante enquanto a animação de saída (largura pra 0)
+  // termina, só desmonta de fato depois
+  const [botaoAtualMontado, setBotaoAtualMontado] = useState(!!mesEscolhido);
+  useEffect(() => {
+    if (mesEscolhido) {
+      setBotaoAtualMontado(true);
+      return;
+    }
+    const t = setTimeout(() => setBotaoAtualMontado(false), 280);
+    return () => clearTimeout(t);
+  }, [mesEscolhido]);
   const podeAvancarMes = mesRef < mesCalendario;
   const [direcaoMes, setDirecaoMes] = useState(0); // -1 = voltou, 1 = avançou
   const irParaMesAnteriorRef = () => {
@@ -4274,10 +4286,10 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
             >
               <ChevronRight size={16} />
             </button>
-            {mesEscolhido && (
+            {botaoAtualMontado && (
               <button
                 onClick={() => setMesEscolhido(null)}
-                className="text-xs font-semibold rounded-full px-2 py-1 ml-1 mbr-botao-atual-entra"
+                className={`text-xs font-semibold rounded-full px-2 py-1 ml-1 ${mesEscolhido ? "mbr-botao-atual-entra" : "mbr-botao-atual-sai"}`}
                 style={{ background: hexToRgba(theme.mint, 0.16), color: theme.mint, fontFamily: BODY_FONT, whiteSpace: "nowrap", overflow: "hidden" }}
               >
                 Atual

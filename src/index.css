@@ -29,8 +29,18 @@ body {
 .mbr-botao-atual-entra {
   animation: mbrBotaoAtualEntra 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
+/* mesmo encolhimento, de trás pra frente, quando o botão "Atual" é clicado (volta pro
+   mês atual) — sem isso ele simplesmente desaparecia na hora, sem combinar com a
+   entrada animada */
+@keyframes mbrBotaoAtualSai {
+  from { max-width: 70px; opacity: 1; }
+  to { max-width: 0; opacity: 0; margin-left: 0; padding-left: 0; padding-right: 0; }
+}
+.mbr-botao-atual-sai {
+  animation: mbrBotaoAtualSai 0.28s cubic-bezier(0.32, 0, 0.67, 0) both;
+}
 @media (prefers-reduced-motion: reduce) {
-  .mbr-botao-atual-entra { animation: none; }
+  .mbr-botao-atual-entra, .mbr-botao-atual-sai { animation: none; }
 }
 
 /* brilho percorrendo a borda dos cards de destaque (Faturamento, Lucro/Prejuízo, Margem
