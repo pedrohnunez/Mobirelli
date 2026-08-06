@@ -3787,23 +3787,31 @@ function BordaCometa({ color }) {
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
-  const inset = 1;
-  const rx = 15;
+  // meio pixel de inset (metade da espessura do traço) — o wrapper ocupa exatamente a
+  // borda visível do card (inset:-1 pra cobrir o border de 1px), então o traço fica
+  // certinho em cima da borda, não um pouco pra dentro dela
+  const inset = 0.5;
+  const rx = 15.5;
   const w = dim?.w || 0;
   const h = dim?.h || 0;
   const rw = Math.max(0, w - inset * 2);
   const rh = Math.max(0, h - inset * 2);
   const perimetro = rw > 0 && rh > 0 ? 2 * Math.max(0, rw - 2 * rx) + 2 * Math.max(0, rh - 2 * rx) + 2 * Math.PI * rx : 0;
-  const dash = Math.max(20, perimetro * 0.16);
+  const dash = Math.max(12, perimetro * 0.085);
+  const dasharray = `${dash} ${Math.max(1, perimetro - dash)}`;
+  const styleAnim = { "--mbr-perimetro-neg": `${-perimetro}px` };
   return (
-    <div ref={wrapRef} className="absolute inset-0" style={{ pointerEvents: "none" }}>
+    <div ref={wrapRef} className="absolute" style={{ inset: -1, pointerEvents: "none" }}>
       {perimetro > 0 && (
         <svg width={w} height={h} style={{ position: "absolute", top: 0, left: 0, overflow: "visible" }}>
           {/* stroke fininho sobre o retângulo real do card (medido de verdade, não um
               contorno inflado) — a espessura visual é sempre a mesma em qualquer ponto da
               borda, cantos ou lados retos, porque é uma largura de traço fixa, não um
               gradiente angular (esse era o problema da versão antiga em conic-gradient:
-              ficava fino perto dos cantos e "gordo" no meio dos lados horizontais) */}
+              ficava fino perto dos cantos e "gordo" no meio dos lados horizontais).
+              Duas cópias do mesmo traço: uma bem borrada e mais larga por baixo (o halo,
+              que esmaece nas pontas) e uma fina e mais forte por cima (o núcleo) — juntas
+              dão a impressão de luz de verdade, não só uma linha colorida girando */}
           <rect
             x={inset}
             y={inset}
@@ -3811,12 +3819,26 @@ function BordaCometa({ color }) {
             height={rh}
             rx={rx}
             fill="none"
-            stroke={hexToRgba(color, 0.55)}
+            stroke={hexToRgba(color, 0.4)}
+            strokeWidth="3"
+            strokeLinecap="round"
+            strokeDasharray={dasharray}
+            className="mbr-borda-cometa"
+            style={{ ...styleAnim, filter: "blur(2px)" }}
+          />
+          <rect
+            x={inset}
+            y={inset}
+            width={rw}
+            height={rh}
+            rx={rx}
+            fill="none"
+            stroke={hexToRgba(color, 0.85)}
             strokeWidth="1"
             strokeLinecap="round"
-            strokeDasharray={`${dash} ${Math.max(1, perimetro - dash)}`}
+            strokeDasharray={dasharray}
             className="mbr-borda-cometa"
-            style={{ "--mbr-perimetro-neg": `${-perimetro}px`, filter: `drop-shadow(0 0 1.5px ${hexToRgba(color, 0.45)})` }}
+            style={styleAnim}
           />
         </svg>
       )}
@@ -3950,19 +3972,19 @@ function AnelCometa({ cx, cy, r, clamped, color }) {
   const anguloFimDeg = (clamped / 100) * 360;
   return (
     <g transform={`rotate(-90 ${cx} ${cy})`}>
-      <circle
-        cx={cx + r}
-        cy={cy}
-        r="2.3"
-        fill={color}
+      <g
         className="mbr-cometa-anel"
         style={{
           "--mbr-anel-fim": `${anguloFimDeg}deg`,
           transformBox: "view-box",
           transformOrigin: `${cx}px ${cy}px`,
-          filter: `drop-shadow(0 0 3px ${color})`,
         }}
-      />
+      >
+        {/* halo maior e mais claro por baixo + pontinho mais forte por cima — deixa o
+            "cometa" bem mais visível do que um pontinho sozinho */}
+        <circle cx={cx + r} cy={cy} r="4.2" fill={color} opacity={0.35} style={{ filter: `blur(1.5px)` }} />
+        <circle cx={cx + r} cy={cy} r="2.8" fill={color} style={{ filter: `drop-shadow(0 0 4px ${color})` }} />
+      </g>
     </g>
   );
 }
