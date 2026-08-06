@@ -19,6 +19,47 @@ body {
 @keyframes mbrMesEntraDireita { from { transform: translateX(16px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 @keyframes mbrMesEntraEsquerda { from { transform: translateX(-16px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 
+/* brilho girando ao redor dos cards de destaque (Faturamento, Lucro/Prejuízo) — a cor
+   de base da borda fica parada, só esse reflexo mais claro passeia por cima */
+.mbr-borda-viajante {
+  animation: mbrGiraBorda 4.5s linear infinite;
+}
+@keyframes mbrGiraBorda {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mbr-borda-viajante { animation: none; }
+}
+
+/* "cometa" de luz correndo ao longo da mini-linha dentro do card — um traço claro e
+   curto que percorre a curva da esquerda pra direita, some, e recomeça do início */
+.mbr-linha-cometa.recharts-line-curve,
+.mbr-linha-cometa .recharts-line-curve {
+  stroke-dasharray: 26 420;
+  animation: mbrCometaLinha 2.6s linear infinite;
+}
+@keyframes mbrCometaLinha {
+  from { stroke-dashoffset: 446; }
+  to { stroke-dashoffset: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mbr-linha-cometa.recharts-line-curve,
+  .mbr-linha-cometa .recharts-line-curve { animation: none; }
+}
+
+/* luzinha pulsando na ponta do arco preenchido dos anéis (Taxa de ocupação etc.) */
+.mbr-ponta-pulsante {
+  animation: mbrPulsarPonta 1.8s ease-in-out infinite;
+}
+@keyframes mbrPulsarPonta {
+  0%, 100% { opacity: 0.6; r: 2.6; }
+  50% { opacity: 1; r: 4; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mbr-ponta-pulsante { animation: none; }
+}
+
 .mbr-map .maplibregl-ctrl-top-right {
   top: var(--mbr-top-inset, 0px);
 }

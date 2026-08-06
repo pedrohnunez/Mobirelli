@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef, useId } from "react";
 import { createPortal } from "react-dom";
 import * as maplibregl from "maplibre-gl";
 import mapStyle from "./mapStyle.json";
@@ -1675,8 +1675,8 @@ function BorraProgressiva({ lado }) {
             style={{
               position: "absolute",
               inset: 0,
-              backdropFilter: "blur(1px)",
-              WebkitBackdropFilter: "blur(1px)",
+              backdropFilter: "blur(0.8px)",
+              WebkitBackdropFilter: "blur(0.8px)",
               maskImage: mask,
               WebkitMaskImage: mask,
             }}
@@ -3755,69 +3755,89 @@ function CountUp({ value, format, duration = 900 }) {
 
 function HeroStat({ label, value, format = formatCurrency, icon: Icon, accent, deltaPercent, deltaLabel, sparkData, fill }) {
   const hasDelta = deltaPercent !== null && deltaPercent !== undefined && Number.isFinite(deltaPercent);
+  const gradId = `mbrSparkFill-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
+  const brilho = mixColors(accent, "#FFFFFF", 0.65);
   return (
     <div
-      className={`rounded-2xl p-5 flex flex-col gap-2 min-w-0 mbr-card-lift${fill ? " h-full" : ""}`}
-      style={{
-        background: `linear-gradient(150deg, ${theme.card} 0%, ${theme.card2} 130%)`,
-        border: `1px solid ${accent}55`,
-        boxShadow: `0 2px 12px rgba(0,0,0,0.22), 0 0 28px ${accent}1F`,
-      }}
+      className={`relative rounded-2xl overflow-hidden mbr-card-lift${fill ? " h-full" : ""}`}
+      style={{ padding: 1, background: `${accent}55` }}
     >
-      <div className="flex items-center justify-between gap-2 min-w-0">
-        <span className="text-xs uppercase tracking-wide truncate" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
-          {label}
-        </span>
-        <div
-          className="rounded-full flex items-center justify-center flex-shrink-0"
-          style={{
-            width: 30,
-            height: 30,
-            background: `linear-gradient(150deg, ${accent}3D 0%, ${accent}14 100%)`,
-            boxShadow: `0 0 12px ${accent}33`,
-          }}
-        >
-          <Icon size={15} color={accent} />
-        </div>
-      </div>
-      <span
+      {/* faixa de luz girando por baixo — só aparece na fresta de 1px ao redor, já que
+          o conteúdo (abaixo) cobre o miolo todo; a cor de base da borda fica fixa,
+          isso só soma um brilho que passeia por cima, pra não ficar tudo estático */}
+      <div
+        className="absolute mbr-borda-viajante"
         style={{
-          fontFamily: HEAD_FONT,
-          fontSize: "clamp(18px, 6vw, 28px)",
-          fontWeight: 800,
-          backgroundImage: `linear-gradient(120deg, ${theme.text} 30%, ${accent} 145%)`,
-          WebkitBackgroundClip: "text",
-          backgroundClip: "text",
-          WebkitTextFillColor: "transparent",
-          color: theme.text,
-          lineHeight: 1.15,
-          wordBreak: "break-word",
-          fontVariantNumeric: "tabular-nums",
+          inset: "-60%",
+          background: `conic-gradient(from 0deg, transparent 0deg, transparent 300deg, ${brilho} 330deg, ${brilho} 345deg, transparent 360deg)`,
+        }}
+      />
+      <div
+        className={`relative rounded-2xl p-5 flex flex-col gap-2 min-w-0${fill ? " h-full" : ""}`}
+        style={{
+          background: `linear-gradient(150deg, ${theme.card} 0%, ${theme.card2} 130%)`,
+          boxShadow: `0 2px 12px rgba(0,0,0,0.22), 0 0 28px ${accent}1F`,
         }}
       >
-        <CountUp value={value} format={format} />
-      </span>
-      {hasDelta && (
-        <span className="text-xs font-semibold flex items-center gap-1" style={{ color: deltaPercent >= 0 ? theme.mint : theme.coral, fontFamily: BODY_FONT }}>
-          {deltaPercent >= 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-          {Math.abs(deltaPercent).toFixed(0)}% {deltaLabel}
-        </span>
-      )}
-      {sparkData && sparkData.length > 1 && (
-        <div style={{ flex: 1, minHeight: 46, marginTop: 4 }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={sparkData} margin={{ top: 2, right: 0, bottom: 0, left: 0 }}>
-              <defs>
-                <linearGradient id="mbrSparkFill" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor={accent} stopOpacity={0.5} />
-                  <stop offset="100%" stopColor={accent} stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <Area type="monotone" dataKey="v" stroke={accent} strokeWidth={2} fill="url(#mbrSparkFill)" isAnimationActive={true} dot={false} />
-            </AreaChart>
-          </ResponsiveContainer>
+        <div className="flex items-center justify-between gap-2 min-w-0">
+          <span className="text-xs uppercase tracking-wide truncate" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+            {label}
+          </span>
+          <div
+            className="rounded-full flex items-center justify-center flex-shrink-0"
+            style={{
+              width: 30,
+              height: 30,
+              background: `linear-gradient(150deg, ${accent}3D 0%, ${accent}14 100%)`,
+              boxShadow: `0 0 12px ${accent}33`,
+            }}
+          >
+            <Icon size={15} color={accent} />
+          </div>
         </div>
-      )}
+        <span
+          style={{
+            fontFamily: HEAD_FONT,
+            fontSize: "clamp(18px, 6vw, 28px)",
+            fontWeight: 800,
+            backgroundImage: `linear-gradient(120deg, ${theme.text} 30%, ${accent} 145%)`,
+            WebkitBackgroundClip: "text",
+            backgroundClip: "text",
+            WebkitTextFillColor: "transparent",
+            color: theme.text,
+            lineHeight: 1.15,
+            wordBreak: "break-word",
+            fontVariantNumeric: "tabular-nums",
+          }}
+        >
+          <CountUp value={value} format={format} />
+        </span>
+        {hasDelta && (
+          <span className="text-xs font-semibold flex items-center gap-1" style={{ color: deltaPercent >= 0 ? theme.mint : theme.coral, fontFamily: BODY_FONT }}>
+            {deltaPercent >= 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
+            {Math.abs(deltaPercent).toFixed(0)}% {deltaLabel}
+          </span>
+        )}
+        {sparkData && sparkData.length > 1 && (
+          <div style={{ flex: 1, minHeight: 46, marginTop: 4 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={sparkData} margin={{ top: 2, right: 0, bottom: 0, left: 0 }}>
+                <defs>
+                  <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={accent} stopOpacity={0.5} />
+                    <stop offset="100%" stopColor={accent} stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <Area type="monotone" dataKey="v" stroke={accent} strokeWidth={2} fill={`url(#${gradId})`} isAnimationActive={true} dot={false} />
+                {/* segundo traçado por cima, igualzinho, só que com um trechinho claro
+                    "correndo" ao longo da curva — a linha verde original fica fixa
+                    embaixo, essa aqui é só o brilho passeando por cima dela */}
+                <Line type="monotone" dataKey="v" stroke={brilho} strokeWidth={2} dot={false} isAnimationActive={false} className="mbr-linha-cometa" />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -3827,6 +3847,10 @@ function RadialStat({ label, percent, color, sublabel, bare }) {
   const r = 26;
   const c = 2 * Math.PI * r;
   const offset = c - (clamped / 100) * c;
+  // ponta do arco preenchido — onde a "luz pulsante" fica, pra o anel não parecer parado
+  const anguloPontaRad = ((-90 + (clamped / 100) * 360) * Math.PI) / 180;
+  const pontaX = 32 + r * Math.cos(anguloPontaRad);
+  const pontaY = 32 + r * Math.sin(anguloPontaRad);
   return (
     <div
       className={bare ? "flex items-center gap-3 min-w-0" : "rounded-2xl p-5 flex items-center gap-3 min-w-0 mbr-card-lift"}
@@ -3858,6 +3882,16 @@ function RadialStat({ label, percent, color, sublabel, bare }) {
         <text x="32" y="37" textAnchor="middle" fontSize="14" fontWeight="700" fill={theme.text} style={{ fontFamily: HEAD_FONT }}>
           <CountUp value={clamped} format={(v) => `${Math.round(v)}%`} />
         </text>
+        {clamped > 1 && (
+          <circle
+            cx={pontaX}
+            cy={pontaY}
+            r="3.2"
+            fill={color}
+            className="mbr-ponta-pulsante"
+            style={{ filter: `drop-shadow(0 0 4px ${color})` }}
+          />
+        )}
       </svg>
       <div className="flex flex-col gap-0.5 min-w-0">
         <span className="text-xs uppercase tracking-wide" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
@@ -3963,30 +3997,20 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
   }, [periodoGrafico]);
 
   const [mostrarInvestimentos, setMostrarInvestimentos] = useState(false);
-  // pra sumir com uma transição em vez de desaparecer seco: continua montada mais um
-  // instante enquanto a opacidade vai a zero, só desmonta de fato depois
+  // ao aparecer, deixa o próprio Recharts desenhar a linha se formando da esquerda pra
+  // direita (a animação padrão dele); ao esconder, como ele não anima a saída, continua
+  // montada mais um instante enquanto a opacidade cai suavemente até zero antes de tirar
   const [investMontada, setInvestMontada] = useState(false);
   const [investOpaca, setInvestOpaca] = useState(false);
-  const idRef2 = useRef(null);
   useEffect(() => {
     if (mostrarInvestimentos) {
       setInvestMontada(true);
-      // dois rAF em sequência garantem que o navegador realmente pintou um quadro com
-      // a opacidade em 0 antes de mudar pra 1 — só com um, às vezes as duas mudanças
-      // de estado caem no mesmo commit e a transição de CSS nunca chega a "disparar"
-      const id1 = requestAnimationFrame(() => {
-        const id2 = requestAnimationFrame(() => setInvestOpaca(true));
-        idRef2.current = id2;
-      });
-      return () => {
-        cancelAnimationFrame(id1);
-        if (idRef2.current) cancelAnimationFrame(idRef2.current);
-      };
+      setInvestOpaca(true);
+      return;
     }
     setInvestOpaca(false);
     const t = setTimeout(() => setInvestMontada(false), 300);
     return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mostrarInvestimentos]);
   const [verTodasRetorno, setVerTodasRetorno] = useState(false);
   const [valoresOcultos, setValoresOcultos] = useState(false);
@@ -4443,7 +4467,9 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
                   strokeOpacity={investOpaca ? 1 : 0}
                   fillOpacity={investOpaca ? 1 : 0}
                   style={{ transition: "fill-opacity 0.3s ease, stroke-opacity 0.3s ease" }}
-                  isAnimationActive={false}
+                  isAnimationActive={investOpaca}
+                  animationDuration={900}
+                  animationEasing="ease-out"
                   dot={false}
                   activeDot={{ r: 4 }}
                 />
