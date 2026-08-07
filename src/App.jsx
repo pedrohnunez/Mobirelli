@@ -3797,9 +3797,35 @@ function BordaCometa({ color }) {
   const rw = Math.max(0, w - inset * 2);
   const rh = Math.max(0, h - inset * 2);
   const perimetro = rw > 0 && rh > 0 ? 2 * Math.max(0, rw - 2 * rx) + 2 * Math.max(0, rh - 2 * rx) + 2 * Math.PI * rx : 0;
-  const dash = Math.max(12, perimetro * 0.085);
-  const dasharray = `${dash} ${Math.max(1, perimetro - dash)}`;
+  // tem que bater com a duração declarada em ".mbr-borda-cometa" (index.css) — é usada
+  // só pra calcular o atraso de fase das camadas mais largas, pra elas ficarem centradas
+  // no núcleo em vez de começarem no mesmo ponto (o que criaria rastro só atrás, não um
+  // brilho simétrico nas duas pontas)
+  const DURACAO = 5;
+  const totalSpan = Math.max(14, perimetro * 0.085);
+  const nucleo = totalSpan * 0.4;
+  const meio = totalSpan * 0.7;
+  const externo = totalSpan;
+  const atraso = (comprimento) => (perimetro > 0 ? ((comprimento - nucleo) / 2 / perimetro) * DURACAO : 0);
   const styleAnim = { "--mbr-perimetro-neg": `${-perimetro}px` };
+  // três cópias do mesmo traço, do mais largo (bem apagado e borrado) ao mais estreito
+  // (bem vivo, sem blur) — todas centradas no mesmo ponto (o atraso de fase compensa a
+  // diferença de comprimento), então o meio da luz fica bem iluminado e as duas pontas
+  // vão esmaecendo gradualmente, em vez de um traço com brilho parelho do início ao fim
+  const camada = (comprimento, opacidade, blurPx) => ({
+    x: inset,
+    y: inset,
+    width: rw,
+    height: rh,
+    rx,
+    fill: "none",
+    stroke: hexToRgba(color, opacidade),
+    strokeWidth: "1",
+    strokeLinecap: "round",
+    strokeDasharray: `${comprimento} ${Math.max(1, perimetro - comprimento)}`,
+    className: "mbr-borda-cometa",
+    style: { ...styleAnim, animationDelay: `${atraso(comprimento)}s`, filter: blurPx ? `blur(${blurPx}px)` : undefined },
+  });
   return (
     <div ref={wrapRef} className="absolute" style={{ inset: -1, pointerEvents: "none" }}>
       {perimetro > 0 && (
@@ -3808,38 +3834,10 @@ function BordaCometa({ color }) {
               contorno inflado) — a espessura visual é sempre a mesma em qualquer ponto da
               borda, cantos ou lados retos, porque é uma largura de traço fixa, não um
               gradiente angular (esse era o problema da versão antiga em conic-gradient:
-              ficava fino perto dos cantos e "gordo" no meio dos lados horizontais).
-              Duas cópias do mesmo traço: uma bem borrada e mais larga por baixo (o halo,
-              que esmaece nas pontas) e uma fina e mais forte por cima (o núcleo) — juntas
-              dão a impressão de luz de verdade, não só uma linha colorida girando */}
-          <rect
-            x={inset}
-            y={inset}
-            width={rw}
-            height={rh}
-            rx={rx}
-            fill="none"
-            stroke={hexToRgba(color, 0.11)}
-            strokeWidth="3"
-            strokeLinecap="round"
-            strokeDasharray={dasharray}
-            className="mbr-borda-cometa"
-            style={{ ...styleAnim, filter: "blur(2px)" }}
-          />
-          <rect
-            x={inset}
-            y={inset}
-            width={rw}
-            height={rh}
-            rx={rx}
-            fill="none"
-            stroke={hexToRgba(color, 0.25)}
-            strokeWidth="1"
-            strokeLinecap="round"
-            strokeDasharray={dasharray}
-            className="mbr-borda-cometa"
-            style={styleAnim}
-          />
+              ficava fino perto dos cantos e "gordo" no meio dos lados horizontais) */}
+          <rect {...camada(externo, 0.1, 2)} />
+          <rect {...camada(meio, 0.2, 1)} />
+          <rect {...camada(nucleo, 0.42, 0)} />
         </svg>
       )}
     </div>
