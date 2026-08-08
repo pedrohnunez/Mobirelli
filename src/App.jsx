@@ -3241,10 +3241,7 @@ const FuturosView = forwardRef(function FuturosView({ futuros, persist, motos, c
                 <CartesianGrid strokeDasharray="3 3" stroke={theme.cardBorder} vertical={false} />
                 <XAxis dataKey="mes" stroke={theme.textMuted} fontSize={11} axisLine={false} tickLine={false} />
                 <YAxis stroke={theme.textMuted} fontSize={11} tickFormatter={formatCompact} width={56} axisLine={false} tickLine={false} />
-                <Tooltip
-                  formatter={(value, name) => [formatCurrency(value), name]}
-                  contentStyle={{ background: theme.panel, border: `1px solid ${theme.cardBorder}`, borderRadius: 12, color: theme.text }}
-                />
+                <Tooltip content={<TooltipSemDuplicata formatter={(value, name) => [formatCurrency(value), name]} />} />
                 <Legend />
                 <Bar dataKey="entrada" name="A receber" fill={theme.mint} radius={[4, 4, 0, 0]} />
                 <Bar dataKey="saida" name="A pagar" fill={theme.coral} radius={[4, 4, 0, 0]} />
@@ -3767,6 +3764,46 @@ function CountUp({ value, format, duration = 900 }) {
   }, [to, duration]);
 
   return <>{format ? format(display) : Math.round(display)}</>;
+}
+
+// tooltip dos gráficos de linha/barra — some dos gráficos têm, por baixo de cada
+// série "de verdade", uma segunda <Line> igual só pra desenhar o cometa de luz por
+// cima (mesmo dataKey, sem nome próprio). O tooltip padrão do Recharts lista TODA
+// série visível no gráfico, então sem isso cada valor aparecia duas vezes (uma da
+// série real, outra do cometa). Aqui filtra, mantendo só a primeira ocorrência de
+// cada dataKey — a série real é sempre declarada antes do cometa dela no JSX
+function TooltipSemDuplicata({ active, payload, label, formatter }) {
+  if (!active || !payload || !payload.length) return null;
+  const vistos = new Set();
+  const itens = payload.filter((p) => {
+    if (vistos.has(p.dataKey)) return false;
+    vistos.add(p.dataKey);
+    return true;
+  });
+  return (
+    <div
+      style={{
+        background: theme.panel,
+        border: `1px solid ${theme.cardBorder}`,
+        borderRadius: 12,
+        padding: "8px 12px",
+        fontFamily: BODY_FONT,
+        fontSize: 12,
+      }}
+    >
+      {label !== undefined && label !== null && (
+        <div style={{ color: theme.text, fontWeight: 700, marginBottom: 4 }}>{label}</div>
+      )}
+      {itens.map((p) => {
+        const [valor, nome] = formatter ? formatter(p.value, p.name, p) : [p.value, p.name];
+        return (
+          <div key={p.dataKey} style={{ color: p.color }}>
+            {nome} : {valor}
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 // luz que percorre a borda de um card retangular arredondado, sem deformar nas bordas
@@ -4543,10 +4580,7 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
                 axisLine={false}
                 tickLine={false}
               />
-              <Tooltip
-                formatter={(value, name) => [fmt(value), name]}
-                contentStyle={{ background: theme.panel, border: `1px solid ${theme.cardBorder}`, borderRadius: 12, color: theme.text }}
-              />
+              <Tooltip content={<TooltipSemDuplicata formatter={(value, name) => [fmt(value), name]} />} />
               <Legend />
               {/* Lucro vem PRIMEIRO (mais embaixo na pilha de desenho) porque usa uma escala
                   (eixo direito) diferente da de Entradas/Saídas — o "zero" dele cai numa
