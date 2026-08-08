@@ -12,6 +12,31 @@ body {
   margin: 0;
 }
 
+/* o site é desenhado só pro modo retrato (vertical). No manifest.json existe
+   "orientation: portrait-primary", mas isso só trava a tela quando o app é
+   INSTALADO na tela inicial e o navegador respeita esse travamento — funciona no
+   Chrome/Android quando instalado, e o Safari do iPhone, na prática, também mantém o
+   layout comportado mesmo sem instalar. Só que num tablet Android aberto direto pelo
+   navegador (sem "adicionar à tela inicial"), esse travamento do manifest não vale
+   nada, e o aparelho gira livre pro modo paisagem, quebrando o layout.
+   Esse truque de CSS funciona em qualquer navegador/aparelho, instalado ou não: só
+   em telas de toque (celular/tablet — por isso o "pointer: coarse", que não pega
+   notebook/desktop com mouse), quando o aparelho é girado pra paisagem, a página é
+   "desgirada" de volta pro retrato via transform, então continua exatamente do jeito
+   que foi desenhada, célular ou tablet, instalado ou não */
+@media screen and (orientation: landscape) and (hover: none) and (pointer: coarse) {
+  html {
+    width: 100vh;
+    height: 100vw;
+    transform: rotate(-90deg);
+    transform-origin: left top;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    overflow-x: hidden;
+  }
+}
+
 /* seletor de mês (Início) — o mês novo entra deslizando de um lado (esquerdo ao voltar,
    direito ao avançar); o mês antigo simplesmente desaparece no mesmo instante (não tem
    um segundo texto saindo por cima — dois textos sobrepostos ao mesmo tempo, mesmo que
