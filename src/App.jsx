@@ -399,14 +399,19 @@ function diaVencimentoDoContrato(contrato) {
   return null;
 }
 
-// vencido = já passou o dia de pagamento deste mês
-const isContratoVencido = (contrato) => {
+// vencido = já passou o dia de pagamento deste mês E ainda não tem nenhuma entrada
+// lançada no caixa pra essa moto depois desse vencimento — sem o segundo pedaço, o
+// pagamento continuava aparecendo como atrasado mesmo depois de lançado no Caixa
+const isContratoVencido = (contrato, pagamentos) => {
   const dia = diaVencimentoDoContrato(contrato);
   if (!dia) return false;
   const hoje = new Date();
   const hojeZero = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate());
   const vencimentoDoMes = new Date(hoje.getFullYear(), hoje.getMonth(), dia);
-  return hojeZero > vencimentoDoMes;
+  if (hojeZero <= vencimentoDoMes) return false;
+  const vencimentoISO = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, "0")}-${String(dia).padStart(2, "0")}`;
+  const jaPagou = (pagamentos || []).some((p) => p.data >= vencimentoISO);
+  return !jaPagou;
 };
 
 const monthLabel = (key) => {
@@ -2598,9 +2603,9 @@ function MotosView({ motos, persist, clientes, persistClientes, config, lancamen
 
       <div className="flex flex-col gap-2">
         {filtradas.map((moto) => {
-          const vencido = moto.status === "alugada" && isContratoVencido(moto.contratoAtual);
-          const cliente = clientes.find((c) => c.id === moto.contratoAtual?.clienteId);
           const pagamentos = pagamentosDaMoto(moto, lancamentos);
+          const vencido = moto.status === "alugada" && isContratoVencido(moto.contratoAtual, pagamentos);
+          const cliente = clientes.find((c) => c.id === moto.contratoAtual?.clienteId);
           const aberto = expandido === moto.id;
           return (
             <div key={moto.id} className="rounded-2xl overflow-hidden" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
@@ -4091,7 +4096,7 @@ function RadialStat({ label, percent, color, sublabel, bare }) {
 function DashboardView({ motos, lancamentos, clientes, futuros }) {
   const alugadas = motos.filter((m) => m.status === "alugada").length;
   const disponiveis = motos.filter((m) => m.status === "disponivel").length;
-  const motosVencidas = motos.filter((m) => m.status === "alugada" && isContratoVencido(m.contratoAtual));
+  const motosVencidas = motos.filter((m) => m.status === "alugada" && isContratoVencido(m.contratoAtual, pagamentosDaMoto(m, lancamentos)));
   const vencidas = motosVencidas.length;
 
   const todasManutencoes = motos.flatMap((m) => m.manutencoes || []);
