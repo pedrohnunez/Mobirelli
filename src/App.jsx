@@ -617,7 +617,7 @@ const MOTO_STATUS = {
 function StatusBadge({ status, vencido }) {
   if (vencido) {
     return (
-      <Badge color={theme.coral} icon={AlertTriangle} label="Contrato vencido" />
+      <Badge color={theme.coral} icon={AlertTriangle} label="Pagamento atrasado" />
     );
   }
   const cfg = MOTO_STATUS[status] || MOTO_STATUS.disponivel;
@@ -1469,7 +1469,7 @@ function ClientesView({ clientes, persistClientes, motos, persistMotos }) {
                       </div>
                       <div style={{ color: theme.textMuted, fontSize: 12 }}>
                         Contrato nº {motoVinculada.contratoAtual.numeroContrato}
-                        {diaVencimentoDoContrato(motoVinculada.contratoAtual) && ` · vence todo dia ${diaVencimentoDoContrato(motoVinculada.contratoAtual)}`}
+                        {diaVencimentoDoContrato(motoVinculada.contratoAtual) && ` · pagamento todo dia ${diaVencimentoDoContrato(motoVinculada.contratoAtual)}`}
                         {motoVinculada.contratoAtual.dataTermino && ` · até ${formatDate(motoVinculada.contratoAtual.dataTermino)}`}
                       </div>
                       <div className="flex items-center gap-3 mt-2 flex-wrap">
@@ -2677,7 +2677,7 @@ function MotosView({ motos, persist, clientes, persistClientes, config, lancamen
                       </div>
                       <div style={{ color: theme.textMuted, fontSize: 12 }}>
                         {moto.contratoAtual.numeroClienteMoto}º cliente · contrato nº {moto.contratoAtual.numeroContrato}
-                        {diaVencimentoDoContrato(moto.contratoAtual) && ` · vence todo dia ${diaVencimentoDoContrato(moto.contratoAtual)}`}
+                        {diaVencimentoDoContrato(moto.contratoAtual) && ` · pagamento todo dia ${diaVencimentoDoContrato(moto.contratoAtual)}`}
                         {moto.contratoAtual.dataTermino && ` · até ${formatDate(moto.contratoAtual.dataTermino)}`}
                       </div>
                       {contratoAnexosOf(moto.contratoAtual).length > 0 && (
@@ -4361,7 +4361,7 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
           <div className="flex items-center gap-2 mb-2">
             <AlertTriangle size={16} color={theme.coral} />
             <span style={{ fontFamily: HEAD_FONT, fontSize: 15, color: theme.text }}>
-              {vencidas === 1 ? "1 contrato vencido" : `${vencidas} contratos vencidos`}
+              {vencidas === 1 ? "1 pagamento atrasado" : `${vencidas} pagamentos atrasados`}
             </span>
           </div>
           <div className="flex flex-col gap-1">
@@ -4370,7 +4370,7 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
                 <span>
                   {formatPlaca(m.placa)} · {clienteNome(m.contratoAtual.clienteId)}
                 </span>
-                <span style={{ color: theme.coral }}>vence todo dia {diaVencimentoDoContrato(m.contratoAtual)}</span>
+                <span style={{ color: theme.coral }}>pagamento todo dia {diaVencimentoDoContrato(m.contratoAtual)}</span>
               </div>
             ))}
           </div>
@@ -4466,7 +4466,7 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
               { label: "Motos", value: motos.length, color: theme.text },
               { label: "Alugadas", value: alugadas, color: theme.amber },
               { label: "Disponíveis", value: disponiveis, color: theme.mint },
-              { label: "Vencidos", value: vencidas, color: vencidas > 0 ? theme.coral : theme.textMuted },
+              { label: "Atrasados", value: vencidas, color: vencidas > 0 ? theme.coral : theme.textMuted },
             ].map((it) => (
               <div key={it.label} className="min-w-0">
                 <div style={{ fontFamily: HEAD_FONT, fontSize: 19, fontWeight: 700, color: it.color }}>
@@ -5128,7 +5128,7 @@ function ConfiguracoesView({ config, persist }) {
           />
         </div>
         <div className="flex items-center justify-between py-2" style={{ borderBottom: `1px solid ${theme.cardBorder}` }}>
-          <span style={{ color: theme.text, fontFamily: BODY_FONT, fontSize: 14 }}>Cor de alerta (vencidos, saídas)</span>
+          <span style={{ color: theme.text, fontFamily: BODY_FONT, fontSize: 14 }}>Cor de alerta (atrasados, saídas)</span>
           <input
             type="color"
             value={local.coral || DEFAULT_THEME.coral}
