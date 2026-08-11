@@ -407,6 +407,16 @@ const isContratoVencido = (contrato, pagamentos) => {
   if (!dia) return false;
   const hoje = new Date();
   const hojeZero = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate());
+  // a primeira cobrança só vence um mês depois do início do contrato — no mês em que o
+  // cliente começa a usar a moto ele ainda não paga nada, então não pode aparecer como
+  // atrasado antes do dia de cobrança do mês SEGUINTE ao início
+  if (contrato.dataInicio) {
+    const [anoInicio, mesInicio] = contrato.dataInicio.split("-").map(Number);
+    if (anoInicio && mesInicio) {
+      const primeiroVencimento = new Date(anoInicio, mesInicio, dia); // mês seguinte (mesInicio já é 1-based)
+      if (hojeZero < primeiroVencimento) return false;
+    }
+  }
   const vencimentoDoMes = new Date(hoje.getFullYear(), hoje.getMonth(), dia);
   if (hojeZero <= vencimentoDoMes) return false;
   const vencimentoISO = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, "0")}-${String(dia).padStart(2, "0")}`;
