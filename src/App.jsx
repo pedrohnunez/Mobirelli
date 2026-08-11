@@ -432,6 +432,46 @@ const monthLabel = (key) => {
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
+// quando alguém "adiciona à tela inicial", o app abre sem barra de navegador e sem botão
+// de recarregar — se o celular ficou algum tempo sem reabrir o app enquanto uma versão
+// nova foi publicada, ele pode continuar rodando o código antigo guardado em cache sem
+// nenhum jeito óbvio de atualizar sozinho (parece "travado": os botões não fazem nada
+// porque o JS antigo não bate mais com o resto). Esse hook confere de vez em quando (e
+// sempre que o app volta a ficar visível) se o servidor já tem um arquivo .js diferente
+// do que está rodando agora — se tiver, avisa a pessoa pra atualizar
+function useVersaoNova() {
+  const [disponivel, setDisponivel] = useState(false);
+  useEffect(() => {
+    const scriptAtual = document.querySelector('script[type="module"][src*="/assets/"]')?.getAttribute("src");
+    if (!scriptAtual) return;
+    let cancelado = false;
+    const conferir = async () => {
+      try {
+        const resp = await fetch("/", { cache: "no-store" });
+        const html = await resp.text();
+        const [, scriptNovo] = html.match(/src="(\/assets\/index-[\w-]+\.js)"/) || [];
+        if (!cancelado && scriptNovo && scriptNovo !== scriptAtual) setDisponivel(true);
+      } catch {
+        // sem internet ou instabilidade — não é motivo pra avisar de versão nova
+      }
+    };
+    conferir();
+    const aoFicarVisivel = () => {
+      if (document.visibilityState === "visible") conferir();
+    };
+    document.addEventListener("visibilitychange", aoFicarVisivel);
+    window.addEventListener("focus", conferir);
+    const intervalo = setInterval(conferir, 5 * 60 * 1000);
+    return () => {
+      cancelado = true;
+      document.removeEventListener("visibilitychange", aoFicarVisivel);
+      window.removeEventListener("focus", conferir);
+      clearInterval(intervalo);
+    };
+  }, []);
+  return disponivel;
+}
+
 const enderecoCompleto = (c) => {
   let logradouroNumero = c.logradouro && c.numero ? `${c.logradouro}, ${c.numero}` : c.logradouro;
   if (logradouroNumero && c.complemento) logradouroNumero += ` - ${c.complemento}`;
@@ -5366,6 +5406,7 @@ const SEED_FLUXO = [
    APP PRINCIPAL
 =========================================================== */
 export default function MobirelliApp() {
+  const versaoNovaDisponivel = useVersaoNova();
   const [tab, setTab] = useState("dashboard");
   const headerRef = useRef(null);
   const navRef = useRef(null);
@@ -5576,6 +5617,39 @@ export default function MobirelliApp() {
           )}
         </div>
       </header>
+
+      {versaoNovaDisponivel && (
+        // a centralização (translateX) fica num wrapper parado — a classe mbr-fade-in
+        // anima "transform" (translateY) no elemento visível de dentro; se as duas
+        // ficassem no mesmo elemento, a animação substituiria o translateX inteiro,
+        // e o aviso nascia desalinhado, saindo da tela
+        <div className="fixed left-1/2 z-50" style={{ top: "calc(env(safe-area-inset-top, 0px) + 10px)", transform: "translateX(-50%)" }}>
+          <div
+            className="flex items-center gap-2 rounded-xl px-3 py-2 mbr-fade-in"
+            style={{
+              width: "calc(100vw - 32px)",
+              maxWidth: 340,
+              background: theme.mint,
+              color: theme.mintText,
+              boxShadow: "0 4px 20px rgba(0,0,0,0.35)",
+              fontFamily: BODY_FONT,
+              fontSize: 12,
+              fontWeight: 600,
+            }}
+          >
+            <span className="truncate" style={{ flex: "1 1 auto", minWidth: 0 }}>
+              Versão nova disponível
+            </span>
+            <button
+              onClick={() => window.location.reload()}
+              className="rounded-lg px-2.5 py-1 text-xs font-bold flex-shrink-0"
+              style={{ background: theme.mintText, color: theme.mint }}
+            >
+              Atualizar
+            </button>
+          </div>
+        </div>
+      )}
 
       <main
         className={tab === "rastreio" ? "" : "px-4 sm:px-8 pt-5 max-w-5xl mx-auto lg:max-w-7xl"}
