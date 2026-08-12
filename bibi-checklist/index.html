@@ -236,6 +236,11 @@
     padding:40px;
     color:var(--ink-soft);
   }
+  .sync-status{
+    margin-top:10px;
+    font-size:11.5px;
+    color:var(--ink-soft);
+  }
 </style>
 </head>
 <body>
@@ -251,16 +256,31 @@
     <label for="startDate">Início do tratamento:</label>
     <input type="date" id="startDate">
   </div>
+  <div class="sync-status" id="syncStatus">🦋 conectando...</div>
 </header>
 
 <main id="app">
   <div class="loading">Carregando...</div>
 </main>
 
-<div class="end-note">Marque cada dose conforme for administrada. Os dados ficam salvos neste dispositivo. 🦋</div>
+<div class="end-note">Marque cada dose conforme for administrada. Os dados são salvos na nuvem e sincronizados em todos os aparelhos. 🦋</div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
-const STORAGE_KEY = 'checklist-bibi';
+// Preencha com a Project URL e a anon public key do seu projeto Supabase
+// (painel do Supabase > Settings > API).
+const SUPABASE_URL = 'COLE_AQUI_SUA_SUPABASE_URL';
+const SUPABASE_ANON_KEY = 'COLE_AQUI_SUA_SUPABASE_ANON_KEY';
+
+const ROW_ID = 'bibi';
+const STORAGE_KEY = 'checklist-bibi'; // cache local, só pra abrir rápido / offline
+
+const CLOUD_CONFIGURED = /^https?:\/\//.test(SUPABASE_URL) && !SUPABASE_ANON_KEY.startsWith('COLE_AQUI');
+let sb = null;
+if (CLOUD_CONFIGURED){
+  try{ sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY); }
+  catch(e){ console.error(e); sb = null; }
+}
 
 const MEDS = [
   { id: 'metronidazol', emoji: '💊', name: 'Metronidazol 250mg', dose: '1 cp de 12/12h · 14 dias', days: 14, times: ['12/12h', '12/12h'] },
@@ -277,46 +297,96 @@ function fmtDay(dateStr, offset){
   return { label: dias[d.getDay()] + ' ' + d.getDate() + '/' + (d.getMonth()+1), iso: d.toISOString().slice(0,10) };
 }
 
-function load(){
+function setStatus(text){
+  const el = document.getElementById('syncStatus');
+  if (el) el.textContent = text;
+}
+
+function loadLocalCache(){
   try{
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) state = JSON.parse(raw);
   } catch(e){ /* nenhum dado salvo ainda */ }
-  document.getElementById('startDate').value = state.startDate;
-  render();
 }
 
-function save(){
+function cacheLocally(){
   try{
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  } catch(e){ console.error('Falha ao salvar', e); }
+  } catch(e){ /* dispositivo sem espaço/permite localStorage — segue só com a nuvem */ }
+}
+
+async function loadFromCloud(){
+  if (!sb){ setStatus('⚙️ configure o Supabase (veja bibi-checklist/schema.sql) para sincronizar entre aparelhos'); return; }
+  setStatus('🦋 sincronizando...');
+  const { data, error } = await sb.from('checklist').select('data').eq('id', ROW_ID).maybeSingle();
+  if (error){
+    console.error(error);
+    setStatus('⚠️ sem conexão — mostrando dados salvos neste aparelho');
+    return;
+  }
+  if (data && data.data){
+    state = data.data;
+    cacheLocally();
+  } else {
+    await sb.from('checklist').upsert({ id: ROW_ID, data: state, updated_at: new Date().toISOString() });
+  }
+  document.getElementById('startDate').value = state.startDate;
+  render();
+  setStatus('🦋 sincronizado em todos os aparelhos');
+}
+
+async function saveToCloud(){
+  cacheLocally();
+  if (!sb){ setStatus('⚙️ salvo neste aparelho apenas — configure o Supabase para sincronizar'); return; }
+  setStatus('🦋 salvando...');
+  const { error } = await sb.from('checklist').upsert({ id: ROW_ID, data: state, updated_at: new Date().toISOString() });
+  if (error){
+    console.error(error);
+    setStatus('⚠️ não foi possível salvar na nuvem — tentando de novo em breve');
+    setTimeout(saveToCloud, 4000);
+    return;
+  }
+  setStatus('🦋 sincronizado em todos os aparelhos');
+}
+
+function subscribeRealtime(){
+  if (!sb) return;
+  sb.channel('checklist-bibi-changes')
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'checklist', filter: `id=eq.${ROW_ID}` }, (payload) => {
+      state = payload.new.data;
+      cacheLocally();
+      document.getElementById('startDate').value = state.startDate;
+      render();
+      setStatus('🦋 atualizado agora em outro aparelho');
+    })
+    .subscribe();
 }
 
 function toggleDose(medId, dayIdx, doseIdx){
   const key = medId + ':' + dayIdx + ':' + doseIdx;
   state.checks[key] = !state.checks[key];
-  save();
   render();
+  saveToCloud();
 }
 
 function addSos(){
   const now = new Date();
   const label = now.toLocaleDateString('pt-BR') + ' às ' + now.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
   state.sos.push({ id: Date.now(), label });
-  save();
   render();
+  saveToCloud();
 }
 
 function removeSos(id){
   state.sos = state.sos.filter(s => s.id !== id);
-  save();
   render();
+  saveToCloud();
 }
 
 document.getElementById('startDate').addEventListener('change', (e) => {
   state.startDate = e.target.value;
-  save();
   render();
+  saveToCloud();
 });
 
 function medCard(med){
@@ -384,7 +454,11 @@ function render(){
   app.innerHTML = MEDS.map(medCard).join('') + sosCard();
 }
 
-load();
+loadLocalCache();
+document.getElementById('startDate').value = state.startDate;
+render();
+loadFromCloud();
+subscribeRealtime();
 </script>
 
 </body>
