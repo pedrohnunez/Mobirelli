@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Bibi ✨">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#8b6ba8">
+<title>Checklist da Bibi 🦋</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #fbf4fb;
+    --bg2: #f2ecfa;
+    --ink: #4a3a5a;
+    --ink-soft: #8a7a9a;
+    --lilac: #8b6ba8;
+    --lilac-dark: #6b4c88;
+    --lilac-pale: #ece1f7;
+    --pink: #e8a0c4;
+    --pink-pale: #fbe4ef;
+    --mint: #a3d9c9;
+    --line: #e6d9f0;
+    --card: #ffffff;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:
+      radial-gradient(circle at 8% 6%, var(--pink-pale) 0%, transparent 32%),
+      radial-gradient(circle at 92% 14%, var(--mint) 0%, transparent 24%),
+      linear-gradient(180deg, var(--bg2), var(--bg));
+    color:var(--ink);
+    font-family:'Quicksand',-apple-system,BlinkMacSystemFont,sans-serif;
+    padding-bottom:60px;
+    position:relative;
+    overflow-x:hidden;
+  }
+  .fly{
+    position:absolute;
+    font-size:22px;
+    opacity:.55;
+    pointer-events:none;
+    animation:flutter 7s ease-in-out infinite;
+    filter:drop-shadow(0 2px 3px rgba(139,107,168,0.15));
+  }
+  .fly.f1{ top:18px; left:8%; animation-delay:0s; font-size:26px;}
+  .fly.f2{ top:70px; right:10%; animation-delay:1.4s; font-size:18px;}
+  .fly.f3{ top:130px; left:22%; animation-delay:2.8s; font-size:16px; opacity:.35;}
+  @keyframes flutter{
+    0%,100%{ transform: translateY(0) rotate(-4deg); }
+    50%{ transform: translateY(-10px) rotate(6deg); }
+  }
+  @media (prefers-reduced-motion: reduce){ .fly{ animation:none; } }
+  header{
+    padding:36px 20px 24px;
+    position:relative;
+    text-align:center;
+  }
+  .eyebrow{
+    font-size:11.5px;
+    letter-spacing:.12em;
+    text-transform:uppercase;
+    color:var(--lilac-dark);
+    font-weight:600;
+    margin-bottom:6px;
+  }
+  h1{
+    font-family:'Baloo 2', 'Quicksand', sans-serif;
+    margin:0 0 6px;
+    font-size:30px;
+    font-weight:700;
+    line-height:1.15;
+    color:var(--lilac-dark);
+  }
+  .sub{
+    color:var(--ink-soft);
+    font-size:13.5px;
+  }
+  .controls{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:10px;
+    margin-top:18px;
+    font-size:13px;
+  }
+  .controls input[type=date]{
+    font-family:inherit;
+    font-size:13px;
+    padding:7px 10px;
+    border:1.5px solid var(--line);
+    border-radius:10px;
+    background:#fff;
+    color:var(--ink);
+  }
+  main{padding:10px 16px 10px; max-width:640px; margin:0 auto; position:relative;}
+  .med-card{
+    background:var(--card);
+    border:1.5px solid var(--line);
+    border-radius:20px;
+    margin-bottom:20px;
+    overflow:hidden;
+    box-shadow:0 4px 14px rgba(139,107,168,0.08);
+  }
+  .med-head{
+    padding:18px 20px 14px;
+    border-bottom:1.5px dashed var(--line);
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    gap:10px;
+    background:linear-gradient(135deg, #fff, var(--pink-pale) 180%);
+  }
+  .med-emoji{ font-size:22px; margin-right:6px; }
+  .med-name{
+    font-family:'Baloo 2', sans-serif;
+    font-size:18px;
+    font-weight:600;
+    margin:0 0 2px;
+    color:var(--lilac-dark);
+  }
+  .med-dose{
+    font-size:12.5px;
+    color:var(--ink-soft);
+  }
+  .progress-pill{
+    font-size:11.5px;
+    font-weight:700;
+    color:var(--lilac-dark);
+    background:var(--lilac-pale);
+    border-radius:20px;
+    padding:5px 12px;
+    white-space:nowrap;
+  }
+  .days-scroll{
+    display:flex;
+    overflow-x:auto;
+    gap:2px;
+    padding:10px 8px;
+  }
+  .day-col{
+    flex:0 0 auto;
+    width:78px;
+    padding:8px 6px;
+    text-align:center;
+  }
+  .day-label{
+    font-size:10.5px;
+    color:var(--ink-soft);
+    margin-bottom:8px;
+    font-weight:600;
+  }
+  .dose-row{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:4px;
+    margin-bottom:8px;
+  }
+  .dose-time{
+    font-size:9.5px;
+    color:var(--ink-soft);
+  }
+  .checkbox{
+    width:32px;
+    height:32px;
+    border-radius:12px;
+    border:1.5px dashed var(--pink);
+    background:#fff;
+    cursor:pointer;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:17px;
+    transition:all .18s ease;
+  }
+  .checkbox.checked{
+    background:var(--pink-pale);
+    border:1.5px solid var(--pink);
+    transform:scale(1.05);
+  }
+  .sos-body{
+    padding:16px 20px 20px;
+  }
+  .sos-desc{
+    font-size:12.5px;
+    color:var(--ink-soft);
+    margin-bottom:12px;
+  }
+  .sos-add{
+    font-family:'Quicksand',sans-serif;
+    font-size:13px;
+    font-weight:700;
+    color:var(--lilac-dark);
+    background:var(--lilac-pale);
+    border:none;
+    border-radius:12px;
+    padding:10px 16px;
+    cursor:pointer;
+  }
+  .sos-list{
+    margin-top:12px;
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+  }
+  .sos-item{
+    font-size:12.5px;
+    background:var(--bg2);
+    border-radius:10px;
+    padding:9px 12px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+  }
+  .sos-item button{
+    border:none;
+    background:none;
+    color:var(--pink);
+    font-size:12px;
+    cursor:pointer;
+    font-weight:700;
+  }
+  .end-note{
+    font-size:12px;
+    color:var(--ink-soft);
+    text-align:center;
+    padding:20px;
+  }
+  .loading{
+    text-align:center;
+    padding:40px;
+    color:var(--ink-soft);
+  }
+</style>
+</head>
+<body>
+
+<span class="fly f1">🦋</span>
+<span class="fly f2">🦋</span>
+<span class="fly f3">🦋</span>
+
+<header>
+  <h1>Checklist da Bibi 🦋</h1>
+  <div class="sub">Dra Maria Fernanda Nunes</div>
+  <div class="controls">
+    <label for="startDate">Início do tratamento:</label>
+    <input type="date" id="startDate">
+  </div>
+</header>
+
+<main id="app">
+  <div class="loading">Carregando...</div>
+</main>
+
+<div class="end-note">Marque cada dose conforme for administrada. Os dados ficam salvos neste dispositivo. 🦋</div>
+
+<script>
+const STORAGE_KEY = 'checklist-bibi';
+
+const MEDS = [
+  { id: 'metronidazol', emoji: '💊', name: 'Metronidazol 250mg', dose: '1 cp de 12/12h · 14 dias', days: 14, times: ['12/12h', '12/12h'] },
+  { id: 'doxiciclina', emoji: '💊', name: 'Doxiciclina 100mg', dose: '1 cp de 12/12h · 14 dias', days: 14, times: ['12/12h', '12/12h'] },
+  { id: 'esomeprazol', emoji: '💊', name: 'Esomeprazol 40mg', dose: '1 cp de 12/12h · 8 semanas', days: 56, times: ['12/12h', '12/12h'] },
+];
+
+let state = { startDate: new Date().toISOString().slice(0,10), checks: {}, sos: [] };
+
+function fmtDay(dateStr, offset){
+  const d = new Date(dateStr + 'T00:00:00');
+  d.setDate(d.getDate() + offset);
+  const dias = ['dom','seg','ter','qua','qui','sex','sáb'];
+  return { label: dias[d.getDay()] + ' ' + d.getDate() + '/' + (d.getMonth()+1), iso: d.toISOString().slice(0,10) };
+}
+
+function load(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) state = JSON.parse(raw);
+  } catch(e){ /* nenhum dado salvo ainda */ }
+  document.getElementById('startDate').value = state.startDate;
+  render();
+}
+
+function save(){
+  try{
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch(e){ console.error('Falha ao salvar', e); }
+}
+
+function toggleDose(medId, dayIdx, doseIdx){
+  const key = medId + ':' + dayIdx + ':' + doseIdx;
+  state.checks[key] = !state.checks[key];
+  save();
+  render();
+}
+
+function addSos(){
+  const now = new Date();
+  const label = now.toLocaleDateString('pt-BR') + ' às ' + now.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
+  state.sos.push({ id: Date.now(), label });
+  save();
+  render();
+}
+
+function removeSos(id){
+  state.sos = state.sos.filter(s => s.id !== id);
+  save();
+  render();
+}
+
+document.getElementById('startDate').addEventListener('change', (e) => {
+  state.startDate = e.target.value;
+  save();
+  render();
+});
+
+function medCard(med){
+  let totalDoses = med.days * med.times.length;
+  let doneCount = 0;
+  let daysHtml = '';
+  for(let d = 0; d < med.days; d++){
+    const { label } = fmtDay(state.startDate, d);
+    let dosesHtml = '';
+    med.times.forEach((t, ti) => {
+      const key = med.id + ':' + d + ':' + ti;
+      const checked = !!state.checks[key];
+      if (checked) doneCount++;
+      dosesHtml += `
+        <div class="dose-row">
+          <div class="dose-time">${ti === 0 ? 'manhã' : 'noite'}</div>
+          <div class="checkbox ${checked ? 'checked' : ''}" onclick="toggleDose('${med.id}', ${d}, ${ti})">${checked ? '🦋' : ''}</div>
+        </div>`;
+    });
+    daysHtml += `
+      <div class="day-col">
+        <div class="day-label">${label}</div>
+        ${dosesHtml}
+      </div>`;
+  }
+  return `
+    <div class="med-card">
+      <div class="med-head">
+        <div>
+          <p class="med-name"><span class="med-emoji">${med.emoji}</span>${med.name}</p>
+          <p class="med-dose">${med.dose}</p>
+        </div>
+        <div class="progress-pill">${doneCount}/${totalDoses}</div>
+      </div>
+      <div class="days-scroll">${daysHtml}</div>
+    </div>`;
+}
+
+function sosCard(){
+  const listHtml = state.sos.length
+    ? state.sos.map(s => `
+        <div class="sos-item">
+          <span>🦋 ${s.label}</span>
+          <button onclick="removeSos(${s.id})">remover</button>
+        </div>`).join('')
+    : '';
+  return `
+    <div class="med-card">
+      <div class="med-head">
+        <div>
+          <p class="med-name"><span class="med-emoji">💊</span>Domperidona 10mg</p>
+          <p class="med-dose">1 cp de 8/8h — apenas se náuseas ou vômitos</p>
+        </div>
+      </div>
+      <div class="sos-body">
+        <p class="sos-desc">Este medicamento não tem horário fixo — registre aqui cada vez que for administrado.</p>
+        <button class="sos-add" onclick="addSos()">🦋 Registrar dose</button>
+        <div class="sos-list">${listHtml}</div>
+      </div>
+    </div>`;
+}
+
+function render(){
+  const app = document.getElementById('app');
+  app.innerHTML = MEDS.map(medCard).join('') + sosCard();
+}
+
+load();
+</script>
+
+</body>
+</html>
