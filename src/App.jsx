@@ -213,7 +213,9 @@ function pagamentosDaMoto(moto, lancamentos) {
 }
 
 // custos da moto — junta os registros manuais (custosExtras) com as saídas do fluxo
-// de caixa que foram vinculadas a essa moto (ex: despachante lançado direto no Caixa)
+// de caixa que foram vinculadas a essa moto (ex: despachante lançado direto no Caixa).
+// Fica de fora dessa lista qualquer lançamento com natureza "Manutenção" — esse tipo
+// de gasto entra em manutencoesDaMoto, não aqui, mesmo quando lançado direto no Caixa
 function custosDaMoto(moto, lancamentos) {
   if (!moto) return [];
   const manuais = (moto.custosExtras || []).map((c) => ({
@@ -223,11 +225,36 @@ function custosDaMoto(moto, lancamentos) {
     valorGasto: c.valorGasto,
   }));
   const doCaixa = (lancamentos || [])
-    .filter((l) => l.tipo === "saida" && l.motoId === moto.id)
+    .filter((l) => l.tipo === "saida" && l.motoId === moto.id && l.natureza !== "Manutenção")
     .map((l) => ({
       id: l.id,
       data: l.data,
       descricao: l.descricao || l.categoria || "Sem descrição",
+      valorGasto: l.valor,
+    }));
+  return [...manuais, ...doCaixa].sort((a, b) => (a.data < b.data ? 1 : -1));
+}
+
+// manutenções da moto — junta os registros manuais (moto.manutencoes, cadastrados pelo
+// botão "Nova manutenção" na própria moto) com as saídas do fluxo de caixa lançadas
+// direto no Caixa com natureza "Manutenção" e vinculadas a essa moto. Isso evita que uma
+// troca de óleo lançada no Caixa apareça errado em "Custos" — e como o valor já entra
+// no lucro do mês pelo caminho normal do Caixa (toda saída que não é "Expansão" reduz o
+// lucro), NÃO soma aqui de novo em nenhum cálculo de lucro/prejuízo, só na exibição
+function manutencoesDaMoto(moto, lancamentos) {
+  if (!moto) return [];
+  const manuais = (moto.manutencoes || []).map((m) => ({
+    id: m.id,
+    data: m.data,
+    descricao: m.tipo || "Manutenção",
+    valorGasto: m.valorGasto,
+  }));
+  const doCaixa = (lancamentos || [])
+    .filter((l) => l.tipo === "saida" && l.motoId === moto.id && l.natureza === "Manutenção")
+    .map((l) => ({
+      id: l.id,
+      data: l.data,
+      descricao: l.descricao || l.categoria || "Manutenção",
       valorGasto: l.valor,
     }));
   return [...manuais, ...doCaixa].sort((a, b) => (a.data < b.data ? 1 : -1));
@@ -2808,13 +2835,13 @@ function MotosView({ motos, persist, clientes, persistClientes, config, lancamen
                         <Plus size={14} />
                       </button>
                     </div>
-                    {(moto.manutencoes || []).length === 0 ? (
+                    {manutencoesDaMoto(moto, lancamentos).length === 0 ? (
                       <div style={{ color: theme.textMuted, fontSize: 12 }}>Nenhuma registrada.</div>
                     ) : (
-                      [...moto.manutencoes].reverse().map((mnt) => (
+                      [...manutencoesDaMoto(moto, lancamentos)].reverse().map((mnt) => (
                         <div key={mnt.id} className="flex items-center justify-between text-xs py-1" style={{ borderTop: `1px solid ${theme.cardBorder}` }}>
                           <span style={{ color: theme.text }}>
-                            {formatDate(mnt.data)} · {mnt.tipo}
+                            {formatDate(mnt.data)} · {mnt.descricao}
                           </span>
                           <span style={{ color: theme.textMuted }}>{formatCurrency(mnt.valorGasto)}</span>
                         </div>
@@ -2900,7 +2927,7 @@ function MotosView({ motos, persist, clientes, persistClientes, config, lancamen
 /* ===========================================================
    FLUXO DE CAIXA
 =========================================================== */
-const NATUREZAS = ["Operacional", "Administrativo", "Expansão"];
+const NATUREZAS = ["Operacional", "Administrativo", "Manutenção", "Expansão"];
 
 function emptyLancamento() {
   return { id: uid(), data: todayISO(), tipo: "entrada", natureza: "Operacional", categoria: "", valor: "", descricao: "", forma: "", motoId: "", parcelas: 1 };
@@ -4301,8 +4328,10 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
   const ticketMedio = contratosAtivos.length ? faturamentoPrevisto / contratosAtivos.length : 0;
   const investimentoFrota = motos.reduce((s, m) => s + Number(m.valorCompra || 0), 0);
 
+  // inclui tanto manutenção cadastrada na própria moto quanto lançada direto no Caixa
+  // (natureza "Manutenção") — só pra exibição do ranking, não entra de novo no lucro
   const rankingManutencao = motos
-    .map((m) => ({ placa: m.placa, modelo: m.modelo, total: (m.manutencoes || []).reduce((s, x) => s + Number(x.valorGasto || 0), 0) }))
+    .map((m) => ({ placa: m.placa, modelo: m.modelo, total: manutencoesDaMoto(m, lancamentos).reduce((s, x) => s + Number(x.valorGasto || 0), 0) }))
     .filter((m) => m.total > 0)
     .sort((a, b) => b.total - a.total)
     .slice(0, 3);
@@ -4354,7 +4383,10 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
 
   const totalClientes = clientes?.length || 0;
   const faturamentoAcumulado = lancamentos.filter((l) => l.tipo === "entrada").reduce((s, l) => s + Number(l.valor), 0);
-  const manutencaoAcumulada = todasManutencoes.reduce((s, m) => s + Number(m.valorGasto || 0), 0);
+  // essa KPI é só uma exibição do total gasto em manutenção (moto + Caixa) — não entra
+  // no cálculo de lucro, que usa "todasManutencoes" (só as cadastradas na própria moto)
+  // pra não contar duas vezes o que já é uma saída normal do Caixa
+  const manutencaoAcumulada = motos.reduce((s, m) => s + manutencoesDaMoto(m, lancamentos).reduce((s2, x) => s2 + Number(x.valorGasto || 0), 0), 0);
   const contratosEncerrados = motos.reduce((s, m) => s + (m.historicoContratos?.length || 0), 0);
 
   return (
