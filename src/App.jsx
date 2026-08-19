@@ -4340,7 +4340,7 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
     .map((m) => ({ placa: m.placa, modelo: m.modelo, total: manutencoesDaMoto(m, lancamentos).reduce((s, x) => s + Number(x.valorGasto || 0), 0) }))
     .filter((m) => m.total > 0)
     .sort((a, b) => b.total - a.total)
-    .slice(0, 3);
+    .slice(0, 5);
   const maxManutencao = Math.max(1, ...rankingManutencao.map((m) => m.total));
 
   const rankingFaturamento = motos
