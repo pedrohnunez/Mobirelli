@@ -9,6 +9,7 @@ import mapStyle from "./mapStyle.json";
 // (tudo em um arquivo só, sem imports externos) publicada em /public.
 maplibregl.setWorkerUrl("/maplibre-gl-worker.js");
 import { getKV, setKV, subscribeKV, uploadArquivo } from "./lib/storage";
+import { useAuth, signIn, signOut, chamarAdminApi, listarUsuarios } from "./lib/auth";
 import {
   Bike,
   Wallet,
@@ -43,6 +44,11 @@ import {
   Eye,
   EyeOff,
   Undo2,
+  LogOut,
+  Lock,
+  ShieldCheck,
+  KeyRound,
+  Ban,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -4996,9 +5002,227 @@ function RastreioView({ config, motos, clientes, topInset, bottomInset }) {
   );
 }
 
+function NovoUsuarioModal({ onClose, onSaved }) {
+  const [username, setUsername] = useState("");
+  const [senha, setSenha] = useState("");
+  const [confirmar, setConfirmar] = useState("");
+  const [enviando, setEnviando] = useState(false);
+  const [erro, setErro] = useState("");
+
+  const salvar = async () => {
+    if (!username.trim() || senha.length < 6) {
+      setErro("Informe um usuário e uma senha com pelo menos 6 caracteres.");
+      return;
+    }
+    if (senha !== confirmar) {
+      setErro("As senhas não são iguais.");
+      return;
+    }
+    setEnviando(true);
+    setErro("");
+    const resultado = await chamarAdminApi("criar", { username, senha });
+    setEnviando(false);
+    if (!resultado.ok) {
+      setErro(resultado.erro);
+      return;
+    }
+    onSaved();
+  };
+
+  return (
+    <Modal title="Novo usuário" onClose={onClose}>
+      <FieldLabel>Usuário</FieldLabel>
+      <input style={inputStyle} value={username} onChange={(e) => setUsername(e.target.value)} autoFocus />
+      <CampoSenha label="Senha (mínimo 6 caracteres)" value={senha} onChange={(e) => setSenha(e.target.value)} autoComplete="new-password" />
+      <CampoSenha label="Confirmar senha" value={confirmar} onChange={(e) => setConfirmar(e.target.value)} autoComplete="new-password" />
+      {erro && (
+        <div className="text-xs mb-3 flex items-center gap-1" style={{ color: theme.coral, fontFamily: BODY_FONT }}>
+          <AlertTriangle size={13} /> {erro}
+        </div>
+      )}
+      <button
+        onClick={salvar}
+        disabled={enviando}
+        className="w-full rounded-xl py-2 font-semibold"
+        style={{ background: theme.mint, color: theme.mintText, opacity: enviando ? 0.7 : 1 }}
+      >
+        {enviando ? "Criando..." : "Criar usuário"}
+      </button>
+    </Modal>
+  );
+}
+
+function RedefinirSenhaModal({ usuario, onClose, onSaved }) {
+  const [senha, setSenha] = useState("");
+  const [confirmar, setConfirmar] = useState("");
+  const [enviando, setEnviando] = useState(false);
+  const [erro, setErro] = useState("");
+
+  const salvar = async () => {
+    if (senha.length < 6) {
+      setErro("A senha precisa ter pelo menos 6 caracteres.");
+      return;
+    }
+    if (senha !== confirmar) {
+      setErro("As senhas não são iguais.");
+      return;
+    }
+    setEnviando(true);
+    setErro("");
+    const resultado = await chamarAdminApi("redefinir-senha", { userId: usuario.id, senha });
+    setEnviando(false);
+    if (!resultado.ok) {
+      setErro(resultado.erro);
+      return;
+    }
+    onSaved();
+  };
+
+  return (
+    <Modal title={`Redefinir senha — ${usuario.username}`} onClose={onClose}>
+      <CampoSenha label="Nova senha (mínimo 6 caracteres)" value={senha} onChange={(e) => setSenha(e.target.value)} autoComplete="new-password" />
+      <CampoSenha label="Confirmar nova senha" value={confirmar} onChange={(e) => setConfirmar(e.target.value)} autoComplete="new-password" />
+      {erro && (
+        <div className="text-xs mb-3 flex items-center gap-1" style={{ color: theme.coral, fontFamily: BODY_FONT }}>
+          <AlertTriangle size={13} /> {erro}
+        </div>
+      )}
+      <button
+        onClick={salvar}
+        disabled={enviando}
+        className="w-full rounded-xl py-2 font-semibold"
+        style={{ background: theme.mint, color: theme.mintText, opacity: enviando ? 0.7 : 1 }}
+      >
+        {enviando ? "Salvando..." : "Salvar nova senha"}
+      </button>
+    </Modal>
+  );
+}
+
+// só aparece pra quem é admin — lista quem tem login, cria gente nova, redefine senha e
+// desativa/reativa acesso. Toda mudança passa por chamarAdminApi (api/admin-usuarios.js
+// no servidor, com a service role key) — daqui só se lê a lista (perfis é público pra
+// leitura, sem senha nenhuma nela) e se dispara as ações
+function UsuariosSection({ meuId }) {
+  const [usuarios, setUsuarios] = useState(null); // null = carregando
+  const [erro, setErro] = useState("");
+  const [modal, setModal] = useState(null); // { type: "novo" } | { type: "senha", usuario }
+
+  const carregar = async () => {
+    const resultado = await listarUsuarios();
+    if (!resultado.ok) {
+      setErro(resultado.erro);
+      return;
+    }
+    setUsuarios(resultado.usuarios);
+  };
+
+  useEffect(() => {
+    carregar();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const alternarAtivo = async (usuario) => {
+    const resultado = await chamarAdminApi("definir-ativo", { userId: usuario.id, ativo: !usuario.ativo });
+    if (!resultado.ok) {
+      setErro(resultado.erro);
+      return;
+    }
+    carregar();
+  };
+
+  return (
+    <div className="rounded-2xl p-4 mb-4" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
+      <div className="flex items-center justify-between mb-3">
+        <FieldLabel>Usuários com acesso</FieldLabel>
+        <button
+          onClick={() => setModal({ type: "novo" })}
+          className="text-xs font-semibold rounded-xl px-3 py-1.5 flex items-center gap-1"
+          style={{ background: theme.mint, color: theme.mintText }}
+        >
+          <Plus size={14} /> Novo usuário
+        </button>
+      </div>
+
+      {erro && (
+        <div className="text-xs mb-3 flex items-center gap-1" style={{ color: theme.coral, fontFamily: BODY_FONT }}>
+          <AlertTriangle size={13} /> {erro}
+        </div>
+      )}
+
+      {usuarios === null ? (
+        <div className="mbr-skel" style={{ height: 60 }} />
+      ) : usuarios.length === 0 ? (
+        <div style={{ color: theme.textMuted, fontSize: 12 }}>Nenhum usuário cadastrado.</div>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {usuarios.map((u) => (
+            <div key={u.id} className="flex items-center justify-between gap-2 rounded-xl px-3 py-2" style={{ background: theme.card2 }}>
+              <div className="flex items-center gap-2 min-w-0">
+                <div style={{ color: theme.text, fontFamily: BODY_FONT, fontWeight: 600 }} className="truncate">
+                  {u.username}
+                </div>
+                {u.role === "admin" && (
+                  <span
+                    className="text-xs font-semibold rounded-full px-2 py-0.5 flex items-center gap-1 flex-shrink-0"
+                    style={{ background: hexToRgba(theme.amber, 0.18), color: theme.amber }}
+                  >
+                    <ShieldCheck size={11} /> Admin
+                  </span>
+                )}
+                {!u.ativo && (
+                  <span
+                    className="text-xs font-semibold rounded-full px-2 py-0.5 flex-shrink-0"
+                    style={{ background: hexToRgba(theme.coral, 0.18), color: theme.coral }}
+                  >
+                    Desativado
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <button
+                  onClick={() => setModal({ type: "senha", usuario: u })}
+                  className="mbr-hover-grow"
+                  style={{ color: theme.textMuted }}
+                  title="Redefinir senha"
+                >
+                  <KeyRound size={15} />
+                </button>
+                {u.id !== meuId && (
+                  <button
+                    onClick={() => alternarAtivo(u)}
+                    className="mbr-hover-grow"
+                    style={{ color: u.ativo ? theme.coral : theme.mint }}
+                    title={u.ativo ? "Desativar acesso" : "Reativar acesso"}
+                  >
+                    {u.ativo ? <Ban size={15} /> : <CheckCircle2 size={15} />}
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {modal?.type === "novo" && (
+        <NovoUsuarioModal
+          onClose={() => setModal(null)}
+          onSaved={() => {
+            setModal(null);
+            carregar();
+          }}
+        />
+      )}
+      {modal?.type === "senha" && (
+        <RedefinirSenhaModal usuario={modal.usuario} onClose={() => setModal(null)} onSaved={() => setModal(null)} />
+      )}
+    </div>
+  );
+}
+
 const CORES_CONFIGURAVEIS = ["bg", "accent", "brand", "coral", "blue"];
 
-function ConfiguracoesView({ config, persist }) {
+function ConfiguracoesView({ config, persist, perfil, onSignOut }) {
   const [local, setLocal] = useState(config);
   const [status, setStatus] = useState({ text: "", kind: "" }); // kind: "ok" | "erro" | ""
   const [historicoCores, setHistoricoCores] = useState([]);
@@ -5108,6 +5332,25 @@ function ConfiguracoesView({ config, persist }) {
       <h2 style={{ fontFamily: HEAD_FONT, fontSize: 22, fontWeight: 800, color: theme.mint }} className="mb-4">
         Configurações
       </h2>
+
+      <div className="rounded-2xl p-4 mb-4 flex items-center justify-between gap-3" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
+        <div className="min-w-0">
+          <div style={{ color: theme.textMuted, fontFamily: BODY_FONT, fontSize: 12 }}>Logado como</div>
+          <div className="flex items-center gap-1.5 truncate" style={{ color: theme.text, fontFamily: BODY_FONT, fontWeight: 600 }}>
+            {perfil?.username}
+            {perfil?.role === "admin" && <ShieldCheck size={14} color={theme.amber} />}
+          </div>
+        </div>
+        <button
+          onClick={onSignOut}
+          className="text-xs font-semibold rounded-xl px-3 py-2 flex items-center gap-1.5 flex-shrink-0"
+          style={{ background: theme.card2, color: theme.coral }}
+        >
+          <LogOut size={14} /> Sair
+        </button>
+      </div>
+
+      {perfil?.role === "admin" && <UsuariosSection meuId={perfil.id} />}
 
       <div className="rounded-2xl p-4 mb-4" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
         <FieldLabel>Logo da empresa</FieldLabel>
@@ -5435,9 +5678,164 @@ const SEED_FLUXO = [
 ];
 
 /* ===========================================================
-   APP PRINCIPAL
+   LOGIN
 =========================================================== */
-export default function MobirelliApp() {
+// campo de senha com botão de mostrar/esconder — reaproveitado no login, na criação do
+// administrador e na tela de Usuários
+function CampoSenha({ label, value, onChange, autoComplete }) {
+  const [visivel, setVisivel] = useState(false);
+  return (
+    <>
+      <FieldLabel>{label}</FieldLabel>
+      <div className="relative">
+        <input
+          type={visivel ? "text" : "password"}
+          style={{ ...inputStyle, paddingRight: 36 }}
+          value={value}
+          onChange={onChange}
+          autoComplete={autoComplete}
+        />
+        <button
+          type="button"
+          onClick={() => setVisivel((v) => !v)}
+          className="absolute"
+          style={{ right: 10, top: 9, color: theme.textMuted }}
+          tabIndex={-1}
+        >
+          {visivel ? <EyeOff size={16} /> : <Eye size={16} />}
+        </button>
+      </div>
+    </>
+  );
+}
+
+function TelaCentralizada({ children }) {
+  return (
+    <div
+      className="min-h-screen flex items-center justify-center px-6"
+      style={{ background: theme.bg }}
+    >
+      <div className="w-full" style={{ maxWidth: 340 }}>
+        <div className="flex justify-center mb-8">
+          <Wordmark logoSize={64} />
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function LoginView() {
+  const [username, setUsername] = useState("");
+  const [senha, setSenha] = useState("");
+  const [enviando, setEnviando] = useState(false);
+  const [erro, setErro] = useState("");
+
+  const entrar = async (e) => {
+    e.preventDefault();
+    if (!username.trim() || !senha) return;
+    setEnviando(true);
+    setErro("");
+    const resultado = await signIn(username, senha);
+    if (!resultado.ok) setErro(resultado.erro);
+    setEnviando(false);
+  };
+
+  return (
+    <TelaCentralizada>
+      <form onSubmit={entrar} className="rounded-2xl p-5" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
+        <h2 className="text-center mb-4" style={{ fontFamily: HEAD_FONT, fontSize: 20, color: theme.text }}>
+          Entrar
+        </h2>
+        <FieldLabel>Usuário</FieldLabel>
+        <input style={inputStyle} value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" autoFocus />
+        <CampoSenha label="Senha" value={senha} onChange={(e) => setSenha(e.target.value)} autoComplete="current-password" />
+        {erro && (
+          <div className="text-xs mb-3 flex items-center gap-1" style={{ color: theme.coral, fontFamily: BODY_FONT }}>
+            <AlertTriangle size={13} /> {erro}
+          </div>
+        )}
+        <button
+          type="submit"
+          disabled={enviando}
+          className="w-full rounded-xl py-2.5 font-semibold"
+          style={{ background: theme.mint, color: theme.mintText, opacity: enviando ? 0.7 : 1 }}
+        >
+          {enviando ? "Entrando..." : "Entrar"}
+        </button>
+      </form>
+    </TelaCentralizada>
+  );
+}
+
+function CriarAdminView() {
+  const [username, setUsername] = useState("");
+  const [senha, setSenha] = useState("");
+  const [confirmar, setConfirmar] = useState("");
+  const [enviando, setEnviando] = useState(false);
+  const [erro, setErro] = useState("");
+
+  const criar = async (e) => {
+    e.preventDefault();
+    if (!username.trim() || senha.length < 6) return;
+    if (senha !== confirmar) {
+      setErro("As senhas não são iguais.");
+      return;
+    }
+    setEnviando(true);
+    setErro("");
+    const resultado = await chamarAdminApi("bootstrap-admin", { username, senha });
+    if (!resultado.ok) {
+      setErro(resultado.erro);
+      setEnviando(false);
+      return;
+    }
+    // a conta já foi criada — agora só falta entrar com ela
+    const loginResultado = await signIn(username, senha);
+    if (!loginResultado.ok) setErro(loginResultado.erro);
+    setEnviando(false);
+  };
+
+  return (
+    <TelaCentralizada>
+      <form onSubmit={criar} className="rounded-2xl p-5" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
+        <div className="flex justify-center mb-2">
+          <ShieldCheck size={28} color={theme.mint} />
+        </div>
+        <h2 className="text-center mb-1" style={{ fontFamily: HEAD_FONT, fontSize: 20, color: theme.text }}>
+          Criar administrador
+        </h2>
+        <div className="text-center text-xs mb-4" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+          Primeiro acesso ao sistema — essa conta vira a administradora. As próximas pessoas só entram com um login criado por ela.
+        </div>
+        <FieldLabel>Usuário</FieldLabel>
+        <input style={inputStyle} value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" autoFocus />
+        <CampoSenha label="Senha (mínimo 6 caracteres)" value={senha} onChange={(e) => setSenha(e.target.value)} autoComplete="new-password" />
+        <CampoSenha label="Confirmar senha" value={confirmar} onChange={(e) => setConfirmar(e.target.value)} autoComplete="new-password" />
+        {erro && (
+          <div className="text-xs mb-3 flex items-center gap-1" style={{ color: theme.coral, fontFamily: BODY_FONT }}>
+            <AlertTriangle size={13} /> {erro}
+          </div>
+        )}
+        <button
+          type="submit"
+          disabled={enviando}
+          className="w-full rounded-xl py-2.5 font-semibold"
+          style={{ background: theme.mint, color: theme.mintText, opacity: enviando ? 0.7 : 1 }}
+        >
+          {enviando ? "Criando..." : "Criar administrador"}
+        </button>
+      </form>
+    </TelaCentralizada>
+  );
+}
+
+/* ===========================================================
+   APP PRINCIPAL — só monta depois do login (ver MobirelliRoot, no fim do
+   arquivo), pra os hooks de dados (useSharedList/useSharedObject) só
+   rodarem pra quem já está autenticado
+=========================================================== */
+function AppAutenticado({ perfil, onSignOut }) {
   const versaoNovaDisponivel = useVersaoNova();
   const [tab, setTab] = useState("dashboard");
   const headerRef = useRef(null);
@@ -5738,7 +6136,7 @@ export default function MobirelliApp() {
                 bottomInset={chromeHeights.nav}
               />
             ) : (
-              <ConfiguracoesView config={configState.value} persist={configState.persist} />
+              <ConfiguracoesView config={configState.value} persist={configState.persist} perfil={perfil} onSignOut={onSignOut} />
             )}
           </div>
         )}
@@ -5818,4 +6216,28 @@ export default function MobirelliApp() {
       </nav>
     </div>
   );
+}
+
+/* ===========================================================
+   RAIZ — decide entre a tela de carregando, "criar administrador" (só no
+   primeiríssimo acesso, antes de existir qualquer login), a tela de login,
+   ou o app de verdade. Fica fora de AppAutenticado de propósito: assim os
+   hooks que buscam motos/clientes/caixa só disparam depois que a pessoa
+   já está logada.
+=========================================================== */
+export default function MobirelliRoot() {
+  const { session, perfil, loading, adminExiste } = useAuth();
+
+  if (loading || adminExiste === null) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: theme.bg }}>
+        <div className="mbr-skel" style={{ width: 160, height: 40, borderRadius: 12 }} />
+      </div>
+    );
+  }
+
+  if (!adminExiste) return <CriarAdminView />;
+  if (!session || !perfil) return <LoginView />;
+
+  return <AppAutenticado perfil={perfil} onSignOut={signOut} />;
 }
