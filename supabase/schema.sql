@@ -52,10 +52,15 @@ drop policy if exists "kv_store update" on kv_store;
 create policy "kv_store update" on kv_store for update to authenticated using (true);
 
 -- Habilita realtime (pra você e sua equipe verem as mudanças um do outro na hora) — o
--- Supabase Realtime respeita as políticas de RLS acima automaticamente. Se você já rodou
--- esse script antes, essa linha pode dar erro dizendo que a tabela já está na
--- publicação — pode ignorar esse erro específico e continuar rodando o resto.
-alter publication supabase_realtime add table kv_store;
+-- Supabase Realtime respeita as políticas de RLS acima automaticamente. Em bloco
+-- "DO" com tratamento de erro pra nunca falhar ao rodar de novo (o Supabase roda o
+-- script inteiro como uma coisa só — um erro aqui cancelava tudo que vinha antes)
+do $$
+begin
+  alter publication supabase_realtime add table kv_store;
+exception when duplicate_object then
+  null; -- já estava na publicação, não tem problema
+end $$;
 
 -- Bucket de arquivos (notas fiscais, contratos, logo). Crie manualmente em
 -- Storage > "New bucket" com o nome "arquivos" e marque como público — ou rode isto:
