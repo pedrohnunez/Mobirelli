@@ -10,4 +10,11 @@ if (!url || !anonKey) {
   );
 }
 
-export const supabase = createClient(url, anonKey);
+export const supabase = createClient(url, anonKey, {
+  auth: {
+    // guarda a sessão no sessionStorage (dura só enquanto a aba/navegador fica
+    // aberto) em vez do localStorage (que ficava valendo pra sempre) — assim,
+    // ao fechar o site de verdade, o login não continua guardado no aparelho
+    storage: window.sessionStorage,
+  },
+});
