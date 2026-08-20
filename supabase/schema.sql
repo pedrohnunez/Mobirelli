@@ -32,9 +32,12 @@ create table if not exists perfis (
 
 -- se essa tabela já existia de uma versão anterior (só "admin"/"usuario"), atualiza pro
 -- novo esquema de 3 níveis sem perder ninguém: quem já tinha o antigo "usuario" (que só
--- existia como "edita tudo, não é admin") vira "editor", o novo nível equivalente
-update perfis set role = 'editor' where role = 'usuario';
+-- existia como "edita tudo, não é admin") vira "editor", o novo nível equivalente.
+-- IMPORTANTE: a trava (constraint) precisa ser removida ANTES do update — senão o
+-- update tenta gravar "editor" enquanto a trava antiga (só admin/usuario) ainda está
+-- valendo, e a trava antiga barra o próprio update que ia corrigir os dados
 alter table perfis drop constraint if exists perfis_role_check;
+update perfis set role = 'editor' where role = 'usuario';
 alter table perfis add constraint perfis_role_check check (role in ('admin', 'editor', 'visualizador'));
 
 alter table perfis enable row level security;
