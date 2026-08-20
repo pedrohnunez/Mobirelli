@@ -681,12 +681,7 @@ const MOTO_STATUS = {
   manutencao: { label: "Em manutenção", color: theme.coral, dark: true, icon: Wrench },
 };
 
-function StatusBadge({ status, vencido }) {
-  if (vencido) {
-    return (
-      <Badge color={theme.coral} icon={AlertTriangle} label="Pagamento atrasado" />
-    );
-  }
+function StatusBadge({ status }) {
   const cfg = MOTO_STATUS[status] || MOTO_STATUS.disponivel;
   return <Badge color={cfg.color} icon={cfg.icon} label={cfg.label} />;
 }
@@ -1508,7 +1503,7 @@ function ClientesView({ clientes, persistClientes, motos, persistMotos }) {
                     className="flex items-center justify-center flex-shrink-0"
                     style={{ width: 28, height: 28, borderRadius: 8, background: theme.card2 }}
                   >
-                    <Users size={16} color={theme.textMuted} />
+                    <Users size={16} color={motoVinculada ? theme.mint : theme.textGhost} />
                   </div>
                   <div className="flex flex-col gap-1.5 min-w-0">
                     <div style={{ fontFamily: HEAD_FONT, fontSize: 17, color: theme.text }}>{c.nome || "Sem nome"}</div>
@@ -2781,14 +2776,17 @@ function MotosView({ motos, persist, clientes, persistClientes, config, lancamen
                     className="flex items-center justify-center flex-shrink-0"
                     style={{ width: 28, height: 28, borderRadius: 8, background: theme.card2 }}
                   >
-                    <Bike size={16} color={theme.textMuted} />
+                    <Bike size={16} color={vencido ? theme.coral : moto.status === "alugada" ? theme.mint : theme.textGhost} />
                   </div>
                   <div className="flex flex-col gap-3 min-w-0">
                     <MotoPlate placa={moto.placa} />
-                    <StatusBadge status={moto.status} vencido={vencido} />
+                    <StatusBadge status={moto.status} />
                   </div>
                 </div>
-                {aberto ? <ChevronUp size={18} color={theme.textMuted} /> : <ChevronDown size={18} color={theme.textMuted} />}
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  {vencido && <AlertTriangle size={14} color={theme.coral} />}
+                  {aberto ? <ChevronUp size={18} color={theme.textMuted} /> : <ChevronDown size={18} color={theme.textMuted} />}
+                </div>
               </button>
 
               <Collapse open={aberto}>
@@ -2803,6 +2801,11 @@ function MotosView({ motos, persist, clientes, persistClientes, config, lancamen
                     </div>
                     {moto.contratoAtual ? (
                       <div className="rounded-xl p-3" style={{ background: theme.card2 }}>
+                        {vencido && (
+                          <div className="flex items-center gap-1.5 mb-2" style={{ color: theme.coral, fontSize: 12, fontWeight: 600 }}>
+                            <AlertTriangle size={13} /> Pagamento atrasado
+                          </div>
+                        )}
                         <div className="flex items-center justify-between mb-1">
                           <span style={{ color: theme.text, fontWeight: 600 }}>{cliente?.nome || "Cliente"}</span>
                           <span style={{ color: theme.amber, fontFamily: HEAD_FONT, fontSize: 17 }}>
@@ -3335,6 +3338,9 @@ function FuturoModal({ futuro, onClose, onSave, onDelete, editando, motos }) {
 
 const FuturosView = forwardRef(function FuturosView({ futuros, persist, motos, clientes }, ref) {
   const [modal, setModal] = useState(null);
+  const [verTodasCobrancas, setVerTodasCobrancas] = useState(false);
+  const [verTodosFixos, setVerTodosFixos] = useState(false);
+  const [verTodosAvulsos, setVerTodosAvulsos] = useState(false);
   // o botão "Nova conta futura" mora no cabeçalho compartilhado com "Lançado" (vira o
   // "Novo" de lá, ver FluxoCaixaView) — aqui só expõe um jeito de abrir o modal de fora
   useImperativeHandle(ref, () => ({ abrirNovo: () => setModal(emptyFuturo()) }));
@@ -3471,7 +3477,7 @@ const FuturosView = forwardRef(function FuturosView({ futuros, persist, motos, c
             Todo mês, nesses dias — pra saber quem cobrar e quando.
           </div>
           <div className="flex flex-col">
-            {cobrancasPorDia.map(([dia, itens], i) => (
+            {(verTodasCobrancas ? cobrancasPorDia : cobrancasPorDia.slice(0, 4)).map(([dia, itens], i) => (
               <div
                 key={dia}
                 className="flex items-start gap-3 py-2.5"
@@ -3497,6 +3503,15 @@ const FuturosView = forwardRef(function FuturosView({ futuros, persist, motos, c
               </div>
             ))}
           </div>
+          {cobrancasPorDia.length > 4 && (
+            <button
+              onClick={() => setVerTodasCobrancas((v) => !v)}
+              className="text-xs font-semibold mt-2"
+              style={{ color: theme.mint, fontFamily: BODY_FONT, minHeight: 32 }}
+            >
+              {verTodasCobrancas ? "Ver menos" : `Ver mais (${cobrancasPorDia.length - 4})`}
+            </button>
+          )}
           <div className="text-xs mt-3" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
             As motos alugadas aparecem aqui automaticamente, vindo do contrato ativo de cada uma — pra editar, mude o contrato na aba Motos.
           </div>
@@ -3554,10 +3569,19 @@ const FuturosView = forwardRef(function FuturosView({ futuros, persist, motos, c
             Fixos mensais
           </div>
           <div className="flex flex-col gap-2">
-            {recorrentes.map((f) => (
+            {(verTodosFixos ? recorrentes : recorrentes.slice(0, 4)).map((f) => (
               <FuturoRow key={f.id} f={f} />
             ))}
           </div>
+          {recorrentes.length > 4 && (
+            <button
+              onClick={() => setVerTodosFixos((v) => !v)}
+              className="text-xs font-semibold mt-2"
+              style={{ color: theme.mint, fontFamily: BODY_FONT, minHeight: 32 }}
+            >
+              {verTodosFixos ? "Ver menos" : `Ver mais (${recorrentes.length - 4})`}
+            </button>
+          )}
         </div>
       )}
 
@@ -3570,11 +3594,22 @@ const FuturosView = forwardRef(function FuturosView({ futuros, persist, motos, c
             Nenhuma conta avulsa cadastrada.
           </div>
         ) : (
-          <div className="flex flex-col gap-2">
-            {avulsos.map((f) => (
-              <FuturoRow key={f.id} f={f} />
-            ))}
-          </div>
+          <>
+            <div className="flex flex-col gap-2">
+              {(verTodosAvulsos ? avulsos : avulsos.slice(0, 4)).map((f) => (
+                <FuturoRow key={f.id} f={f} />
+              ))}
+            </div>
+            {avulsos.length > 4 && (
+              <button
+                onClick={() => setVerTodosAvulsos((v) => !v)}
+                className="text-xs font-semibold mt-2"
+                style={{ color: theme.mint, fontFamily: BODY_FONT, minHeight: 32 }}
+              >
+                {verTodosAvulsos ? "Ver menos" : `Ver mais (${avulsos.length - 4})`}
+              </button>
+            )}
+          </>
         )}
       </div>
 
@@ -4511,6 +4546,21 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
     itens.push({ label: lucroMes >= 0 ? "Lucro" : "Prejuízo", valor: lucroMes, cor: lucroMes >= 0 ? theme.mint : theme.coral });
     return itens;
   })();
+  // mesmo detalhamento do Lucro, só que incluindo Expansão/investimento na conta (é
+  // exatamente essa diferença que faz Saldo de caixa e Lucro operacional às vezes darem
+  // números bem diferentes no mesmo mês)
+  const detalhesSaldo = (() => {
+    const itens = [{ label: "Entradas", valor: entradasMes, cor: theme.mint }];
+    agruparPorChave(
+      lancamentos.filter((l) => l.tipo === "saida" && l.natureza !== "Expansão" && noMes(l.data)),
+      (l) => l.natureza,
+      (l) => l.valor
+    ).forEach(([natureza, valor]) => itens.push({ label: natureza, valor: -valor, cor: theme.coral }));
+    if (manutencaoMes > 0) itens.push({ label: "Manutenção", valor: -manutencaoMes, cor: theme.coral });
+    if (investimentosMes > 0) itens.push({ label: "Expansão/investimento", valor: -investimentosMes, cor: theme.coral });
+    itens.push({ label: saldoCaixaMes >= 0 ? "Saldo de caixa" : "Déficit de caixa", valor: saldoCaixaMes, cor: saldoCaixaMes >= 0 ? theme.mint : theme.coral });
+    return itens;
+  })();
 
   const [refAno, refMesNum] = mesRef.split("-").map(Number);
 
@@ -4605,7 +4655,6 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
   }));
   const maxNatureza = Math.max(1, ...porNatureza.map((n) => n.total));
 
-  const clienteNome = (id) => clientes?.find((c) => c.id === id)?.nome || "Cliente";
   const taxaOcupacao = motos.length ? Math.round((alugadas / motos.length) * 100) : 0;
   const contratosAtivos = motos.filter((m) => m.contratoAtual);
   const faturamentoPrevisto = contratosAtivos.reduce((s, m) => s + Number(m.contratoAtual.valorMensal || 0), 0);
@@ -4738,26 +4787,6 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
         </div>
       </div>
 
-      {vencidas > 0 && (
-        <div className="rounded-2xl p-4 mb-4 mbr-card-lift" style={{ background: "#241A19" }}>
-          <div className="flex items-center gap-2 mb-2">
-            <AlertTriangle size={16} color={theme.coral} />
-            <span style={{ fontFamily: HEAD_FONT, fontSize: 15, color: theme.text }}>
-              {vencidas === 1 ? "1 pagamento atrasado" : `${vencidas} pagamentos atrasados`}
-            </span>
-          </div>
-          <div className="flex flex-col gap-1">
-            {motosVencidas.map((m) => (
-              <div key={m.id} className="flex items-center justify-between text-xs" style={{ fontFamily: BODY_FONT, color: theme.textMuted }}>
-                <span>
-                  {formatPlaca(m.placa)} · {clienteNome(m.contratoAtual.clienteId)}
-                </span>
-                <span style={{ color: theme.coral }}>pagamento todo dia {diaVencimentoDoContrato(m.contratoAtual)}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* KPIs principais — Faturamento é o card alto com mini-gráfico. Lucro operacional
           e Saldo de caixa ficam lado a lado embaixo: o primeiro ignora investimento/
@@ -4798,6 +4827,7 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
             format={fmt}
             icon={Landmark}
             accent={saldoCaixaMes >= 0 ? theme.mint : theme.coral}
+            detalhes={detalhesSaldo}
           />
         </div>
       </Reveal>
