@@ -49,7 +49,6 @@ import {
   KeyRound,
   Ban,
   Info,
-  Percent,
   Landmark,
   Timer,
 } from "lucide-react";
@@ -802,8 +801,7 @@ function PdfViewer({ url, title, onClose }) {
         className="w-full h-full sm:w-[92vw] sm:h-[90vh] sm:max-w-4xl rounded-2xl overflow-hidden flex flex-col"
         style={{
           background: theme.panel,
-          border: `2px solid ${theme.mint}`,
-          boxShadow: `0 0 0 4px ${theme.mint}26, 0 8px 40px rgba(0,0,0,0.5)`,
+          boxShadow: "0 8px 40px rgba(0,0,0,0.5)",
           opacity: show ? 1 : 0,
           transform: show ? "scale(1)" : "scale(0.97)",
           transition: "opacity 0.2s ease, transform 0.2s ease",
@@ -3648,6 +3646,7 @@ function FluxoCaixaView({ lancamentos, persist, motos, clientes, futuros, persis
   const mesesOrdenados = Object.keys(porMes).sort((a, b) => (a < b ? 1 : -1));
 
   const [expandido, setExpandido] = useState(mesesOrdenados[0] || null);
+  const [detalheAberto, setDetalheAberto] = useState(null);
   const [view, setView] = useState("lancado");
   const futurosViewRef = useRef(null);
 
@@ -3824,61 +3823,99 @@ function FluxoCaixaView({ lancamentos, persist, motos, clientes, futuros, persis
                 <div style={{ borderTop: `1px solid ${theme.divider}` }}>
                   {itens.map((l, i) => {
                     const motoLigada = motos?.find((m) => m.id === l.motoId);
+                    const detalheEsteAberto = detalheAberto === l.id;
+                    const temDetalhe = !!(l.natureza || l.forma || l.descricao);
                     return (
                       <div
                         key={l.id}
-                        onClick={() => permissoes.podeEditar && setModal(l)}
-                        className={`flex items-center justify-between px-4 py-3${permissoes.podeEditar ? " cursor-pointer" : ""}`}
                         style={{
                           background: theme.card2,
                           borderBottom: i < itens.length - 1 ? `1px solid ${theme.divider}` : "none",
                         }}
                       >
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div
-                            className="flex items-center justify-center flex-shrink-0"
-                            style={{ width: 28, height: 28, borderRadius: 8, background: theme.card2 }}
-                          >
-                            {l.tipo === "entrada" ? <TrendingUp size={16} color={theme.mint} /> : <TrendingDown size={16} color={theme.coral} />}
-                          </div>
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span style={{ color: theme.text, fontFamily: BODY_FONT, fontWeight: 600 }}>{l.categoria || "Sem categoria"}</span>
-                              {l.parcelasTotal > 1 && (
-                                <span
-                                  className="text-xs font-semibold rounded-full px-2"
-                                  style={{ background: theme.card2, color: theme.textMuted, fontFamily: BODY_FONT }}
-                                >
-                                  Parcela {l.parcelaAtual || 1}/{l.parcelasTotal}
-                                </span>
-                              )}
-                            </div>
-                            <div style={{ color: theme.textMuted, fontFamily: BODY_FONT, fontSize: 12 }}>
-                              {formatDate(l.data)}
-                              {l.natureza && ` · ${l.natureza}`}
-                              {l.forma && ` · ${l.forma}`}
-                              {l.descricao ? ` · ${l.descricao}` : ""}
-                              {motoLigada && ` · ${formatPlaca(motoLigada.placa)}`}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-3 flex-shrink-0">
-                          <span style={{ color: l.tipo === "entrada" ? theme.mint : theme.coral, fontFamily: HEAD_FONT, fontSize: 16 }}>
-                            {l.tipo === "entrada" ? "+" : "-"} {formatCurrency(l.valor)}
-                          </span>
-                          {permissoes.podeEditar && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                excluir(l.id);
-                              }}
-                              className="mbr-hover-grow flex items-center justify-center"
-                              style={{ color: theme.textMuted, width: 30, height: 30, marginRight: -6 }}
+                        <div
+                          onClick={() => setDetalheAberto(detalheEsteAberto ? null : l.id)}
+                          className="flex items-center justify-between px-4 py-3 cursor-pointer"
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div
+                              className="flex items-center justify-center flex-shrink-0"
+                              style={{ width: 28, height: 28, borderRadius: 8, background: theme.card2 }}
                             >
-                              <Trash2 size={14} />
-                            </button>
-                          )}
+                              {l.tipo === "entrada" ? <TrendingUp size={16} color={theme.mint} /> : <TrendingDown size={16} color={theme.coral} />}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span style={{ color: theme.text, fontFamily: BODY_FONT, fontWeight: 600 }}>{l.categoria || "Sem categoria"}</span>
+                                {l.parcelasTotal > 1 && (
+                                  <span
+                                    className="text-xs font-semibold rounded-full px-2"
+                                    style={{ background: theme.card, color: theme.textMuted, fontFamily: BODY_FONT }}
+                                  >
+                                    Parcela {l.parcelaAtual || 1}/{l.parcelasTotal}
+                                  </span>
+                                )}
+                              </div>
+                              <div style={{ color: theme.textMuted, fontFamily: BODY_FONT, fontSize: 11 }}>
+                                {formatDate(l.data)}
+                                {motoLigada && ` · ${formatPlaca(motoLigada.placa)}`}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1 flex-shrink-0">
+                            <span style={{ color: l.tipo === "entrada" ? theme.mint : theme.coral, fontFamily: HEAD_FONT, fontWeight: 700, fontSize: 16 }}>
+                              {l.tipo === "entrada" ? "+" : "-"} {formatCurrency(l.valor)}
+                            </span>
+                            {(temDetalhe || permissoes.podeEditar) &&
+                              (detalheEsteAberto ? <ChevronUp size={16} color={theme.textMuted} /> : <ChevronDown size={16} color={theme.textMuted} />)}
+                            {permissoes.podeEditar && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  excluir(l.id);
+                                }}
+                                className="mbr-hover-grow flex items-center justify-center"
+                                style={{ color: theme.textMuted, width: 36, height: 36, marginRight: -8 }}
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            )}
+                          </div>
                         </div>
+                        <Collapse open={detalheEsteAberto}>
+                          <div className="px-4 pb-3 flex flex-col gap-1.5" style={{ borderTop: `1px solid ${theme.divider}`, paddingTop: 10 }}>
+                            {l.natureza && (
+                              <div className="flex items-center justify-between text-xs" style={{ fontFamily: BODY_FONT }}>
+                                <span style={{ color: theme.textFaint }}>Natureza</span>
+                                <span style={{ color: theme.textMuted }}>{l.natureza}</span>
+                              </div>
+                            )}
+                            {l.forma && (
+                              <div className="flex items-center justify-between text-xs" style={{ fontFamily: BODY_FONT }}>
+                                <span style={{ color: theme.textFaint }}>Forma de pagamento</span>
+                                <span style={{ color: theme.textMuted }}>{l.forma}</span>
+                              </div>
+                            )}
+                            {l.descricao && (
+                              <div className="flex items-center justify-between gap-3 text-xs" style={{ fontFamily: BODY_FONT }}>
+                                <span style={{ color: theme.textFaint, flexShrink: 0 }}>Detalhe</span>
+                                <span style={{ color: theme.textMuted, textAlign: "right" }}>{l.descricao}</span>
+                              </div>
+                            )}
+                            {permissoes.podeEditar && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setModal(l);
+                                }}
+                                className="text-xs font-semibold flex items-center gap-1 mt-1"
+                                style={{ color: theme.mint, fontFamily: BODY_FONT, minHeight: 32 }}
+                              >
+                                <Pencil size={12} /> Editar
+                              </button>
+                            )}
+                          </div>
+                        </Collapse>
                       </div>
                     );
                   })}
@@ -4134,7 +4171,7 @@ function BordaCometa({ color }) {
   );
 }
 
-function HeroStat({ label, value, format = formatCurrency, icon: Icon, accent, deltaPercent, deltaLabel, sparkData, fill, detalhes, caption }) {
+function HeroStat({ label, value, format = formatCurrency, icon: Icon, accent, deltaPercent, deltaLabel, sparkData, fill, detalhes, caption, footnote }) {
   const hasDelta = deltaPercent !== null && deltaPercent !== undefined && Number.isFinite(deltaPercent);
   const gradId = `mbrSparkFill-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
   const brilho = mixColors(accent, "#FFFFFF", 0.65);
@@ -4206,12 +4243,7 @@ function HeroStat({ label, value, format = formatCurrency, icon: Icon, accent, d
           </span>
           <div
             className="rounded-full flex items-center justify-center flex-shrink-0"
-            style={{
-              width: 30,
-              height: 30,
-              background: `linear-gradient(150deg, ${accent}3D 0%, ${accent}14 100%)`,
-              boxShadow: `0 0 12px ${accent}33`,
-            }}
+            style={{ width: 30, height: 30, background: theme.card2 }}
           >
             <Icon size={15} color={accent} />
           </div>
@@ -4238,6 +4270,11 @@ function HeroStat({ label, value, format = formatCurrency, icon: Icon, accent, d
         >
           <CountUp value={value} format={format} />
         </span>
+        {footnote && (
+          <span className="text-xs -mt-1" style={{ color: theme.textMuted, fontFamily: BODY_FONT, fontSize: 11 }}>
+            {footnote}
+          </span>
+        )}
         {hasDelta && (
           <span className="text-xs font-semibold flex items-center gap-1" style={{ color: deltaPercent >= 0 ? theme.mint : theme.coral, fontFamily: BODY_FONT }}>
             {deltaPercent >= 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
@@ -4802,6 +4839,7 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
           <HeroStat
             label={`${lucroMes >= 0 ? "Lucro operacional" : "Prejuízo operacional"} (${rotuloMes})`}
             caption="sem investimentos"
+            footnote={`margem: ${margemLucro.toFixed(1)}%`}
             value={Math.abs(lucroMes)}
             format={fmt}
             icon={Wallet}
@@ -4834,7 +4872,7 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
             <div className="flex items-center gap-2 mb-2">
               <div
                 className="rounded-full flex items-center justify-center flex-shrink-0"
-                style={{ width: 30, height: 30, background: `linear-gradient(150deg, ${theme.coral}3D 0%, ${theme.coral}14 100%)` }}
+                style={{ width: 30, height: 30, background: theme.card2 }}
               >
                 <AlertTriangle size={14} color={theme.coral} />
               </div>
@@ -4854,7 +4892,7 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
             <div className="flex items-center gap-2 mb-2">
               <div
                 className="rounded-full flex items-center justify-center flex-shrink-0"
-                style={{ width: 30, height: 30, background: `linear-gradient(150deg, ${theme.amber}3D 0%, ${theme.amber}14 100%)` }}
+                style={{ width: 30, height: 30, background: theme.card2 }}
               >
                 <Timer size={14} color={theme.amber} />
               </div>
@@ -4897,13 +4935,6 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
             { icon: TrendingUp, label: "Faturamento previsto/mês", value: faturamentoPrevisto, format: fmt, accent: theme.mint },
             { icon: TrendingDown, label: `Gastos operacionais (${rotuloMes})`, value: saidasMes, format: fmt, accent: theme.coral },
             { icon: Wallet, label: "Ticket médio", value: ticketMedio, format: fmt, accent: theme.mint },
-            {
-              icon: Percent,
-              label: `Margem de lucro (${rotuloMes})`,
-              value: margemLucro,
-              format: (v) => `${v.toFixed(1)}%`,
-              accent: lucroMes >= 0 ? theme.mint : theme.coral,
-            },
             { icon: Users, label: "Total de clientes", value: totalClientes, accent: theme.textMuted },
             { icon: TrendingUp, label: "Investido em frota", value: investimentoFrota, format: fmt, accent: theme.textMuted },
             { icon: Wallet, label: "Faturamento acumulado", value: faturamentoAcumulado, format: fmt, accent: theme.mint },
@@ -4913,7 +4944,7 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
             <div key={s.label} className="flex items-center gap-2 min-w-0">
               <div
                 className="rounded-full flex items-center justify-center flex-shrink-0"
-                style={{ width: 30, height: 30, background: `linear-gradient(150deg, ${s.accent}3D 0%, ${s.accent}14 100%)` }}
+                style={{ width: 30, height: 30, background: theme.card2 }}
               >
                 <s.icon size={14} color={s.accent} />
               </div>
@@ -5196,12 +5227,23 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
             <div className="flex flex-col gap-3">
               {(verTodasRetorno ? paybackPorMoto : paybackPorMoto.slice(0, 8)).map((r) => {
                 const clamped = Math.max(0, Math.min(100, r.percentPago));
-                const cor = r.jaPagou ? theme.mint : theme.amber;
+                // cor comunica "quão perto está de bater o olho": verde até 6 meses,
+                // âmbar de 7 a 12, vermelho acima disso — sem contrato ativo fica neutro
+                // (não dá pra comparar prazo de algo que não está gerando receita agora)
+                const cor = r.jaPagou
+                  ? theme.mint
+                  : r.mesesRestantes == null
+                  ? theme.textFaint
+                  : r.mesesRestantes <= 6
+                  ? theme.mint
+                  : r.mesesRestantes <= 12
+                  ? theme.amber
+                  : theme.coral;
                 const legenda = r.jaPagou ? "Pago" : r.mesesRestantes != null ? `faltam ~${r.mesesRestantes} ${r.mesesRestantes === 1 ? "mês" : "meses"}` : "sem contrato ativo";
                 return (
                   <div key={r.placa} title={valoresOcultos ? undefined : `${formatCurrency(r.recebidoReal)} de ${formatCurrency(r.investimentoTotal)}`}>
                     <div className="flex items-center justify-between text-xs mb-1">
-                      <span style={{ fontFamily: "monospace", fontWeight: 700, color: theme.text }}>{formatPlaca(r.placa)}</span>
+                      <span style={{ fontFamily: MONO_FONT, fontWeight: 500, color: theme.text }}>{formatPlaca(r.placa)}</span>
                       <span style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>{legenda}</span>
                     </div>
                     <BarraComCometa pct={clamped} color={cor} />
