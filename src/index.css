@@ -5,7 +5,7 @@
 
 html, body, #root {
   height: 100%;
-  background-color: #0E2116;
+  background-color: #121212;
 }
 
 body {
@@ -69,21 +69,6 @@ body {
   .mbr-botao-atual-entra, .mbr-botao-atual-sai { animation: none; }
 }
 
-/* brilho percorrendo a borda dos cards de destaque (Faturamento, Lucro/Prejuízo, Margem
-   de lucro) — um traço SVG desenhado sobre o contorno real do card (medido via
-   ResizeObserver, ver BordaCometa em App.jsx), que dá a volta completa e sem costura.
-   O vão (dash+gap = perímetro exato) faz o traço voltar pro início exatamente onde ele
-   tinha saído, sem repique nem salto */
-.mbr-borda-cometa {
-  animation: mbrBordaCometaAnim 5s linear infinite;
-}
-@keyframes mbrBordaCometaAnim {
-  to { stroke-dashoffset: var(--mbr-perimetro-neg, -600px); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .mbr-borda-cometa { animation: none; }
-}
-
 /* "cometa" de luz correndo ao longo da mini-linha dentro do card — um traço claro e
    curto que percorre a curva da esquerda pra direita, some, e recomeça do início. O vão
    (o "2000" abaixo) tem que ser bem maior que a linha mais larga que existir no site
@@ -143,25 +128,25 @@ body {
   bottom: var(--mbr-bottom-inset, 0px);
 }
 .mbr-map .maplibregl-ctrl-group {
-  background: #183524;
-  border: 1px solid #2C4D38;
+  background: #1A1A1A;
+  border: none;
   box-shadow: none;
 }
 .mbr-map .maplibregl-ctrl-group button {
   background: transparent;
 }
 .mbr-map .maplibregl-ctrl-group button:hover {
-  background: #1E3F2A;
+  background: #242420;
 }
 .mbr-map .maplibregl-ctrl-group button .maplibregl-ctrl-icon {
   filter: invert(1) brightness(1.6);
 }
 .mbr-map .maplibregl-ctrl-attrib {
-  background: rgba(14, 33, 22, 0.75);
-  color: #8AA894;
+  background: rgba(18, 18, 18, 0.75);
+  color: #A8ABA3;
 }
 .mbr-map .maplibregl-ctrl-attrib a {
-  color: #8AA894;
+  color: #A8ABA3;
 }
 .mbr-map .maplibregl-ctrl-bottom-right,
 .mbr-map .maplibregl-ctrl-bottom-left {
@@ -171,20 +156,20 @@ body {
   cursor: pointer;
 }
 .mbr-map-popup .maplibregl-popup-content {
-  background: rgba(24, 53, 36, 0.28);
-  backdrop-filter: saturate(1.8) blur(6px);
-  -webkit-backdrop-filter: saturate(1.8) blur(6px);
-  border: 1px solid rgba(44, 77, 56, 0.6);
+  background: rgba(26, 26, 26, 0.9);
+  backdrop-filter: saturate(1.4) blur(6px);
+  -webkit-backdrop-filter: saturate(1.4) blur(6px);
+  border: none;
   border-radius: 12px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
   padding: 10px 12px;
 }
 .mbr-map-popup .maplibregl-popup-tip {
-  border-top-color: rgba(24, 53, 36, 0.28) !important;
-  border-bottom-color: rgba(24, 53, 36, 0.28) !important;
+  border-top-color: rgba(26, 26, 26, 0.9) !important;
+  border-bottom-color: rgba(26, 26, 26, 0.9) !important;
 }
 .mbr-map-popup .maplibregl-popup-close-button {
-  color: #8AA894;
+  color: #A8ABA3;
   font-size: 16px;
   padding: 2px 6px;
 }

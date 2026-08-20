@@ -86,8 +86,9 @@ const theme = {
   amber: "#D9A25A",
   coral: "#D9695E",
   text: "#F5F4EF",
-  textMuted: "#8A8D85",
-  textFaint: "#5A5D58",
+  textMuted: "#A8ABA3",
+  textFaint: "#8A8D85",
+  textGhost: "#5A5D58",
   outline: "#2A2E29",
   outlineText: "#C7CAC2",
   chartMuted: "#4A4D48",
@@ -629,7 +630,7 @@ function WordmarkFallback({ compact }) {
           <span
             style={{
               fontFamily: BODY_FONT,
-              fontSize: 10.5,
+              fontSize: 12,
               fontWeight: 700,
               color: theme.mintText,
               background: theme.mint,
@@ -1523,64 +1524,76 @@ function ClientesView({ clientes, persistClientes, motos, persistMotos }) {
 
               <Collapse open={aberto}>
                 <div className="px-4 pb-4 text-sm" style={{ fontFamily: BODY_FONT }}>
-                  <div className="flex flex-col gap-1 mb-3" style={{ color: theme.textMuted }}>
-                    {c.cpfCnpj && <span>CPF/CNPJ: {c.cpfCnpj}</span>}
-                    {c.telefone && (
-                      <span className="flex items-center gap-1">
-                        <Phone size={12} /> {c.telefone}
-                      </span>
-                    )}
-                    {c.email && (
-                      <span className="flex items-center gap-1">
-                        <Mail size={12} /> {c.email}
-                      </span>
-                    )}
-                    <span className="flex items-center gap-1">
-                      <MapPin size={12} /> {enderecoCompleto(c)} {c.cep ? `— CEP ${c.cep}` : ""}
-                    </span>
-                  </div>
-
-                  {motoVinculada && (
-                    <div className="rounded-xl p-3 mb-3" style={{ background: theme.card2 }}>
-                      <div className="flex items-center justify-between mb-1">
-                        <MotoPlate placa={motoVinculada.placa} />
-                        <span style={{ color: theme.amber, fontFamily: HEAD_FONT, fontSize: 17 }}>
-                          {formatCurrency(motoVinculada.contratoAtual.valorMensal)}/mês
-                        </span>
+                  {motoVinculada ? (
+                    <div className="mb-5">
+                      <div className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: theme.textFaint }}>
+                        Contrato ativo
                       </div>
-                      <div style={{ color: theme.textMuted, fontSize: 12 }}>
-                        Contrato nº {motoVinculada.contratoAtual.numeroContrato}
-                        {diaVencimentoDoContrato(motoVinculada.contratoAtual) && ` · pagamento todo dia ${diaVencimentoDoContrato(motoVinculada.contratoAtual)}`}
-                        {motoVinculada.contratoAtual.dataTermino && ` · até ${formatDate(motoVinculada.contratoAtual.dataTermino)}`}
-                      </div>
-                      <div className="flex items-center gap-3 mt-2 flex-wrap">
-                        <ContratoAnexosButton
-                          anexos={contratoAnexosOf(motoVinculada.contratoAtual)}
-                          tituloPreview={`Contrato — ${formatPlaca(motoVinculada.placa)}`}
-                          onAbrir={(url, title) => setPreview({ url, title })}
-                        />
-                        {permissoes.podeEditar && (
-                          <button
-                            onClick={() => setModal({ type: "contrato", moto: motoVinculada })}
-                            className="inline-flex items-center gap-1 text-xs mbr-hover-grow"
-                            style={{ color: theme.text }}
-                          >
-                            <Pencil size={12} /> Editar contrato
-                          </button>
-                        )}
+                      <div className="rounded-xl p-3" style={{ background: theme.card2 }}>
+                        <div className="flex items-center justify-between mb-1">
+                          <MotoPlate placa={motoVinculada.placa} />
+                          <span style={{ color: theme.amber, fontFamily: HEAD_FONT, fontSize: 17 }}>
+                            {formatCurrency(motoVinculada.contratoAtual.valorMensal)}/mês
+                          </span>
+                        </div>
+                        <div style={{ color: theme.textMuted, fontSize: 12 }}>
+                          Contrato nº {motoVinculada.contratoAtual.numeroContrato}
+                          {diaVencimentoDoContrato(motoVinculada.contratoAtual) && ` · pagamento todo dia ${diaVencimentoDoContrato(motoVinculada.contratoAtual)}`}
+                          {motoVinculada.contratoAtual.dataTermino && ` · até ${formatDate(motoVinculada.contratoAtual.dataTermino)}`}
+                        </div>
+                        <div className="flex items-center gap-3 mt-2 flex-wrap">
+                          <ContratoAnexosButton
+                            anexos={contratoAnexosOf(motoVinculada.contratoAtual)}
+                            tituloPreview={`Contrato — ${formatPlaca(motoVinculada.placa)}`}
+                            onAbrir={(url, title) => setPreview({ url, title })}
+                          />
+                          {permissoes.podeEditar && (
+                            <button
+                              onClick={() => setModal({ type: "contrato", moto: motoVinculada })}
+                              className="inline-flex items-center gap-1 text-xs mbr-hover-grow"
+                              style={{ color: theme.text }}
+                            >
+                              <Pencil size={12} /> Editar contrato
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
+                  ) : (
+                    permissoes.podeEditar && (
+                      <div className="mb-5">
+                        <button
+                          onClick={() => setModal({ mode: "vincular", cliente: c })}
+                          className="text-xs font-semibold rounded-xl px-3"
+                          style={{ background: theme.mint, color: theme.text, minHeight: 44 }}
+                        >
+                          Vincular a uma moto disponível
+                        </button>
+                      </div>
+                    )
                   )}
 
-                  {!motoVinculada && permissoes.podeEditar && (
-                    <button
-                      onClick={() => setModal({ mode: "vincular", cliente: c })}
-                      className="text-xs font-semibold rounded-xl px-3 mb-2"
-                      style={{ background: theme.mint, color: theme.text, minHeight: 44 }}
-                    >
-                      Vincular a uma moto disponível
-                    </button>
-                  )}
+                  <div className="mb-5">
+                    <div className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: theme.textFaint }}>
+                      Contato
+                    </div>
+                    <div className="flex flex-col gap-1.5" style={{ color: theme.textMuted }}>
+                      {c.cpfCnpj && <span>CPF/CNPJ: {c.cpfCnpj}</span>}
+                      {c.telefone && (
+                        <span className="flex items-center gap-1">
+                          <Phone size={12} /> {c.telefone}
+                        </span>
+                      )}
+                      {c.email && (
+                        <span className="flex items-center gap-1">
+                          <Mail size={12} /> {c.email}
+                        </span>
+                      )}
+                      <span className="flex items-center gap-1">
+                        <MapPin size={12} /> {enderecoCompleto(c)} {c.cep ? `— CEP ${c.cep}` : ""}
+                      </span>
+                    </div>
+                  </div>
 
                   {permissoes.podeEditar && (
                     <div className="flex gap-2">
@@ -2580,6 +2593,7 @@ function ConsultaPlacaModal({ onClose }) {
 function MotosView({ motos, persist, clientes, persistClientes, config, lancamentos, persistLancamentos }) {
   const [busca, setBusca] = useState("");
   const [expandido, setExpandido] = useState(null);
+  const [verCadastro, setVerCadastro] = useState(null);
   const [modal, setModal] = useState(null);
   const [preview, setPreview] = useState(null);
 
@@ -2779,141 +2793,75 @@ function MotosView({ motos, persist, clientes, persistClientes, config, lancamen
 
               <Collapse open={aberto}>
                 <div className="px-4 pb-4 text-sm" style={{ fontFamily: BODY_FONT }}>
-                  <div style={{ fontFamily: HEAD_FONT, fontSize: 16, color: theme.text }} className="mb-3">
+                  <div style={{ fontFamily: HEAD_FONT, fontSize: 16, color: theme.text }} className="mb-5">
                     {moto.modelo || "Modelo não informado"}
                   </div>
-                  <div className="grid grid-cols-2 gap-x-3 gap-y-1 mb-3" style={{ color: theme.textMuted }}>
-                    <span>Chassi: {moto.chassi || "—"}</span>
-                    <span>Renavam: {moto.renavam || "—"}</span>
-                    <span>Compra: {formatDate(moto.dataCompra)}</span>
-                    <span>Valor: {formatCurrency(moto.valorCompra)}</span>
-                  </div>
 
-                  <MotoTrackingBlock link={moto.linkRastreamento || config?.linkRastreioGeral} placa={moto.placa} />
-
-                  <div className="grid grid-cols-2 gap-2 mb-3">
-                    {notaFiscalAnexosOf(moto).map((a, i, lista) => (
-                      <button
-                        key={`nf-${i}`}
-                        onClick={() => setPreview({ url: a.link, title: `Nota fiscal — ${formatPlaca(moto.placa)}` })}
-                        className="flex items-center justify-center gap-1.5 text-xs font-semibold rounded-xl px-2 text-center mbr-hover-grow"
-                        style={{ background: theme.card2, color: theme.mint, minHeight: 44 }}
-                      >
-                        <FileText size={13} className="flex-shrink-0" /> {lista.length > 1 ? `Nota fiscal ${i + 1}` : "Nota fiscal"}
-                      </button>
-                    ))}
-                    {notaFiscalFabricaAnexosOf(moto).map((a, i, lista) => (
-                      <button
-                        key={`nff-${i}`}
-                        onClick={() => setPreview({ url: a.link, title: `Nota fiscal de fábrica — ${formatPlaca(moto.placa)}` })}
-                        className="flex items-center justify-center gap-1.5 text-xs font-semibold rounded-xl px-2 text-center mbr-hover-grow"
-                        style={{ background: theme.card2, color: theme.mint, minHeight: 44 }}
-                      >
-                        <FileText size={13} className="flex-shrink-0" /> {lista.length > 1 ? `NF de fábrica ${i + 1}` : "NF de fábrica"}
-                      </button>
-                    ))}
-                    {moto.documentoLink && (
-                      <button
-                        onClick={() => setPreview({ url: moto.documentoLink, title: `Documento — ${formatPlaca(moto.placa)}` })}
-                        className="flex items-center justify-center gap-1.5 text-xs font-semibold rounded-xl px-2 text-center mbr-hover-grow"
-                        style={{ background: theme.card2, color: theme.mint, minHeight: 44 }}
-                      >
-                        <FileText size={13} className="flex-shrink-0" /> Documento
-                      </button>
-                    )}
-                    {moto.certificadoLink && (
-                      <button
-                        onClick={() => setPreview({ url: moto.certificadoLink, title: `Certificado de garantia — ${formatPlaca(moto.placa)}` })}
-                        className="flex items-center justify-center gap-1.5 text-xs font-semibold rounded-xl px-2 text-center mbr-hover-grow"
-                        style={{ background: theme.card2, color: theme.mint, minHeight: 44 }}
-                      >
-                        <FileText size={13} className="flex-shrink-0" /> Certificado
-                      </button>
-                    )}
-                  </div>
-
-                  {moto.contratoAtual ? (
-                    <div className="rounded-xl p-3 mb-3" style={{ background: theme.card2 }}>
-                      <div className="flex items-center justify-between mb-1">
-                        <span style={{ color: theme.text, fontWeight: 600 }}>{cliente?.nome || "Cliente"}</span>
-                        <span style={{ color: theme.amber, fontFamily: HEAD_FONT, fontSize: 17 }}>
-                          {formatCurrency(moto.contratoAtual.valorMensal)}/mês
-                        </span>
-                      </div>
-                      <div style={{ color: theme.textMuted, fontSize: 12 }}>
-                        {moto.contratoAtual.numeroClienteMoto}º cliente · contrato nº {moto.contratoAtual.numeroContrato}
-                        {diaVencimentoDoContrato(moto.contratoAtual) && ` · pagamento todo dia ${diaVencimentoDoContrato(moto.contratoAtual)}`}
-                        {moto.contratoAtual.dataTermino && ` · até ${formatDate(moto.contratoAtual.dataTermino)}`}
-                      </div>
-                      {contratoAnexosOf(moto.contratoAtual).length > 0 && (
-                        <div className="flex items-center gap-3 mt-1 flex-wrap">
-                          <ContratoAnexosButton
-                            anexos={contratoAnexosOf(moto.contratoAtual)}
-                            tituloPreview={`Contrato — ${formatPlaca(moto.placa)}`}
-                            onAbrir={(url, title) => setPreview({ url, title })}
-                          />
-                        </div>
-                      )}
-                      {permissoes.podeEditar && (
-                        <div className="flex gap-2 mt-2">
-                          <button
-                            onClick={() => setModal({ type: "contrato", mode: "editar", moto })}
-                            className="text-xs font-semibold rounded-xl px-3 py-1.5 flex items-center gap-1"
-                            style={{ border: `1px solid ${theme.outline}`, color: theme.outlineText }}
-                          >
-                            <Pencil size={12} /> Editar contrato
-                          </button>
-                          <button
-                            onClick={() => encerrarContrato(moto)}
-                            className="text-xs font-semibold rounded-xl px-3 py-1.5"
-                            style={{ border: `1px solid ${theme.outline}`, color: theme.outlineText }}
-                          >
-                            Encerrar contrato
-                          </button>
-                        </div>
-                      )}
+                  <div className="mb-5">
+                    <div className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: theme.textFaint }}>
+                      Contrato
                     </div>
-                  ) : null}
-
-                  <div className="mb-2">
-                    <span className="text-xs uppercase tracking-wide" style={{ color: theme.textMuted }}>
-                      Pagamentos recebidos (fluxo de caixa)
-                    </span>
-                    {pagamentos.length === 0 ? (
-                      <div style={{ color: theme.textMuted, fontSize: 12 }} className="mt-1">
-                        Nenhum pagamento com "{formatPlaca(moto.placa)}" na categoria/descrição ainda.
+                    {moto.contratoAtual ? (
+                      <div className="rounded-xl p-3" style={{ background: theme.card2 }}>
+                        <div className="flex items-center justify-between mb-1">
+                          <span style={{ color: theme.text, fontWeight: 600 }}>{cliente?.nome || "Cliente"}</span>
+                          <span style={{ color: theme.amber, fontFamily: HEAD_FONT, fontSize: 17 }}>
+                            {formatCurrency(moto.contratoAtual.valorMensal)}/mês
+                          </span>
+                        </div>
+                        <div style={{ color: theme.textMuted, fontSize: 12 }}>
+                          {moto.contratoAtual.numeroClienteMoto}º cliente · contrato nº {moto.contratoAtual.numeroContrato}
+                          {diaVencimentoDoContrato(moto.contratoAtual) && ` · pagamento todo dia ${diaVencimentoDoContrato(moto.contratoAtual)}`}
+                          {moto.contratoAtual.dataTermino && ` · até ${formatDate(moto.contratoAtual.dataTermino)}`}
+                        </div>
+                        {contratoAnexosOf(moto.contratoAtual).length > 0 && (
+                          <div className="flex items-center gap-3 mt-1 flex-wrap">
+                            <ContratoAnexosButton
+                              anexos={contratoAnexosOf(moto.contratoAtual)}
+                              tituloPreview={`Contrato — ${formatPlaca(moto.placa)}`}
+                              onAbrir={(url, title) => setPreview({ url, title })}
+                            />
+                          </div>
+                        )}
+                        {permissoes.podeEditar && (
+                          <div className="flex gap-2 mt-2">
+                            <button
+                              onClick={() => setModal({ type: "contrato", mode: "editar", moto })}
+                              className="text-xs font-semibold rounded-xl px-3 py-1.5 flex items-center gap-1"
+                              style={{ border: `1px solid ${theme.outline}`, color: theme.outlineText }}
+                            >
+                              <Pencil size={12} /> Editar contrato
+                            </button>
+                            <button
+                              onClick={() => encerrarContrato(moto)}
+                              className="text-xs font-semibold rounded-xl px-3 py-1.5"
+                              style={{ border: `1px solid ${theme.outline}`, color: theme.outlineText }}
+                            >
+                              Encerrar contrato
+                            </button>
+                          </div>
+                        )}
                       </div>
                     ) : (
-                      <>
-                        <div className="flex justify-between text-xs mt-1 mb-1" style={{ color: theme.mint, fontWeight: 700 }}>
-                          <span>Total recebido</span>
-                          <span>{formatCurrency(pagamentos.reduce((s, p) => s + Number(p.valor), 0))}</span>
-                        </div>
-                        {pagamentos.map((p) => (
-                          <div key={p.id} className="flex items-center justify-between text-xs py-1" style={{ borderTop: `1px solid ${theme.divider}` }}>
-                            <span style={{ color: theme.text }}>
-                              {formatDate(p.data)} · {p.categoria || "Sem categoria"}
-                            </span>
-                            <span style={{ color: theme.textMuted }}>{formatCurrency(p.valor)}</span>
-                          </div>
-                        ))}
-                      </>
+                      permissoes.podeEditar && (
+                        <button
+                          onClick={() => setModal({ type: "contrato", moto })}
+                          className="text-xs font-semibold rounded-xl px-3"
+                          style={{ background: theme.mint, color: theme.text, minHeight: 44 }}
+                        >
+                          Alugar / novo contrato
+                        </button>
+                      )
                     )}
                   </div>
 
-                  {!moto.contratoAtual && permissoes.podeEditar && (
-                    <button
-                      onClick={() => setModal({ type: "contrato", moto })}
-                      className="text-xs font-semibold rounded-xl px-3 mb-3"
-                      style={{ background: theme.mint, color: theme.text, minHeight: 44 }}
-                    >
-                      Alugar / novo contrato
-                    </button>
-                  )}
+                  <div className="mb-5">
+                    <MotoTrackingBlock link={moto.linkRastreamento || config?.linkRastreioGeral} placa={moto.placa} />
+                  </div>
 
-                  <div className="mb-2">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs uppercase tracking-wide" style={{ color: theme.textMuted }}>
+                  <div className="mb-5">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: theme.textFaint }}>
                         Manutenções
                       </span>
                       {permissoes.podeEditar && (
@@ -2951,9 +2899,9 @@ function MotosView({ motos, persist, clientes, persistClientes, config, lancamen
                     )}
                   </div>
 
-                  <div className="mb-2">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs uppercase tracking-wide" style={{ color: theme.textMuted }}>
+                  <div className="mb-5">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: theme.textFaint }}>
                         Custos
                       </span>
                       {permissoes.podeEditar && (
@@ -2991,8 +2939,97 @@ function MotosView({ motos, persist, clientes, persistClientes, config, lancamen
                     )}
                   </div>
 
+                  <div className="mb-5">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: theme.textFaint }}>
+                        Pagamentos recebidos (fluxo de caixa)
+                      </span>
+                    </div>
+                    {pagamentos.length === 0 ? (
+                      <div style={{ color: theme.textMuted, fontSize: 12 }}>
+                        Nenhum pagamento com "{formatPlaca(moto.placa)}" na categoria/descrição ainda.
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex justify-between text-xs mb-1" style={{ color: theme.mint, fontWeight: 700 }}>
+                          <span>Total recebido</span>
+                          <span>{formatCurrency(pagamentos.reduce((s, p) => s + Number(p.valor), 0))}</span>
+                        </div>
+                        {pagamentos.map((p) => (
+                          <div key={p.id} className="flex items-center justify-between text-xs py-1" style={{ borderTop: `1px solid ${theme.divider}` }}>
+                            <span style={{ color: theme.text }}>
+                              {formatDate(p.data)} · {p.categoria || "Sem categoria"}
+                            </span>
+                            <span style={{ color: theme.textMuted }}>{formatCurrency(p.valor)}</span>
+                          </div>
+                        ))}
+                      </>
+                    )}
+                  </div>
+
+                  <div className="mb-5">
+                    <button
+                      onClick={() => setVerCadastro((v) => (v === moto.id ? null : moto.id))}
+                      className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wide"
+                      style={{ color: theme.textFaint, minHeight: 32 }}
+                    >
+                      {verCadastro === moto.id ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                      Dados cadastrais e documentos
+                    </button>
+                    <Collapse open={verCadastro === moto.id}>
+                      <div className="pt-3">
+                        <div className="grid grid-cols-2 gap-x-3 gap-y-1 mb-3" style={{ color: theme.textMuted }}>
+                          <span>Chassi: {moto.chassi || "—"}</span>
+                          <span>Renavam: {moto.renavam || "—"}</span>
+                          <span>Compra: {formatDate(moto.dataCompra)}</span>
+                          <span>Valor: {formatCurrency(moto.valorCompra)}</span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          {notaFiscalAnexosOf(moto).map((a, i, lista) => (
+                            <button
+                              key={`nf-${i}`}
+                              onClick={() => setPreview({ url: a.link, title: `Nota fiscal — ${formatPlaca(moto.placa)}` })}
+                              className="flex items-center justify-center gap-1.5 text-xs font-semibold rounded-xl px-2 text-center mbr-hover-grow"
+                              style={{ background: theme.card2, color: theme.mint, minHeight: 44 }}
+                            >
+                              <FileText size={13} className="flex-shrink-0" /> {lista.length > 1 ? `Nota fiscal ${i + 1}` : "Nota fiscal"}
+                            </button>
+                          ))}
+                          {notaFiscalFabricaAnexosOf(moto).map((a, i, lista) => (
+                            <button
+                              key={`nff-${i}`}
+                              onClick={() => setPreview({ url: a.link, title: `Nota fiscal de fábrica — ${formatPlaca(moto.placa)}` })}
+                              className="flex items-center justify-center gap-1.5 text-xs font-semibold rounded-xl px-2 text-center mbr-hover-grow"
+                              style={{ background: theme.card2, color: theme.mint, minHeight: 44 }}
+                            >
+                              <FileText size={13} className="flex-shrink-0" /> {lista.length > 1 ? `NF de fábrica ${i + 1}` : "NF de fábrica"}
+                            </button>
+                          ))}
+                          {moto.documentoLink && (
+                            <button
+                              onClick={() => setPreview({ url: moto.documentoLink, title: `Documento — ${formatPlaca(moto.placa)}` })}
+                              className="flex items-center justify-center gap-1.5 text-xs font-semibold rounded-xl px-2 text-center mbr-hover-grow"
+                              style={{ background: theme.card2, color: theme.mint, minHeight: 44 }}
+                            >
+                              <FileText size={13} className="flex-shrink-0" /> Documento
+                            </button>
+                          )}
+                          {moto.certificadoLink && (
+                            <button
+                              onClick={() => setPreview({ url: moto.certificadoLink, title: `Certificado de garantia — ${formatPlaca(moto.placa)}` })}
+                              className="flex items-center justify-center gap-1.5 text-xs font-semibold rounded-xl px-2 text-center mbr-hover-grow"
+                              style={{ background: theme.card2, color: theme.mint, minHeight: 44 }}
+                            >
+                              <FileText size={13} className="flex-shrink-0" /> Certificado
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </Collapse>
+                  </div>
+
                   {permissoes.podeEditar && (
-                    <div className="flex gap-2 mt-2">
+                    <div className="flex gap-2">
                       <button
                         onClick={() => setModal({ type: "moto", mode: "editar", moto })}
                         className="text-xs font-semibold rounded-xl px-3 py-1.5 flex items-center gap-1"
@@ -3856,7 +3893,7 @@ function FluxoCaixaView({ lancamentos, persist, motos, clientes, futuros, persis
                                   </span>
                                 )}
                               </div>
-                              <div style={{ color: theme.textMuted, fontFamily: BODY_FONT, fontSize: 11 }}>
+                              <div style={{ color: theme.textFaint, fontFamily: BODY_FONT, fontSize: 12 }}>
                                 {formatDate(l.data)}
                                 {motoLigada && ` · ${formatPlaca(motoLigada.placa)}`}
                               </div>
@@ -4082,102 +4119,10 @@ function TooltipSemDuplicata({ active, payload, label, formatter }) {
   );
 }
 
-// luz que percorre a borda de um card retangular arredondado, sem deformar nas bordas
-// retas — em vez do truque de conic-gradient (que fica fino perto dos cantos e "engorda"
-// perto do meio das bordas retas, porque grau-a-grau não é a mesma distância física em
-// todo canto de um retângulo), desenha um contorno em SVG do tamanho real do card e anda
-// com stroke-dashoffset — a mesma técnica dos anéis, só que num contorno reto em vez de
-// um círculo, então a espessura fica igual em qualquer ponto da volta
-function BordaCometa({ color }) {
-  const wrapRef = useRef(null);
-  const [dim, setDim] = useState(null);
-  useEffect(() => {
-    const el = wrapRef.current;
-    if (!el) return;
-    const medir = () => setDim({ w: el.offsetWidth, h: el.offsetHeight });
-    medir();
-    const ro = new ResizeObserver(medir);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-  // meio pixel de inset (metade da espessura do traço) — o wrapper ocupa exatamente a
-  // borda visível do card (inset:-1 pra cobrir o border de 1px), então o traço fica
-  // certinho em cima da borda, não um pouco pra dentro dela
-  const inset = 0.5;
-  const rx = 15.5;
-  const w = dim?.w || 0;
-  const h = dim?.h || 0;
-  const rw = Math.max(0, w - inset * 2);
-  const rh = Math.max(0, h - inset * 2);
-  const perimetro = rw > 0 && rh > 0 ? 2 * Math.max(0, rw - 2 * rx) + 2 * Math.max(0, rh - 2 * rx) + 2 * Math.PI * rx : 0;
-  // tem que bater com a duração declarada em ".mbr-borda-cometa" (index.css) — é usada
-  // só pra calcular o atraso de fase das camadas mais largas, pra elas ficarem centradas
-  // no núcleo em vez de começarem no mesmo ponto (o que criaria rastro só atrás, não um
-  // brilho simétrico nas duas pontas)
-  const DURACAO = 5;
-  const totalSpan = Math.max(14, perimetro * 0.085);
-  const nucleo = totalSpan * 0.4;
-  const externo = totalSpan;
-  const atraso = (comprimento) => (perimetro > 0 ? ((comprimento - nucleo) / 2 / perimetro) * DURACAO : 0);
-  const styleAnim = { "--mbr-perimetro-neg": `${-perimetro}px` };
-  // várias cópias do mesmo traço, do mais largo (bem apagado e borrado) ao mais estreito
-  // (bem vivo, sem blur) — todas centradas no mesmo ponto (o atraso de fase compensa a
-  // diferença de comprimento), então o meio da luz fica bem iluminado e as duas pontas
-  // vão esmaecendo gradualmente, em vez de um traço com brilho parelho do início ao fim
-  const camada = (comprimento, opacidade, blurPx) => ({
-    x: inset,
-    y: inset,
-    width: rw,
-    height: rh,
-    rx,
-    fill: "none",
-    stroke: hexToRgba(color, opacidade),
-    strokeWidth: "1",
-    strokeLinecap: "round",
-    strokeDasharray: `${comprimento} ${Math.max(1, perimetro - comprimento)}`,
-    className: "mbr-borda-cometa",
-    style: { ...styleAnim, animationDelay: `${atraso(comprimento)}s`, filter: blurPx ? `blur(${blurPx}px)` : undefined },
-  });
-  // antes eram só 3 camadas com opacidade fixa cada — o corte abrupto no fim de cada
-  // traço (stroke-dasharray não tem gradiente embutido) criava "degraus" visíveis em vez
-  // de um esmaecimento suave. Gerando mais camadas com opacidade caindo numa curva (em
-  // vez de 3 saltos) o degradê fica contínuo — sem mudar a duração nem o movimento
-  const NUM_CAMADAS = 7;
-  const OPACIDADE_NUCLEO = 0.4;
-  const camadas = Array.from({ length: NUM_CAMADAS }, (_, i) => {
-    const t = i / (NUM_CAMADAS - 1); // 0 = núcleo, 1 = ponta externa
-    const comprimento = nucleo + (externo - nucleo) * t;
-    const opacidade = OPACIDADE_NUCLEO * Math.pow(1 - t, 1.6);
-    // nem o núcleo fica 100% nítido (0.4px de blur mínimo) — evita o "fio" de luz cortado
-    // à faca que ficava destacado demais no meio do resto, todo suave/borrado
-    const blurPx = 0.4 + t * 1.8;
-    return camada(comprimento, opacidade, blurPx);
-  });
-  return (
-    <div ref={wrapRef} className="absolute" style={{ inset: -1, pointerEvents: "none" }}>
-      {perimetro > 0 && (
-        <svg width={w} height={h} style={{ position: "absolute", top: 0, left: 0, overflow: "visible" }}>
-          {/* stroke fininho sobre o retângulo real do card (medido de verdade, não um
-              contorno inflado) — a espessura visual é sempre a mesma em qualquer ponto da
-              borda, cantos ou lados retos, porque é uma largura de traço fixa, não um
-              gradiente angular (esse era o problema da versão antiga em conic-gradient:
-              ficava fino perto dos cantos e "gordo" no meio dos lados horizontais) */}
-          {camadas.map((props, i) => (
-            <rect key={i} {...props} />
-          ))}
-        </svg>
-      )}
-    </div>
-  );
-}
-
 function HeroStat({ label, value, format = formatCurrency, icon: Icon, accent, deltaPercent, deltaLabel, sparkData, fill, detalhes, caption, footnote }) {
   const hasDelta = deltaPercent !== null && deltaPercent !== undefined && Number.isFinite(deltaPercent);
   const gradId = `mbrSparkFill-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
-  const brilho = mixColors(accent, "#FFFFFF", 0.65);
-  // em zero não é "bom" nem "mau" — não faz sentido destacar com luz verde ou vermelha
-  // girando no CARD, então nesses casos a borda fica neutra (só a luz da linha do
-  // gráfico continua, essa não depende do valor estar em zero ou não)
+  // em zero não é "bom" nem "mau" — não faz sentido destacar com o glow colorido nesses casos
   const semDestaque = !value;
 
   // "detalhes" (o que compõe esse valor) abre num cartãozinho por cima — no
@@ -4230,7 +4175,6 @@ function HeroStat({ label, value, format = formatCurrency, icon: Icon, accent, d
       onMouseLeave={temDetalhes ? () => setHover(false) : undefined}
       onClick={temDetalhes ? () => setFixado((v) => !v) : undefined}
     >
-      {!semDestaque && <BordaCometa color={brilho} />}
       <div
         className={`relative p-5 flex flex-col gap-2 min-w-0${fill ? " h-full" : ""}`}
         style={{
@@ -4256,7 +4200,7 @@ function HeroStat({ label, value, format = formatCurrency, icon: Icon, accent, d
         <span
           style={{
             fontFamily: HEAD_FONT,
-            fontSize: "clamp(18px, 6vw, 28px)",
+            fontSize: "clamp(22px, 6vw, 28px)",
             fontWeight: 700,
             backgroundImage: `linear-gradient(120deg, ${theme.text} 30%, ${accent} 145%)`,
             WebkitBackgroundClip: "text",
@@ -4271,7 +4215,7 @@ function HeroStat({ label, value, format = formatCurrency, icon: Icon, accent, d
           <CountUp value={value} format={format} />
         </span>
         {footnote && (
-          <span className="text-xs -mt-1" style={{ color: theme.textMuted, fontFamily: BODY_FONT, fontSize: 11 }}>
+          <span className="text-xs -mt-1" style={{ color: theme.textMuted, fontFamily: BODY_FONT, fontSize: 12 }}>
             {footnote}
           </span>
         )}
@@ -4401,7 +4345,6 @@ function RadialStat({ label, percent, color, sublabel, bare }) {
   const c = 2 * Math.PI * r;
   const offset = c - (clamped / 100) * c;
   const semDestaque = clamped === 0;
-  const brilho = mixColors(color, "#FFFFFF", 0.65);
 
   const conteudo = (
     <>
@@ -4442,8 +4385,6 @@ function RadialStat({ label, percent, color, sublabel, bare }) {
     return <div className="flex items-center gap-3 min-w-0">{conteudo}</div>;
   }
 
-  // mesmo tratamento de "luz girando na borda do card" que os cards do topo (Faturamento,
-  // Lucro) já têm, padronizado aqui também
   return (
     <div
       className="relative rounded-2xl p-5 flex items-center gap-3 min-w-0 mbr-card-lift"
@@ -4452,7 +4393,6 @@ function RadialStat({ label, percent, color, sublabel, bare }) {
         boxShadow: semDestaque ? "0 2px 12px rgba(0,0,0,0.22)" : `0 2px 12px rgba(0,0,0,0.22), 0 0 28px ${color}1F`,
       }}
     >
-      {!semDestaque && <BordaCometa color={brilho} />}
       {conteudo}
     </div>
   );
@@ -6476,9 +6416,11 @@ function AppAutenticado({ perfil, onSignOut }) {
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
-              className="flex-1 flex flex-col items-center gap-1 py-1.5"
+              aria-label={t.label}
+              title={t.label}
+              className="flex-1 flex items-center justify-center py-1.5"
               style={{
-                color: active ? theme.mint : theme.textMuted,
+                color: active ? theme.mint : theme.textGhost,
                 background: "none",
                 transition: "color 0.15s ease, transform 0.18s ease",
                 // na aba ativa, o botão "cede o lugar" pra pílula (que fica embaixo dele
@@ -6490,12 +6432,9 @@ function AppAutenticado({ perfil, onSignOut }) {
               <span
                 ref={(el) => (tabSlotRefs.current[t.id] = el)}
                 className="relative rounded-full flex items-center justify-center"
-                style={{ width: 40, height: 26, zIndex: 1 }}
+                style={{ width: 44, height: 44, zIndex: 1 }}
               >
-                <Icon size={19} strokeWidth={active ? 2.4 : 2} className="mbr-tab-icon" />
-              </span>
-              <span style={{ fontSize: 10.5, fontWeight: active ? 700 : 500, fontFamily: BODY_FONT, transition: "font-weight 0.15s ease", pointerEvents: "auto" }}>
-                {t.label}
+                <Icon size={24} strokeWidth={active ? 2.4 : 2} className="mbr-tab-icon" />
               </span>
             </button>
           );
