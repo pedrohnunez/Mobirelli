@@ -50,6 +50,9 @@ import {
   KeyRound,
   Ban,
   Info,
+  Percent,
+  Landmark,
+  Timer,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -70,7 +73,7 @@ import {
    inspirado diretamente na identidade visual da mobi relli
 =========================================================== */
 const DEFAULT_THEME = {
-  bg: "#0E2116",
+  bg: "#141715",
   mint: "#2FA666",
   amber: "#C9A24B",
   coral: "#D9694F",
@@ -81,14 +84,14 @@ const DEFAULT_THEME = {
 // então recalculá-lo em buildTheme()/Object.assign no topo do App já repinta tudo
 const theme = {
   ...DEFAULT_THEME,
-  panel: "#152D1F",
-  card: "#183524",
-  card2: "#1E3F2A",
-  cardBorder: "#2C4D38",
+  panel: "#1B1F1C",
+  card: "#1F2421",
+  card2: "#262B27",
+  cardBorder: "#232825",
   mintText: "#0E2116",
   sage: "#6FA087",
   text: "#EDF5EF",
-  textMuted: "#8AA894",
+  textMuted: "#8B948E",
 };
 
 // mesma ideia do "theme" acima — mutado uma vez no topo de AppAutenticado (a partir do
@@ -129,10 +132,15 @@ function buildTheme(config) {
   const text = contrastText(bg);
   return {
     bg,
-    panel: mixColors(bg, text, 0.07),
-    card: mixColors(bg, text, 0.09),
-    card2: mixColors(bg, text, 0.115),
-    cardBorder: mixColors(bg, text, 0.26),
+    // superfícies separadas por contraste sutil (elevação), não por contorno desenhado —
+    // cada nível (panel < card < card2) é um pouco mais claro que o de baixo
+    panel: mixColors(bg, text, 0.05),
+    card: mixColors(bg, text, 0.08),
+    card2: mixColors(bg, text, 0.12),
+    // quase invisível de propósito — ainda existe pra servir de linha fina divisória
+    // dentro de listas (ex: entre um lançamento e outro), mas não desenha "caixa" em
+    // volta de card/botão/badge nenhum
+    cardBorder: mixColors(bg, text, 0.09),
     text,
     textMuted: mixColors(bg, text, 0.55),
     mint: brand,
@@ -144,11 +152,14 @@ function buildTheme(config) {
   };
 }
 
-const HEAD_FONT = "-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Poppins', system-ui, sans-serif";
-const BODY_FONT = "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', system-ui, sans-serif";
+// só 2 pesos no app inteiro (regular e semibold) — números grandes/títulos usam o
+// semibold da Inter Tight (geométrica, mais "cheia" que a Inter comum) num tamanho
+// grande, em vez de depender de um peso extra-bold só pra parecer "forte"
+const HEAD_FONT = "'Inter Tight', -apple-system, BlinkMacSystemFont, system-ui, sans-serif";
+const BODY_FONT = "'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif";
 
 const fontImport = `
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;600&family=Inter:wght@400;600&display=swap');
 `;
 
 /* ===========================================================
@@ -1001,10 +1012,10 @@ function ContratoAnexosButton({ anexos, label = "Contrato", tituloPreview, onAbr
     return (
       <button
         onClick={() => onAbrir(anexos[0].link, tituloPreview)}
-        className="inline-flex items-center gap-1 text-xs mbr-hover-grow"
-        style={{ color: theme.blue }}
+        className="inline-flex items-center gap-1.5 text-xs font-semibold rounded-xl px-3 mbr-hover-grow"
+        style={{ background: theme.card2, color: theme.blue, minHeight: 40 }}
       >
-        <FileText size={12} /> {label}
+        <FileText size={13} /> {label}
       </button>
     );
   }
@@ -1013,10 +1024,10 @@ function ContratoAnexosButton({ anexos, label = "Contrato", tituloPreview, onAbr
     <div className="relative">
       <button
         onClick={() => setAberto((v) => !v)}
-        className="inline-flex items-center gap-1 text-xs mbr-hover-grow"
-        style={{ color: theme.blue }}
+        className="inline-flex items-center gap-1.5 text-xs font-semibold rounded-xl px-3 mbr-hover-grow"
+        style={{ background: theme.card2, color: theme.blue, minHeight: 40 }}
       >
-        <FileText size={12} /> {label} ({anexos.length})
+        <FileText size={13} /> {label} ({anexos.length})
       </button>
       {aberto && (
         <>
@@ -1486,6 +1497,7 @@ function ClientesView({ clientes, persistClientes, motos, persistMotos }) {
     const q = busca.toLowerCase();
     return !q || c.nome?.toLowerCase().includes(q) || c.cpfCnpj?.toLowerCase().includes(q);
   });
+  const semMotoAgora = clientes.filter((c) => !motos.some((m) => m.contratoAtual?.clienteId === c.id)).length;
 
   return (
     <div>
@@ -1500,6 +1512,11 @@ function ClientesView({ clientes, persistClientes, motos, persistMotos }) {
             <Plus size={16} /> Novo cliente
           </button>
         )}
+      </div>
+      <div className="text-xs mb-3" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+        {clientes.length} cliente{clientes.length === 1 ? "" : "s"}
+        {" · "}
+        {semMotoAgora} sem moto no momento
       </div>
 
       <div className="relative mb-4">
@@ -1524,14 +1541,22 @@ function ClientesView({ clientes, persistClientes, motos, persistMotos }) {
           const aberto = expandido === c.id;
           return (
             <div key={c.id} className="rounded-2xl overflow-hidden" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
-              <button className="w-full flex items-center justify-between px-4 py-3 text-left" onClick={() => setExpandido(aberto ? null : c.id)}>
-                <div className="flex flex-col gap-1.5">
-                  <div style={{ fontFamily: HEAD_FONT, fontSize: 17, color: theme.text }}>{c.nome || "Sem nome"}</div>
-                  {motoVinculada ? (
-                    <Badge color={theme.mint} icon={Bike} label={`Com a moto ${formatPlaca(motoVinculada.placa)}`} />
-                  ) : (
-                    <Badge color={theme.amber} icon={Clock} label="Sem moto no momento" />
-                  )}
+              <button className="w-full flex items-center gap-3 justify-between px-4 py-3 text-left" onClick={() => setExpandido(aberto ? null : c.id)}>
+                <div className="flex items-center gap-3 min-w-0">
+                  <div
+                    className="rounded-full flex items-center justify-center flex-shrink-0"
+                    style={{ width: 36, height: 36, background: `linear-gradient(150deg, ${theme.blue}3D 0%, ${theme.blue}14 100%)` }}
+                  >
+                    <Users size={16} color={theme.blue} />
+                  </div>
+                  <div className="flex flex-col gap-1.5 min-w-0">
+                    <div style={{ fontFamily: HEAD_FONT, fontSize: 17, color: theme.text }}>{c.nome || "Sem nome"}</div>
+                    {motoVinculada ? (
+                      <Badge color={theme.mint} icon={Bike} label={`Com a moto ${formatPlaca(motoVinculada.placa)}`} />
+                    ) : (
+                      <Badge color={theme.amber} icon={Clock} label="Sem moto no momento" />
+                    )}
+                  </div>
                 </div>
                 {aberto ? <ChevronUp size={18} color={theme.textMuted} /> : <ChevronDown size={18} color={theme.textMuted} />}
               </button>
@@ -2776,10 +2801,18 @@ function MotosView({ motos, persist, clientes, persistClientes, config, lancamen
           const aberto = expandido === moto.id;
           return (
             <div key={moto.id} className="rounded-2xl overflow-hidden" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
-              <button className="w-full flex items-center justify-between px-4 py-3 text-left" onClick={() => setExpandido(aberto ? null : moto.id)}>
-                <div className="flex flex-col gap-3">
-                  <MotoPlate placa={moto.placa} />
-                  <StatusBadge status={moto.status} vencido={vencido} />
+              <button className="w-full flex items-center gap-3 justify-between px-4 py-3 text-left" onClick={() => setExpandido(aberto ? null : moto.id)}>
+                <div className="flex items-center gap-3 min-w-0">
+                  <div
+                    className="rounded-full flex items-center justify-center flex-shrink-0"
+                    style={{ width: 36, height: 36, background: `linear-gradient(150deg, ${theme.mint}3D 0%, ${theme.mint}14 100%)` }}
+                  >
+                    <Bike size={16} color={theme.mint} />
+                  </div>
+                  <div className="flex flex-col gap-3 min-w-0">
+                    <MotoPlate placa={moto.placa} />
+                    <StatusBadge status={moto.status} vencido={vencido} />
+                  </div>
                 </div>
                 {aberto ? <ChevronUp size={18} color={theme.textMuted} /> : <ChevronDown size={18} color={theme.textMuted} />}
               </button>
@@ -2798,43 +2831,43 @@ function MotosView({ motos, persist, clientes, persistClientes, config, lancamen
 
                   <MotoTrackingBlock link={moto.linkRastreamento || config?.linkRastreioGeral} placa={moto.placa} />
 
-                  <div className="flex items-center gap-3 flex-wrap mb-3">
+                  <div className="flex items-center gap-2 flex-wrap mb-3">
                     {notaFiscalAnexosOf(moto).map((a, i, lista) => (
                       <button
                         key={`nf-${i}`}
                         onClick={() => setPreview({ url: a.link, title: `Nota fiscal — ${formatPlaca(moto.placa)}` })}
-                        className="inline-flex items-center gap-1 text-xs mbr-hover-grow"
-                        style={{ color: theme.blue }}
+                        className="inline-flex items-center gap-1.5 text-xs font-semibold rounded-xl px-3 mbr-hover-grow"
+                        style={{ background: theme.card2, color: theme.blue, minHeight: 40 }}
                       >
-                        <FileText size={12} /> {lista.length > 1 ? `Nota fiscal ${i + 1}` : "Nota fiscal"}
+                        <FileText size={13} /> {lista.length > 1 ? `Nota fiscal ${i + 1}` : "Nota fiscal"}
                       </button>
                     ))}
                     {notaFiscalFabricaAnexosOf(moto).map((a, i, lista) => (
                       <button
                         key={`nff-${i}`}
                         onClick={() => setPreview({ url: a.link, title: `Nota fiscal de fábrica — ${formatPlaca(moto.placa)}` })}
-                        className="inline-flex items-center gap-1 text-xs mbr-hover-grow"
-                        style={{ color: theme.blue }}
+                        className="inline-flex items-center gap-1.5 text-xs font-semibold rounded-xl px-3 mbr-hover-grow"
+                        style={{ background: theme.card2, color: theme.blue, minHeight: 40 }}
                       >
-                        <FileText size={12} /> {lista.length > 1 ? `Nota fiscal de fábrica ${i + 1}` : "Nota fiscal de fábrica"}
+                        <FileText size={13} /> {lista.length > 1 ? `Nota fiscal de fábrica ${i + 1}` : "Nota fiscal de fábrica"}
                       </button>
                     ))}
                     {moto.documentoLink && (
                       <button
                         onClick={() => setPreview({ url: moto.documentoLink, title: `Documento — ${formatPlaca(moto.placa)}` })}
-                        className="inline-flex items-center gap-1 text-xs mbr-hover-grow"
-                        style={{ color: theme.blue }}
+                        className="inline-flex items-center gap-1.5 text-xs font-semibold rounded-xl px-3 mbr-hover-grow"
+                        style={{ background: theme.card2, color: theme.blue, minHeight: 40 }}
                       >
-                        <FileText size={12} /> Documento
+                        <FileText size={13} /> Documento
                       </button>
                     )}
                     {moto.certificadoLink && (
                       <button
                         onClick={() => setPreview({ url: moto.certificadoLink, title: `Certificado de garantia — ${formatPlaca(moto.placa)}` })}
-                        className="inline-flex items-center gap-1 text-xs mbr-hover-grow"
-                        style={{ color: theme.blue }}
+                        className="inline-flex items-center gap-1.5 text-xs font-semibold rounded-xl px-3 mbr-hover-grow"
+                        style={{ background: theme.card2, color: theme.blue, minHeight: 40 }}
                       >
-                        <FileText size={12} /> Certificado de garantia
+                        <FileText size={13} /> Certificado de garantia
                       </button>
                     )}
                   </div>
@@ -3346,17 +3379,29 @@ const FuturosView = forwardRef(function FuturosView({ futuros, persist, motos, c
       className={`flex items-center justify-between px-4 py-3 rounded-2xl${permissoes.podeEditar ? " cursor-pointer" : ""}`}
       style={{ background: theme.card, border: `1px solid ${theme.cardBorder}`, opacity: f.pago ? 0.55 : 1 }}
     >
-      <div>
-        <div style={{ color: theme.text, fontFamily: BODY_FONT, fontWeight: 600, textDecoration: f.pago ? "line-through" : "none" }}>
-          {f.descricao || "Sem descrição"}
+      <div className="flex items-center gap-3 min-w-0">
+        <div
+          className="rounded-full flex items-center justify-center flex-shrink-0"
+          style={{
+            width: 32,
+            height: 32,
+            background: `linear-gradient(150deg, ${f.tipo === "entrada" ? theme.mint : theme.coral}3D 0%, ${f.tipo === "entrada" ? theme.mint : theme.coral}14 100%)`,
+          }}
+        >
+          {f.tipo === "entrada" ? <TrendingUp size={14} color={theme.mint} /> : <TrendingDown size={14} color={theme.coral} />}
         </div>
-        <div style={{ color: theme.textMuted, fontFamily: BODY_FONT, fontSize: 12 }}>
-          {f.recorrente ? `Recorrente · todo dia ${diaDoMes}` : `Vence em ${formatDate(f.vencimento)}`}
-          {f.pago && (f.tipo === "entrada" ? " · Recebido" : " · Pago")}
-          {motoLigada && ` · ${formatPlaca(motoLigada.placa)}`}
+        <div className="min-w-0">
+          <div style={{ color: theme.text, fontFamily: BODY_FONT, fontWeight: 600, textDecoration: f.pago ? "line-through" : "none" }}>
+            {f.descricao || "Sem descrição"}
+          </div>
+          <div style={{ color: theme.textMuted, fontFamily: BODY_FONT, fontSize: 12 }}>
+            {f.recorrente ? `Recorrente · todo dia ${diaDoMes}` : `Vence em ${formatDate(f.vencimento)}`}
+            {f.pago && (f.tipo === "entrada" ? " · Recebido" : " · Pago")}
+            {motoLigada && ` · ${formatPlaca(motoLigada.placa)}`}
+          </div>
         </div>
       </div>
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 flex-shrink-0">
         <span style={{ color: f.tipo === "entrada" ? theme.mint : theme.coral, fontFamily: HEAD_FONT, fontSize: 16 }}>
           {f.tipo === "entrada" ? "+" : "-"} {formatCurrency(f.valor)}
         </span>
@@ -3366,8 +3411,8 @@ const FuturosView = forwardRef(function FuturosView({ futuros, persist, motos, c
               e.stopPropagation();
               excluir(f.id);
             }}
-            className="mbr-hover-grow"
-            style={{ color: theme.textMuted }}
+            className="mbr-hover-grow flex items-center justify-center"
+            style={{ color: theme.textMuted, width: 30, height: 30, marginRight: -6 }}
           >
             <Trash2 size={14} />
           </button>
@@ -3815,27 +3860,39 @@ function FluxoCaixaView({ lancamentos, persist, motos, clientes, futuros, persis
                           borderBottom: i < itens.length - 1 ? `1px solid ${theme.cardBorder}` : "none",
                         }}
                       >
-                        <div>
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span style={{ color: theme.text, fontFamily: BODY_FONT, fontWeight: 600 }}>{l.categoria || "Sem categoria"}</span>
-                            {l.parcelasTotal > 1 && (
-                              <span
-                                className="text-xs font-semibold rounded-full px-2"
-                                style={{ background: hexToRgba(theme.blue, 0.16), color: theme.blue, fontFamily: BODY_FONT }}
-                              >
-                                Parcela {l.parcelaAtual || 1}/{l.parcelasTotal}
-                              </span>
-                            )}
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div
+                            className="rounded-full flex items-center justify-center flex-shrink-0"
+                            style={{
+                              width: 32,
+                              height: 32,
+                              background: `linear-gradient(150deg, ${l.tipo === "entrada" ? theme.mint : theme.coral}3D 0%, ${l.tipo === "entrada" ? theme.mint : theme.coral}14 100%)`,
+                            }}
+                          >
+                            {l.tipo === "entrada" ? <TrendingUp size={14} color={theme.mint} /> : <TrendingDown size={14} color={theme.coral} />}
                           </div>
-                          <div style={{ color: theme.textMuted, fontFamily: BODY_FONT, fontSize: 12 }}>
-                            {formatDate(l.data)}
-                            {l.natureza && ` · ${l.natureza}`}
-                            {l.forma && ` · ${l.forma}`}
-                            {l.descricao ? ` · ${l.descricao}` : ""}
-                            {motoLigada && ` · ${formatPlaca(motoLigada.placa)}`}
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span style={{ color: theme.text, fontFamily: BODY_FONT, fontWeight: 600 }}>{l.categoria || "Sem categoria"}</span>
+                              {l.parcelasTotal > 1 && (
+                                <span
+                                  className="text-xs font-semibold rounded-full px-2"
+                                  style={{ background: hexToRgba(theme.blue, 0.16), color: theme.blue, fontFamily: BODY_FONT }}
+                                >
+                                  Parcela {l.parcelaAtual || 1}/{l.parcelasTotal}
+                                </span>
+                              )}
+                            </div>
+                            <div style={{ color: theme.textMuted, fontFamily: BODY_FONT, fontSize: 12 }}>
+                              {formatDate(l.data)}
+                              {l.natureza && ` · ${l.natureza}`}
+                              {l.forma && ` · ${l.forma}`}
+                              {l.descricao ? ` · ${l.descricao}` : ""}
+                              {motoLigada && ` · ${formatPlaca(motoLigada.placa)}`}
+                            </div>
                           </div>
                         </div>
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-3 flex-shrink-0">
                           <span style={{ color: l.tipo === "entrada" ? theme.mint : theme.coral, fontFamily: HEAD_FONT, fontSize: 16 }}>
                             {l.tipo === "entrada" ? "+" : "-"} {formatCurrency(l.valor)}
                           </span>
@@ -3845,8 +3902,8 @@ function FluxoCaixaView({ lancamentos, persist, motos, clientes, futuros, persis
                                 e.stopPropagation();
                                 excluir(l.id);
                               }}
-                              className="mbr-hover-grow"
-                              style={{ color: theme.textMuted }}
+                              className="mbr-hover-grow flex items-center justify-center"
+                              style={{ color: theme.textMuted, width: 30, height: 30, marginRight: -6 }}
                             >
                               <Trash2 size={14} />
                             </button>
@@ -3943,8 +4000,17 @@ function CountUp({ value, format, duration = 900 }) {
   const firstRef = useRef(true);
 
   useEffect(() => {
-    const from = firstRef.current ? 0 : fromRef.current;
-    firstRef.current = false;
+    // na primeira vez que ESSE card aparece na tela, mostra o valor de cara, sem
+    // animar contando de 0 — trocar de aba e voltar pro Início remonta o componente
+    // (o conteúdo da aba usa key={tab}), e sem isso o número "piscava" 0 por um
+    // instante toda vez que a pessoa voltava pro Início, parecendo um dado errado
+    if (firstRef.current) {
+      firstRef.current = false;
+      fromRef.current = to;
+      setDisplay(to);
+      return;
+    }
+    const from = fromRef.current;
     if (reduceMotion() || from === to) {
       setDisplay(to);
       fromRef.current = to;
@@ -4098,7 +4164,7 @@ function BordaCometa({ color }) {
   );
 }
 
-function HeroStat({ label, value, format = formatCurrency, icon: Icon, accent, deltaPercent, deltaLabel, sparkData, fill, detalhes }) {
+function HeroStat({ label, value, format = formatCurrency, icon: Icon, accent, deltaPercent, deltaLabel, sparkData, fill, detalhes, caption }) {
   const hasDelta = deltaPercent !== null && deltaPercent !== undefined && Number.isFinite(deltaPercent);
   const gradId = `mbrSparkFill-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
   const brilho = mixColors(accent, "#FFFFFF", 0.65);
@@ -4151,7 +4217,6 @@ function HeroStat({ label, value, format = formatCurrency, icon: Icon, accent, d
       className={`relative rounded-2xl mbr-card-lift${fill ? " h-full" : ""}${temDetalhes ? " cursor-pointer" : ""}`}
       style={{
         background: `linear-gradient(150deg, ${theme.card} 0%, ${theme.card2} 130%)`,
-        border: `1px solid ${semDestaque ? theme.cardBorder : `${accent}55`}`,
         boxShadow: semDestaque ? "0 2px 12px rgba(0,0,0,0.22)" : `0 2px 12px rgba(0,0,0,0.22), 0 0 28px ${accent}1F`,
       }}
       onMouseEnter={temDetalhes ? () => setHover(true) : undefined}
@@ -4181,6 +4246,11 @@ function HeroStat({ label, value, format = formatCurrency, icon: Icon, accent, d
             <Icon size={15} color={accent} />
           </div>
         </div>
+        {caption && (
+          <span className="text-xs -mt-1.5" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+            {caption}
+          </span>
+        )}
         <span
           style={{
             fontFamily: HEAD_FONT,
@@ -4372,7 +4442,6 @@ function RadialStat({ label, percent, color, sublabel, bare }) {
       className="relative rounded-2xl p-5 flex items-center gap-3 min-w-0 mbr-card-lift"
       style={{
         background: `linear-gradient(150deg, ${theme.card} 0%, ${theme.card2} 130%)`,
-        border: `1px solid ${semDestaque ? theme.cardBorder : `${color}55`}`,
         boxShadow: semDestaque ? "0 2px 12px rgba(0,0,0,0.22)" : `0 2px 12px rgba(0,0,0,0.22), 0 0 28px ${color}1F`,
       }}
     >
@@ -4387,6 +4456,24 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
   const disponiveis = motos.filter((m) => m.status === "disponivel").length;
   const motosVencidas = motos.filter((m) => m.status === "alugada" && isContratoVencido(m.contratoAtual, pagamentosDaMoto(m, lancamentos)));
   const vencidas = motosVencidas.length;
+  // um cliente com pagamento atrasado = uma moto alugada vencida (é 1 pra 1, pelo
+  // contratoAtual) — daí a taxa de inadimplência ser sobre o total de clientes
+  const taxaInadimplencia = clientes.length > 0 ? (vencidas / clientes.length) * 100 : 0;
+
+  // motos disponíveis e há quanto tempo — usa o fim do último contrato encerrado como
+  // "desde quando" está parada; se nunca teve contrato, usa a data de compra
+  const diasParadaDaMoto = (moto) => {
+    const historico = [...(moto.historicoContratos || [])].sort((a, b) => (a.encerradoEm > b.encerradoEm ? -1 : 1));
+    const desde = historico[0]?.encerradoEm || moto.dataCompra;
+    if (!desde) return null;
+    const inicio = new Date(`${desde}T00:00:00`);
+    return Math.max(0, Math.floor((new Date() - inicio) / (1000 * 60 * 60 * 24)));
+  };
+  const motosParadas = motos
+    .filter((m) => m.status === "disponivel")
+    .map((m) => ({ placa: m.placa, dias: diasParadaDaMoto(m) }))
+    .filter((m) => m.dias !== null)
+    .sort((a, b) => b.dias - a.dias);
 
   const todasManutencoes = motos.flatMap((m) => m.manutencoes || []);
 
@@ -4439,6 +4526,13 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
   const saidasMes = saidasOperacionaisMes + manutencaoMes;
   const lucroMes = entradasMes - saidasMes;
   const margemLucro = entradasMes > 0 ? (lucroMes / entradasMes) * 100 : 0;
+  // "Lucro operacional" ignora investimento/expansão de propósito (compra de moto nova,
+  // por exemplo) — é o quanto o negócio rendeu operando no mês. "Saldo de caixa" é o que
+  // de fato entrou e saiu da conta, incluindo esses investimentos — os dois às vezes
+  // dão número bem diferente no mesmo mês (comprou moto = saldo de caixa negativo, mas
+  // lucro operacional pode continuar positivo), por isso mostrar os dois lado a lado
+  const investimentosMes = lancamentos.filter((l) => l.tipo === "saida" && l.natureza === "Expansão" && noMes(l.data)).reduce((s, l) => s + Number(l.valor), 0);
+  const saldoCaixaMes = lucroMes - investimentosMes;
 
   // detalhamento pro cartão que abre no hover/toque do Faturamento e do Lucro — agrupa
   // por categoria (entradas) / natureza (saídas) em vez de listar lançamento por
@@ -4605,6 +4699,17 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
     .filter((r) => r.investimentoTotal > 0)
     .sort((a, b) => b.percentPago - a.percentPago);
 
+  // mesma base do retorno por moto, só que ordenada por tempo (quantos meses faltam),
+  // não por porcentagem — a mais perto de se pagar primeiro, sem contrato ativo por
+  // último (não dá pra estimar quando não tem mensalidade rodando)
+  const paybackPorMoto = [...retornoPorMoto].sort((a, b) => {
+    if (a.jaPagou !== b.jaPagou) return a.jaPagou ? -1 : 1;
+    if (a.mesesRestantes == null && b.mesesRestantes == null) return 0;
+    if (a.mesesRestantes == null) return 1;
+    if (b.mesesRestantes == null) return -1;
+    return a.mesesRestantes - b.mesesRestantes;
+  });
+
   // mês anterior ao mês de referência — usado só pra calcular a variação (%) dos KPIs principais
   const mesAnteriorKey = (() => {
     const d = new Date(refAno, refMesNum - 2, 1);
@@ -4704,41 +4809,45 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
         </div>
       )}
 
-      {/* KPIs principais — Faturamento vira um card alto com mini-gráfico, e Lucro +
-          Margem se completam empilhados do lado, formando a mesma altura */}
+      {/* KPIs principais — Faturamento é o card alto com mini-gráfico. Lucro operacional
+          e Saldo de caixa ficam lado a lado embaixo: o primeiro ignora investimento/
+          expansão de propósito (comprar moto nova não é "prejuízo operacional"), o
+          segundo conta tudo que de fato entrou/saiu da conta — os dois às vezes dão
+          número bem diferente no mesmo mês, por isso mostrar os dois junto com legenda */}
       <Reveal>
-        <div className="grid grid-cols-1 sm:grid-cols-[1.3fr_1fr] gap-3 mb-3">
+        <HeroStat
+          label={`Faturamento (${rotuloMes})`}
+          value={entradasMes}
+          format={fmt}
+          icon={TrendingUp}
+          accent={theme.mint}
+          deltaPercent={deltaFaturamento}
+          deltaLabel={`vs ${rotuloMesAnterior}`}
+          sparkData={sparkFaturamento}
+          detalhes={detalhesFaturamento}
+        />
+      </Reveal>
+      <Reveal delay={40}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3 mt-3">
           <HeroStat
-            label={`Faturamento (${rotuloMes})`}
-            value={entradasMes}
+            label={`${lucroMes >= 0 ? "Lucro operacional" : "Prejuízo operacional"} (${rotuloMes})`}
+            caption="sem investimentos"
+            value={Math.abs(lucroMes)}
             format={fmt}
-            icon={TrendingUp}
-            accent={theme.mint}
-            deltaPercent={deltaFaturamento}
+            icon={Wallet}
+            accent={lucroMes >= 0 ? theme.mint : theme.coral}
+            deltaPercent={deltaLucro}
             deltaLabel={`vs ${rotuloMesAnterior}`}
-            sparkData={sparkFaturamento}
-            detalhes={detalhesFaturamento}
-            fill
+            detalhes={detalhesLucro}
           />
-          <div className="grid grid-rows-2 gap-3">
-            <HeroStat
-              label={`${lucroMes >= 0 ? "Lucro" : "Prejuízo"} (${rotuloMes})`}
-              value={Math.abs(lucroMes)}
-              format={fmt}
-              icon={Wallet}
-              accent={lucroMes >= 0 ? theme.mint : theme.coral}
-              deltaPercent={deltaLucro}
-              deltaLabel={`vs ${rotuloMesAnterior}`}
-              detalhes={detalhesLucro}
-              fill
-            />
-            <RadialStat
-              label={`Margem de lucro (${rotuloMes})`}
-              percent={margemLucro}
-              color={lucroMes >= 0 ? theme.mint : theme.coral}
-              sublabel={entradasMes > 0 ? `${margemLucro.toFixed(1)}%` : "sem faturamento"}
-            />
-          </div>
+          <HeroStat
+            label={`Saldo de caixa (${rotuloMes})`}
+            caption="com investimentos"
+            value={Math.abs(saldoCaixaMes)}
+            format={fmt}
+            icon={Landmark}
+            accent={saldoCaixaMes >= 0 ? theme.mint : theme.coral}
+          />
         </div>
       </Reveal>
       {!mesEscolhido && mesRef !== mesCalendario && (
@@ -4746,6 +4855,67 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
           Ainda não há lançamentos em {monthLabel(mesCalendario)} — mostrando o último mês com movimento.
         </div>
       )}
+
+      {/* Inadimplência + motos paradas — dois números que pedem uma decisão prática
+          (cobrar alguém, tirar uma moto da prateleira), não só "mais um card bonito" */}
+      <Reveal delay={60}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+          <div className="rounded-2xl p-4 mbr-card-lift" style={{ background: `linear-gradient(150deg, ${theme.card} 0%, ${theme.card2} 130%)`, border: `1px solid ${theme.cardBorder}` }}>
+            <div className="flex items-center gap-2 mb-2">
+              <div
+                className="rounded-full flex items-center justify-center flex-shrink-0"
+                style={{ width: 30, height: 30, background: `linear-gradient(150deg, ${theme.coral}3D 0%, ${theme.coral}14 100%)` }}
+              >
+                <AlertTriangle size={14} color={theme.coral} />
+              </div>
+              <span className="text-xs uppercase tracking-wide" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+                Taxa de inadimplência
+              </span>
+            </div>
+            <div style={{ fontFamily: HEAD_FONT, fontSize: 24, fontWeight: 600, color: vencidas > 0 ? theme.coral : theme.text }}>
+              <CountUp value={taxaInadimplencia} format={(v) => `${v.toFixed(1)}%`} />
+            </div>
+            <div className="text-xs mt-0.5" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+              {vencidas} de {clientes.length} cliente{clientes.length === 1 ? "" : "s"} com pagamento atrasado
+            </div>
+          </div>
+
+          <div className="rounded-2xl p-4 mbr-card-lift" style={{ background: `linear-gradient(150deg, ${theme.card} 0%, ${theme.card2} 130%)`, border: `1px solid ${theme.cardBorder}` }}>
+            <div className="flex items-center gap-2 mb-2">
+              <div
+                className="rounded-full flex items-center justify-center flex-shrink-0"
+                style={{ width: 30, height: 30, background: `linear-gradient(150deg, ${theme.blue}3D 0%, ${theme.blue}14 100%)` }}
+              >
+                <Timer size={14} color={theme.blue} />
+              </div>
+              <span className="text-xs uppercase tracking-wide" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+                Motos paradas
+              </span>
+            </div>
+            {motosParadas.length === 0 ? (
+              <div className="text-xs" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+                Nenhuma moto disponível parada agora.
+              </div>
+            ) : (
+              <div className="flex flex-col gap-1">
+                {motosParadas.slice(0, 3).map((m) => (
+                  <div key={m.placa} className="flex items-center justify-between text-xs">
+                    <span style={{ fontFamily: "monospace", fontWeight: 700, color: theme.text }}>{formatPlaca(m.placa)}</span>
+                    <span style={{ color: m.dias > 30 ? theme.coral : theme.textMuted, fontFamily: BODY_FONT }}>
+                      há {m.dias} dia{m.dias === 1 ? "" : "s"}
+                    </span>
+                  </div>
+                ))}
+                {motosParadas.length > 3 && (
+                  <div className="text-xs mt-0.5" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+                    +{motosParadas.length - 3} outra{motosParadas.length - 3 === 1 ? "" : "s"} parada{motosParadas.length - 3 === 1 ? "" : "s"}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </Reveal>
 
       {/* Indicadores secundários — grade fixa (2 colunas no celular), pra não quebrar torto */}
       <Reveal delay={80}>
@@ -4757,11 +4927,18 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
             { icon: TrendingUp, label: "Faturamento previsto/mês", value: faturamentoPrevisto, format: fmt, accent: theme.blue },
             { icon: TrendingDown, label: `Gastos operacionais (${rotuloMes})`, value: saidasMes, format: fmt, accent: theme.coral },
             { icon: Wallet, label: "Ticket médio", value: ticketMedio, format: fmt, accent: theme.mint },
-            { icon: Users, label: "Total de clientes", value: totalClientes, accent: theme.amber },
+            {
+              icon: Percent,
+              label: `Margem de lucro (${rotuloMes})`,
+              value: margemLucro,
+              format: (v) => `${v.toFixed(1)}%`,
+              accent: lucroMes >= 0 ? theme.mint : theme.coral,
+            },
+            { icon: Users, label: "Total de clientes", value: totalClientes, accent: theme.blue },
             { icon: TrendingUp, label: "Investido em frota", value: investimentoFrota, format: fmt, accent: theme.blue },
             { icon: Wallet, label: "Faturamento acumulado", value: faturamentoAcumulado, format: fmt, accent: theme.mint },
             { icon: Wrench, label: "Manutenção acumulada", value: manutencaoAcumulada, format: fmt, accent: theme.coral },
-            { icon: FileText, label: "Contratos encerrados", value: contratosEncerrados, accent: theme.amber },
+            { icon: FileText, label: "Contratos encerrados", value: contratosEncerrados, accent: theme.blue },
           ].map((s) => (
             <div key={s.label} className="flex items-center gap-2 min-w-0">
               <div
@@ -5028,60 +5205,36 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
       </div>
       </Reveal>
 
-      {retornoPorMoto.length > 0 && (
+      {paybackPorMoto.length > 0 && (
         <Reveal delay={40}>
           <div className="rounded-2xl p-4 mbr-card-lift h-full flex flex-col" style={{ background: `linear-gradient(150deg, ${theme.card} 0%, ${theme.card2} 130%)`, border: `1px solid ${theme.cardBorder}` }}>
             <div className="flex items-center justify-between mb-1">
-              <SectionTitle color={theme.amber} className="">Retorno do investimento por moto</SectionTitle>
-              {retornoPorMoto.length > 8 && (
+              <SectionTitle color={theme.mint} className="">Payback por moto</SectionTitle>
+              {paybackPorMoto.length > 8 && (
                 <button
                   onClick={() => setVerTodasRetorno((v) => !v)}
                   className="text-xs font-semibold flex-shrink-0"
-                  style={{ color: theme.amber, fontFamily: BODY_FONT }}
+                  style={{ color: theme.mint, fontFamily: BODY_FONT }}
                 >
-                  {verTodasRetorno ? "Ver menos" : `Ver mais (${retornoPorMoto.length - 8})`}
+                  {verTodasRetorno ? "Ver menos" : `Ver mais (${paybackPorMoto.length - 8})`}
                 </button>
               )}
             </div>
-            <div className="flex-1 flex flex-wrap content-center justify-center gap-6 mt-3">
-              {(verTodasRetorno ? retornoPorMoto : retornoPorMoto.slice(0, 8)).map((r) => {
+            <div className="text-xs mb-3" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+              Quanto falta pra cada moto se pagar (compra + custos + manutenção), da mais perto pra mais longe.
+            </div>
+            <div className="flex flex-col gap-3">
+              {(verTodasRetorno ? paybackPorMoto : paybackPorMoto.slice(0, 8)).map((r) => {
                 const clamped = Math.max(0, Math.min(100, r.percentPago));
-                const raio = 34;
-                const c = 2 * Math.PI * raio;
-                const offset = c - (clamped / 100) * c;
                 const cor = r.jaPagou ? theme.mint : theme.amber;
-                const legenda = r.jaPagou ? "Pago" : r.mesesRestantes != null ? `~${r.mesesRestantes}m` : "—";
+                const legenda = r.jaPagou ? "Pago" : r.mesesRestantes != null ? `faltam ~${r.mesesRestantes} ${r.mesesRestantes === 1 ? "mês" : "meses"}` : "sem contrato ativo";
                 return (
-                  <div
-                    key={r.placa}
-                    className="flex flex-col items-center gap-1"
-                    style={{ width: 88 }}
-                    title={valoresOcultos ? undefined : `${formatCurrency(r.recebidoReal)} de ${formatCurrency(r.investimentoTotal)}`}
-                  >
-                    <svg width={84} height={84} viewBox="0 0 84 84">
-                      <circle cx="42" cy="42" r={raio} fill="none" stroke={theme.cardBorder} strokeWidth="7" />
-                      <circle
-                        cx="42"
-                        cy="42"
-                        r={raio}
-                        fill="none"
-                        stroke={cor}
-                        strokeWidth="7"
-                        strokeLinecap="round"
-                        strokeDasharray={c}
-                        strokeDashoffset={offset}
-                        transform="rotate(-90 42 42)"
-                        style={{ transition: "stroke-dashoffset 0.8s cubic-bezier(0.22, 1, 0.36, 1)" }}
-                      />
-                      <text x="42" y="48" textAnchor="middle" fontSize="16" fontWeight="700" fill={theme.text} style={{ fontFamily: HEAD_FONT }}>
-                        <CountUp value={clamped} format={(v) => `${Math.round(v)}%`} />
-                      </text>
-                      <AnelCometa cx={42} cy={42} r={raio} clamped={clamped} color={cor} />
-                    </svg>
-                    <span style={{ fontFamily: "monospace", fontWeight: 700, fontSize: 12, color: theme.text, transition: "color 0.15s ease" }}>
-                      {formatPlaca(r.placa)}
-                    </span>
-                    <span style={{ fontSize: 11, color: theme.textMuted, fontFamily: BODY_FONT }}>{legenda}</span>
+                  <div key={r.placa} title={valoresOcultos ? undefined : `${formatCurrency(r.recebidoReal)} de ${formatCurrency(r.investimentoTotal)}`}>
+                    <div className="flex items-center justify-between text-xs mb-1">
+                      <span style={{ fontFamily: "monospace", fontWeight: 700, color: theme.text }}>{formatPlaca(r.placa)}</span>
+                      <span style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>{legenda}</span>
+                    </div>
+                    <BarraComCometa pct={clamped} color={cor} />
                   </div>
                 );
               })}
@@ -5182,7 +5335,7 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
         </div>
 
         <div className="rounded-2xl p-4 mbr-card-lift" style={{ background: `linear-gradient(150deg, ${theme.card} 0%, ${theme.card2} 130%)`, border: `1px solid ${theme.cardBorder}` }}>
-          <SectionTitle color={theme.amber}>Gastos por natureza (total)</SectionTitle>
+          <SectionTitle color={theme.coral}>Gastos por natureza (total)</SectionTitle>
           <div className="flex flex-col gap-2">
             {porNatureza.map((n) => (
               <div key={n.natureza}>
@@ -5190,7 +5343,7 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
                   <span>{n.natureza}</span>
                   <span>{fmt(n.total)}</span>
                 </div>
-                <BarraComCometa pct={(n.total / maxNatureza) * 100} color={theme.amber} />
+                <BarraComCometa pct={(n.total / maxNatureza) * 100} color={theme.coral} />
               </div>
             ))}
           </div>
