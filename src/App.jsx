@@ -4122,6 +4122,9 @@ function TooltipSemDuplicata({ active, payload, label, formatter }) {
 function HeroStat({ label, value, format = formatCurrency, icon: Icon, accent, deltaPercent, deltaLabel, sparkData, fill, detalhes, caption, footnote }) {
   const hasDelta = deltaPercent !== null && deltaPercent !== undefined && Number.isFinite(deltaPercent);
   const gradId = `mbrSparkFill-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
+  // luz clara que passeia por cima da linha do mini-gráfico (não tem relação com a
+  // luz que girava em volta do card, essa foi removida — essa aqui é só o traço)
+  const brilho = mixColors(accent, "#FFFFFF", 0.65);
   // em zero não é "bom" nem "mau" — não faz sentido destacar com o glow colorido nesses casos
   const semDestaque = !value;
 
