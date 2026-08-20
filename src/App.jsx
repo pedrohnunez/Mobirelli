@@ -2592,7 +2592,7 @@ function ConsultaPlacaModal({ onClose }) {
   );
 }
 
-function MotosView({ motos, persist, clientes, persistClientes, config, lancamentos }) {
+function MotosView({ motos, persist, clientes, persistClientes, config, lancamentos, persistLancamentos }) {
   const [busca, setBusca] = useState("");
   const [expandido, setExpandido] = useState(null);
   const [modal, setModal] = useState(null);
@@ -2638,14 +2638,68 @@ function MotosView({ motos, persist, clientes, persistClientes, config, lancamen
     });
   };
 
+  // manutenção/custo cadastrados aqui na moto viram um lançamento de saída no Caixa
+  // (com motoId apontando pra essa moto), em vez de ficar só guardado dentro da moto —
+  // é o mesmo lugar que "custosDaMoto"/"manutencoesDaMoto" já leem pro lado "vindo do
+  // Caixa". Sem isso, o gasto não aparecia no faturamento/lucro do mês nem no "Retorno
+  // do investimento por moto", porque esses cálculos só olham pra lista de lançamentos,
+  // nunca pra dentro de moto.manutencoes/custosExtras
   const salvarManutencao = async (moto, manutencao) => {
-    await salvarMoto({ ...moto, manutencoes: [...(moto.manutencoes || []), manutencao] });
+    const descricaoPartes = [manutencao.tipo || "Manutenção"];
+    if (manutencao.local) descricaoPartes.push(manutencao.local);
+    if (manutencao.garantia) descricaoPartes.push("coberto por garantia");
+    const lancamento = {
+      id: manutencao.id,
+      data: manutencao.data,
+      tipo: "saida",
+      natureza: "Manutenção",
+      categoria: manutencao.tipo || "Manutenção",
+      valor: manutencao.valorGasto,
+      descricao: descricaoPartes.join(" — "),
+      forma: "",
+      motoId: moto.id,
+      parcelas: 1,
+    };
+    await persistLancamentos([...(lancamentos || []), lancamento]);
     setModal(null);
   };
 
   const salvarCustoExtra = async (moto, custo) => {
-    await salvarMoto({ ...moto, custosExtras: [...(moto.custosExtras || []), custo] });
+    const lancamento = {
+      id: custo.id,
+      data: custo.data,
+      tipo: "saida",
+      natureza: "Operacional",
+      categoria: custo.descricao || "Custo da moto",
+      valor: custo.valorGasto,
+      descricao: custo.descricao || "",
+      forma: "",
+      motoId: moto.id,
+      parcelas: 1,
+    };
+    await persistLancamentos([...(lancamentos || []), lancamento]);
     setModal(null);
+  };
+
+  // apaga um item de manutenção/custo — se ele ainda vive dentro da moto (registros
+  // antigos, de antes dessa integração com o Caixa), tira de lá; senão é um lançamento
+  // de verdade no Caixa, tira de lá
+  const excluirManutencao = async (moto, id) => {
+    const naMoto = (moto.manutencoes || []).some((m) => m.id === id);
+    if (naMoto) {
+      await salvarMoto({ ...moto, manutencoes: moto.manutencoes.filter((m) => m.id !== id) });
+    } else {
+      await persistLancamentos((lancamentos || []).filter((l) => l.id !== id));
+    }
+  };
+
+  const excluirCustoExtra = async (moto, id) => {
+    const naMoto = (moto.custosExtras || []).some((c) => c.id === id);
+    if (naMoto) {
+      await salvarMoto({ ...moto, custosExtras: moto.custosExtras.filter((c) => c.id !== id) });
+    } else {
+      await persistLancamentos((lancamentos || []).filter((l) => l.id !== id));
+    }
   };
 
   const filtradas = motos.filter((m) => {
@@ -2863,11 +2917,18 @@ function MotosView({ motos, persist, clientes, persistClientes, config, lancamen
                       <div style={{ color: theme.textMuted, fontSize: 12 }}>Nenhuma registrada.</div>
                     ) : (
                       [...manutencoesDaMoto(moto, lancamentos)].reverse().map((mnt) => (
-                        <div key={mnt.id} className="flex items-center justify-between text-xs py-1" style={{ borderTop: `1px solid ${theme.cardBorder}` }}>
+                        <div key={mnt.id} className="flex items-center justify-between gap-2 text-xs py-1" style={{ borderTop: `1px solid ${theme.cardBorder}` }}>
                           <span style={{ color: theme.text }}>
                             {formatDate(mnt.data)} · {mnt.descricao}
                           </span>
-                          <span style={{ color: theme.textMuted }}>{formatCurrency(mnt.valorGasto)}</span>
+                          <span className="flex items-center gap-2 flex-shrink-0">
+                            <span style={{ color: theme.textMuted }}>{formatCurrency(mnt.valorGasto)}</span>
+                            {permissoes.podeEditar && (
+                              <button onClick={() => excluirManutencao(moto, mnt.id)} className="mbr-hover-grow" style={{ color: theme.coral }}>
+                                <Trash2 size={12} />
+                              </button>
+                            )}
+                          </span>
                         </div>
                       ))
                     )}
@@ -2888,11 +2949,18 @@ function MotosView({ motos, persist, clientes, persistClientes, config, lancamen
                       <div style={{ color: theme.textMuted, fontSize: 12 }}>Nenhum registrado.</div>
                     ) : (
                       [...custosDaMoto(moto, lancamentos)].reverse().map((c) => (
-                        <div key={c.id} className="flex items-center justify-between text-xs py-1" style={{ borderTop: `1px solid ${theme.cardBorder}` }}>
+                        <div key={c.id} className="flex items-center justify-between gap-2 text-xs py-1" style={{ borderTop: `1px solid ${theme.cardBorder}` }}>
                           <span style={{ color: theme.text }}>
                             {formatDate(c.data)} · {c.descricao}
                           </span>
-                          <span style={{ color: theme.textMuted }}>{formatCurrency(c.valorGasto)}</span>
+                          <span className="flex items-center gap-2 flex-shrink-0">
+                            <span style={{ color: theme.textMuted }}>{formatCurrency(c.valorGasto)}</span>
+                            {permissoes.podeEditar && (
+                              <button onClick={() => excluirCustoExtra(moto, c.id)} className="mbr-hover-grow" style={{ color: theme.coral }}>
+                                <Trash2 size={12} />
+                              </button>
+                            )}
+                          </span>
                         </div>
                       ))
                     )}
@@ -6353,6 +6421,7 @@ function AppAutenticado({ perfil, onSignOut }) {
                 persistClientes={clientesState.persist}
                 config={configState.value}
                 lancamentos={fluxoState.items}
+                persistLancamentos={fluxoState.persist}
               />
             ) : tab === "clientes" ? (
               <ClientesView
