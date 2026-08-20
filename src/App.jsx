@@ -690,9 +690,14 @@ function Badge({ color, icon: Icon, label }) {
   return (
     <span
       className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold"
-      style={{ background: `${color}26`, color }}
+      // lineHeight explícito + ícone com display:block — sem isso, o <svg> do ícone
+      // segue a métrica de linha do texto ao redor (herdada, varia de navegador pra
+      // navegador), e o fundo do badge podia ficar puxado pra cima/baixo em relação
+      // ao próprio texto dele mesmo, mesmo com "items-center" no flex
+      style={{ background: `${color}26`, color, lineHeight: 1 }}
     >
-      <Icon size={11} /> {label}
+      <Icon size={11} style={{ display: "block", flexShrink: 0 }} />
+      <span>{label}</span>
     </span>
   );
 }
@@ -3721,6 +3726,7 @@ function FluxoCaixaView({ lancamentos, persist, motos, clientes, futuros, persis
 
   const [expandido, setExpandido] = useState(mesesOrdenados[0] || null);
   const [detalheAberto, setDetalheAberto] = useState(null);
+  const [verTodosResumo, setVerTodosResumo] = useState(false);
   const [view, setView] = useState("lancado");
   const futurosViewRef = useRef(null);
 
@@ -3827,7 +3833,7 @@ function FluxoCaixaView({ lancamentos, persist, motos, clientes, futuros, persis
         >
           <SectionTitle className="mb-3">Resumo mensal</SectionTitle>
           <div className="flex flex-col gap-2">
-            {mesesOrdenados.slice(0, 4).map((mesKey) => {
+            {(verTodosResumo ? mesesOrdenados : mesesOrdenados.slice(0, 1)).map((mesKey) => {
               const itensResumo = porMes[mesKey];
               const entradaResumo = itensResumo.filter((l) => l.tipo === "entrada").reduce((s, l) => s + Number(l.valor), 0);
               const saidaResumo = itensResumo.filter((l) => l.tipo === "saida").reduce((s, l) => s + Number(l.valor), 0);
@@ -3861,6 +3867,15 @@ function FluxoCaixaView({ lancamentos, persist, motos, clientes, futuros, persis
               );
             })}
           </div>
+          {mesesOrdenados.length > 1 && (
+            <button
+              onClick={() => setVerTodosResumo((v) => !v)}
+              className="text-xs font-semibold mt-2"
+              style={{ color: theme.mint, fontFamily: BODY_FONT, minHeight: 32 }}
+            >
+              {verTodosResumo ? "Ver menos" : `Ver mais (${mesesOrdenados.length - 1})`}
+            </button>
+          )}
         </div>
       )}
 
@@ -4192,7 +4207,13 @@ function HeroStat({ label, value, format = formatCurrency, icon: Icon, accent, d
     if (!aberto || !cardRef.current) return;
     const medir = () => {
       const r = cardRef.current.getBoundingClientRect();
-      setPopoverRect({ top: r.bottom + 8, left: r.left, width: r.width });
+      // com os cards de Lucro/Déficit em 2 colunas, a largura do CARD (r.width) fica
+      // pequena demais pra caber "Expansão/investimento" + o valor na mesma linha sem
+      // cortar — o popover usa uma largura própria (min 260px, nunca maior que a tela
+      // menos margem), não a largura do card que o abriu
+      const largura = Math.max(260, Math.min(r.width * 1.8, window.innerWidth - 16));
+      const left = Math.max(8, Math.min(r.left, window.innerWidth - largura - 8));
+      setPopoverRect({ top: r.bottom + 8, left, width: largura });
     };
     medir();
     // fecha ao rolar em vez de só reposicionar — seguir o card durante o scroll
@@ -4229,7 +4250,7 @@ function HeroStat({ label, value, format = formatCurrency, icon: Icon, accent, d
         }}
       >
         <div className="flex items-center justify-between gap-2 min-w-0">
-          <span className="text-xs uppercase tracking-wide truncate flex items-center gap-1" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+          <span className="text-xs uppercase tracking-wide flex items-center gap-1 min-w-0" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
             {label}
             {temDetalhes && <Info size={11} style={{ flexShrink: 0, opacity: 0.7 }} />}
           </span>
@@ -4248,7 +4269,7 @@ function HeroStat({ label, value, format = formatCurrency, icon: Icon, accent, d
         <span
           style={{
             fontFamily: HEAD_FONT,
-            fontSize: "clamp(22px, 6vw, 28px)",
+            fontSize: "clamp(19px, 5.5vw, 28px)",
             fontWeight: 700,
             backgroundImage: `linear-gradient(120deg, ${theme.text} 30%, ${accent} 145%)`,
             WebkitBackgroundClip: "text",
@@ -4256,11 +4277,21 @@ function HeroStat({ label, value, format = formatCurrency, icon: Icon, accent, d
             WebkitTextFillColor: "transparent",
             color: theme.text,
             lineHeight: 1.15,
-            wordBreak: "break-word",
+            // "normal" (o padrão) só quebra linha em espaço — "break-word" deixava o
+            // número em si partir no meio (ex: "6.000," numa linha e "00" na próxima)
+            // quando o card ficava estreito (2 colunas). "nowrap" sozinho resolvia a
+            // quebra no meio do número, mas fazia o texto vazar pra fora do card
+            // quando não cabia numa linha só — por isso aqui é "normal" (permite
+            // quebrar), combinado com a troca do espaço fixo (NBSP) por um espaço
+            // normal só nesse componente, então a única quebra possível é entre
+            // "R$" e o valor, nunca dentro do número
+            wordBreak: "normal",
+            overflowWrap: "normal",
+            whiteSpace: "normal",
             fontVariantNumeric: "tabular-nums",
           }}
         >
-          <CountUp value={value} format={format} />
+          <CountUp value={value} format={(v) => (format ? format(v) : Math.round(v)).toString().replace(/ /g, " ")} />
         </span>
         {footnote && (
           <span className="text-xs -mt-1" style={{ color: theme.textMuted, fontFamily: BODY_FONT, fontSize: 12 }}>
@@ -4817,66 +4848,32 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
         />
       </Reveal>
 
-      {/* Inadimplência + motos paradas — dois números que pedem uma decisão prática
-          (cobrar alguém, tirar uma moto da prateleira), não só "mais um card bonito".
-          Par pequeno/quadrado — depois vem um card grande (Payback), depois outro par
-          pequeno (Lucro/Déficit), alternando pra não empilhar tudo largo igual antes */}
+      {/* Lucro operacional + Déficit de caixa logo depois do Faturamento — par
+          pequeno/quadrado; Payback (grande) vem depois, e só então Inadimplência +
+          Motos paradas (outro par pequeno) */}
       <Reveal delay={60}>
         <div className="grid grid-cols-2 gap-3 mb-3 mt-3">
-          <div className="rounded-2xl p-4 mbr-card-lift" style={{ background: `linear-gradient(150deg, ${theme.card} 0%, ${theme.card2} 130%)`, border: `1px solid ${theme.cardBorder}` }}>
-            <div className="flex items-center gap-2 mb-2">
-              <div
-                className="rounded-full flex items-center justify-center flex-shrink-0"
-                style={{ width: 30, height: 30, background: theme.card2 }}
-              >
-                <AlertTriangle size={14} color={theme.coral} />
-              </div>
-              <span className="text-xs uppercase tracking-wide" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
-                Taxa de inadimplência
-              </span>
-            </div>
-            <div style={{ fontFamily: HEAD_FONT, fontSize: 24, fontWeight: 600, color: vencidas > 0 ? theme.coral : theme.text }}>
-              <CountUp value={taxaInadimplencia} format={(v) => `${v.toFixed(1)}%`} />
-            </div>
-            <div className="text-xs mt-0.5" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
-              {vencidas} de {clientes.length} cliente{clientes.length === 1 ? "" : "s"} com pagamento atrasado
-            </div>
-          </div>
-
-          <div className="rounded-2xl p-4 mbr-card-lift" style={{ background: `linear-gradient(150deg, ${theme.card} 0%, ${theme.card2} 130%)`, border: `1px solid ${theme.cardBorder}` }}>
-            <div className="flex items-center gap-2 mb-2">
-              <div
-                className="rounded-full flex items-center justify-center flex-shrink-0"
-                style={{ width: 30, height: 30, background: theme.card2 }}
-              >
-                <Timer size={14} color={theme.amber} />
-              </div>
-              <span className="text-xs uppercase tracking-wide" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
-                Motos paradas
-              </span>
-            </div>
-            {motosParadas.length === 0 ? (
-              <div className="text-xs" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
-                Nenhuma moto disponível parada agora.
-              </div>
-            ) : (
-              <div className="flex flex-col gap-1">
-                {motosParadas.slice(0, 3).map((m) => (
-                  <div key={m.placa} className="flex items-center justify-between text-xs">
-                    <span style={{ fontFamily: MONO_FONT, fontWeight: 500, color: theme.text }}>{formatPlaca(m.placa)}</span>
-                    <span style={{ color: m.dias > 30 ? theme.coral : theme.textMuted, fontFamily: BODY_FONT }}>
-                      há {m.dias} dia{m.dias === 1 ? "" : "s"}
-                    </span>
-                  </div>
-                ))}
-                {motosParadas.length > 3 && (
-                  <div className="text-xs mt-0.5" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
-                    +{motosParadas.length - 3} outra{motosParadas.length - 3 === 1 ? "" : "s"} parada{motosParadas.length - 3 === 1 ? "" : "s"}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+          <HeroStat
+            label={`${lucroMes >= 0 ? "Lucro operacional" : "Prejuízo operacional"} (${rotuloMes})`}
+            caption="sem investimentos"
+            footnote={`margem: ${margemLucro.toFixed(1)}%`}
+            value={Math.abs(lucroMes)}
+            format={fmt}
+            icon={Wallet}
+            accent={lucroMes >= 0 ? theme.mint : theme.coral}
+            deltaPercent={deltaLucro}
+            deltaLabel={`vs ${rotuloMesAnterior}`}
+            detalhes={detalhesLucro}
+          />
+          <HeroStat
+            label={`${saldoCaixaMes >= 0 ? "Saldo de caixa" : "Déficit de caixa"} (${rotuloMes})`}
+            caption="com investimentos"
+            value={Math.abs(saldoCaixaMes)}
+            format={fmt}
+            icon={Landmark}
+            accent={saldoCaixaMes >= 0 ? theme.mint : theme.coral}
+            detalhes={detalhesSaldo}
+          />
         </div>
       </Reveal>
 
@@ -4931,27 +4928,60 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
 
       <Reveal delay={80}>
         <div className="grid grid-cols-2 gap-3 mb-3">
-          <HeroStat
-            label={`${lucroMes >= 0 ? "Lucro operacional" : "Prejuízo operacional"} (${rotuloMes})`}
-            caption="sem investimentos"
-            footnote={`margem: ${margemLucro.toFixed(1)}%`}
-            value={Math.abs(lucroMes)}
-            format={fmt}
-            icon={Wallet}
-            accent={lucroMes >= 0 ? theme.mint : theme.coral}
-            deltaPercent={deltaLucro}
-            deltaLabel={`vs ${rotuloMesAnterior}`}
-            detalhes={detalhesLucro}
-          />
-          <HeroStat
-            label={`${saldoCaixaMes >= 0 ? "Saldo de caixa" : "Déficit de caixa"} (${rotuloMes})`}
-            caption="com investimentos"
-            value={Math.abs(saldoCaixaMes)}
-            format={fmt}
-            icon={Landmark}
-            accent={saldoCaixaMes >= 0 ? theme.mint : theme.coral}
-            detalhes={detalhesSaldo}
-          />
+          <div className="rounded-2xl p-4 mbr-card-lift" style={{ background: `linear-gradient(150deg, ${theme.card} 0%, ${theme.card2} 130%)`, border: `1px solid ${theme.cardBorder}` }}>
+            <div className="flex items-center gap-2 mb-2">
+              <div
+                className="rounded-full flex items-center justify-center flex-shrink-0"
+                style={{ width: 30, height: 30, background: theme.card2 }}
+              >
+                <AlertTriangle size={14} color={theme.coral} />
+              </div>
+              <span className="text-xs uppercase tracking-wide" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+                Taxa de inadimplência
+              </span>
+            </div>
+            <div style={{ fontFamily: HEAD_FONT, fontSize: 24, fontWeight: 600, color: vencidas > 0 ? theme.coral : theme.text }}>
+              <CountUp value={taxaInadimplencia} format={(v) => `${v.toFixed(1)}%`} />
+            </div>
+            <div className="text-xs mt-0.5" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+              {vencidas} de {clientes.length} cliente{clientes.length === 1 ? "" : "s"} com pagamento atrasado
+            </div>
+          </div>
+
+          <div className="rounded-2xl p-4 mbr-card-lift" style={{ background: `linear-gradient(150deg, ${theme.card} 0%, ${theme.card2} 130%)`, border: `1px solid ${theme.cardBorder}` }}>
+            <div className="flex items-center gap-2 mb-2">
+              <div
+                className="rounded-full flex items-center justify-center flex-shrink-0"
+                style={{ width: 30, height: 30, background: theme.card2 }}
+              >
+                <Timer size={14} color={theme.amber} />
+              </div>
+              <span className="text-xs uppercase tracking-wide" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+                Motos paradas
+              </span>
+            </div>
+            {motosParadas.length === 0 ? (
+              <div className="text-xs" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+                Nenhuma moto disponível parada agora.
+              </div>
+            ) : (
+              <div className="flex flex-col gap-1">
+                {motosParadas.slice(0, 3).map((m) => (
+                  <div key={m.placa} className="flex items-center justify-between text-xs">
+                    <span style={{ fontFamily: MONO_FONT, fontWeight: 500, color: theme.text }}>{formatPlaca(m.placa)}</span>
+                    <span style={{ color: m.dias > 30 ? theme.coral : theme.textMuted, fontFamily: BODY_FONT }}>
+                      há {m.dias} dia{m.dias === 1 ? "" : "s"}
+                    </span>
+                  </div>
+                ))}
+                {motosParadas.length > 3 && (
+                  <div className="text-xs mt-0.5" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+                    +{motosParadas.length - 3} outra{motosParadas.length - 3 === 1 ? "" : "s"} parada{motosParadas.length - 3 === 1 ? "" : "s"}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </Reveal>
       {!mesEscolhido && mesRef !== mesCalendario && (
@@ -5547,10 +5577,10 @@ function CargoBadge({ icon: Icon, children, color }) {
   return (
     <span
       className="text-xs font-semibold rounded-full px-2 py-0.5 flex items-center gap-1 flex-shrink-0"
-      style={{ background: theme.card2, color }}
+      style={{ background: theme.card2, color, lineHeight: 1 }}
     >
-      {Icon && <Icon size={11} />}
-      {children}
+      {Icon && <Icon size={11} style={{ display: "block", flexShrink: 0 }} />}
+      <span>{children}</span>
     </span>
   );
 }
@@ -6117,6 +6147,12 @@ function CriarAdminView() {
 function AppAutenticado({ perfil, onSignOut }) {
   const versaoNovaDisponivel = useVersaoNova();
   const [tab, setTab] = useState("dashboard");
+  // cada aba é remontada (key={tab}) mas a rolagem é da JANELA, que o React não reseta
+  // sozinho — sem isso, trocar de aba enquanto a anterior estava rolada pra baixo abre
+  // a aba nova já no meio/fim dela, em vez do topo
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [tab]);
   const headerRef = useRef(null);
   const navRef = useRef(null);
   const tabSlotRefs = useRef({});
