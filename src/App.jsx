@@ -853,6 +853,11 @@ const inputStyle = {
   marginBottom: 12,
 };
 
+// input[type=date] tem um controle nativo (o ícone do calendário) que o navegador
+// desenha com um "box" próprio, maior que o de um input de texto comum, mesmo com o
+// padding igual — height explícito força os dois a ficarem do mesmo tamanho
+const dateInputStyle = { ...inputStyle, height: 41 };
+
 function SelectField({ value, onChange, options }) {
   return (
     <select style={{ ...inputStyle, appearance: "auto" }} value={value} onChange={onChange}>
@@ -1026,7 +1031,11 @@ function ValorComDetalhe({ children, itens, fmt }) {
   const abrir = () => {
     const r = gatilhoRef.current?.getBoundingClientRect();
     if (!r) return;
-    setPos({ top: r.bottom + 6, left: r.left });
+    // reserva a largura MÁXIMA que o popup pode assumir (não a mínima) pra calcular
+    // o clamp — senão, com conteúdo largo o bastante pra bater no maxWidth real, ele
+    // ainda vaza pela borda direita mesmo com o clamp "aplicado"
+    const largura = Math.min(320, window.innerWidth - 16);
+    setPos({ top: r.bottom + 6, left: Math.max(8, Math.min(r.left, window.innerWidth - largura - 8)), largura });
     setAberto(true);
   };
   const fechar = () => setAberto(false);
@@ -1065,12 +1074,11 @@ function ValorComDetalhe({ children, itens, fmt }) {
               className="fixed rounded-xl overflow-hidden mbr-fade-in"
               style={{
                 top: pos.top,
-                left: Math.max(8, Math.min(pos.left, window.innerWidth - 232)),
+                left: pos.left,
                 zIndex: 999,
                 background: theme.panel,
                 border: `1px solid ${theme.cardBorder}`,
-                minWidth: 220,
-                maxWidth: "min(320px, 90vw)",
+                width: pos.largura,
                 boxShadow: "0 6px 20px rgba(0,0,0,0.4)",
                 padding: 10,
               }}
@@ -1373,7 +1381,7 @@ function VincularMotoModal({ cliente, motosDisponiveis, onClose, onSave }) {
       <Row2>
         <div>
           <FieldLabel>Início</FieldLabel>
-          <input type="date" style={inputStyle} value={contrato.dataInicio} onChange={setC("dataInicio")} />
+          <input type="date" style={dateInputStyle} value={contrato.dataInicio} onChange={setC("dataInicio")} />
         </div>
         <div>
           <FieldLabel>Dia de vencimento</FieldLabel>
@@ -1388,7 +1396,7 @@ function VincularMotoModal({ cliente, motosDisponiveis, onClose, onSave }) {
         </div>
       </Row2>
       <FieldLabel>Data de término (opcional)</FieldLabel>
-      <input type="date" style={inputStyle} value={contrato.dataTermino || ""} onChange={setC("dataTermino")} />
+      <input type="date" style={dateInputStyle} value={contrato.dataTermino || ""} onChange={setC("dataTermino")} />
       <div className="text-xs -mt-2 mb-3" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
         Se o aluguel tiver prazo definido, preenche aqui — assim a previsão em "Futuros" soma só até essa data. Deixe em branco se for indefinido.
       </div>
@@ -2155,7 +2163,7 @@ function MotoFormModal({ moto, onClose, onSave, title }) {
       <Row2>
         <div>
           <FieldLabel>Data da compra</FieldLabel>
-          <input type="date" style={inputStyle} value={form.dataCompra} onChange={set("dataCompra")} />
+          <input type="date" style={dateInputStyle} value={form.dataCompra} onChange={set("dataCompra")} />
         </div>
         <div>
           <FieldLabel>Valor da compra</FieldLabel>
@@ -2374,7 +2382,7 @@ function ContratoModal({ moto, clientes, onClose, onSave, editando }) {
       <Row2>
         <div>
           <FieldLabel>Início</FieldLabel>
-          <input type="date" style={inputStyle} value={contrato.dataInicio} onChange={setC("dataInicio")} />
+          <input type="date" style={dateInputStyle} value={contrato.dataInicio} onChange={setC("dataInicio")} />
         </div>
         <div>
           <FieldLabel>Dia de vencimento</FieldLabel>
@@ -2389,7 +2397,7 @@ function ContratoModal({ moto, clientes, onClose, onSave, editando }) {
         </div>
       </Row2>
       <FieldLabel>Data de término (opcional)</FieldLabel>
-      <input type="date" style={inputStyle} value={contrato.dataTermino || ""} onChange={setC("dataTermino")} />
+      <input type="date" style={dateInputStyle} value={contrato.dataTermino || ""} onChange={setC("dataTermino")} />
       <div className="text-xs -mt-2 mb-3" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
         Se o aluguel tiver prazo definido, preenche aqui — assim a previsão em "Futuros" soma só até essa data. Deixe em branco se for indefinido.
       </div>
@@ -2443,7 +2451,7 @@ function CustoExtraModal({ onClose, onSave }) {
   return (
     <Modal title="Novo custo da moto" onClose={onClose}>
       <FieldLabel>Data</FieldLabel>
-      <input type="date" style={inputStyle} value={form.data} onChange={set("data")} />
+      <input type="date" style={dateInputStyle} value={form.data} onChange={set("data")} />
       <FieldLabel>Descrição</FieldLabel>
       <input style={inputStyle} value={form.descricao} onChange={set("descricao")} placeholder="Despachante, documentação, comissão..." />
       <FieldLabel>Valor gasto</FieldLabel>
@@ -2466,7 +2474,7 @@ function ManutencaoModal({ onClose, onSave }) {
   return (
     <Modal title="Nova manutenção" onClose={onClose}>
       <FieldLabel>Data</FieldLabel>
-      <input type="date" style={inputStyle} value={form.data} onChange={set("data")} />
+      <input type="date" style={dateInputStyle} value={form.data} onChange={set("data")} />
       <FieldLabel>Tipo de manutenção</FieldLabel>
       <input style={inputStyle} value={form.tipo} onChange={set("tipo")} placeholder="Troca de óleo, pneu..." />
       <Row2>
@@ -3140,7 +3148,7 @@ function LancamentoModal({ lancamento, onClose, onSave, onDelete, motos, editand
         </div>
         <div>
           <FieldLabel>Data</FieldLabel>
-          <input type="date" style={inputStyle} value={form.data} onChange={set("data")} />
+          <input type="date" style={dateInputStyle} value={form.data} onChange={set("data")} />
         </div>
       </Row2>
 
@@ -3301,7 +3309,7 @@ function FuturoModal({ futuro, onClose, onSave, onDelete, editando, motos }) {
         </div>
         <div>
           <FieldLabel>Vencimento</FieldLabel>
-          <input type="date" style={inputStyle} value={form.vencimento} onChange={set("vencimento")} />
+          <input type="date" style={dateInputStyle} value={form.vencimento} onChange={set("vencimento")} />
         </div>
       </Row2>
       <label className="flex items-center gap-2 mb-3 text-sm" style={{ color: theme.text, fontFamily: BODY_FONT }}>
@@ -3470,12 +3478,9 @@ const FuturosView = forwardRef(function FuturosView({ futuros, persist, motos, c
 
       {cobrancasPorDia.length > 0 && (
         <div className="rounded-2xl p-4 mb-4" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
-          <h3 style={{ fontFamily: HEAD_FONT, fontSize: 16, color: theme.text }} className="mb-1">
+          <h3 style={{ fontFamily: HEAD_FONT, fontSize: 16, color: theme.text }} className="mb-3">
             Agenda de cobranças
           </h3>
-          <div className="text-xs mb-3" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
-            Todo mês, nesses dias — pra saber quem cobrar e quando.
-          </div>
           <div className="flex flex-col">
             {(verTodasCobrancas ? cobrancasPorDia : cobrancasPorDia.slice(0, 4)).map(([dia, itens], i) => (
               <div
@@ -3512,9 +3517,6 @@ const FuturosView = forwardRef(function FuturosView({ futuros, persist, motos, c
               {verTodasCobrancas ? "Ver menos" : `Ver mais (${cobrancasPorDia.length - 4})`}
             </button>
           )}
-          <div className="text-xs mt-3" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
-            As motos alugadas aparecem aqui automaticamente, vindo do contrato ativo de cada uma — pra editar, mude o contrato na aba Motos.
-          </div>
         </div>
       )}
 
@@ -4193,11 +4195,19 @@ function HeroStat({ label, value, format = formatCurrency, icon: Icon, accent, d
       setPopoverRect({ top: r.bottom + 8, left: r.left, width: r.width });
     };
     medir();
+    // fecha ao rolar em vez de só reposicionar — seguir o card durante o scroll
+    // deixava o popover "flutuando" por cima do resto da tela depois que o dedo/mouse
+    // já tinha saído dele, um bug visual (a mesma lógica de fechar-ao-rolar já existia
+    // no popover de "Próximos 7 dias", ver ValorComDetalhe)
+    const fechar = () => {
+      setHover(false);
+      setFixado(false);
+    };
     window.addEventListener("resize", medir);
-    window.addEventListener("scroll", medir, true);
+    window.addEventListener("scroll", fechar, true);
     return () => {
       window.removeEventListener("resize", medir);
-      window.removeEventListener("scroll", medir, true);
+      window.removeEventListener("scroll", fechar, true);
     };
   }, [aberto]);
 
@@ -4806,41 +4816,13 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
           detalhes={detalhesFaturamento}
         />
       </Reveal>
-      <Reveal delay={40}>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3 mt-3">
-          <HeroStat
-            label={`${lucroMes >= 0 ? "Lucro operacional" : "Prejuízo operacional"} (${rotuloMes})`}
-            caption="sem investimentos"
-            footnote={`margem: ${margemLucro.toFixed(1)}%`}
-            value={Math.abs(lucroMes)}
-            format={fmt}
-            icon={Wallet}
-            accent={lucroMes >= 0 ? theme.mint : theme.coral}
-            deltaPercent={deltaLucro}
-            deltaLabel={`vs ${rotuloMesAnterior}`}
-            detalhes={detalhesLucro}
-          />
-          <HeroStat
-            label={`${saldoCaixaMes >= 0 ? "Saldo de caixa" : "Déficit de caixa"} (${rotuloMes})`}
-            caption="com investimentos"
-            value={Math.abs(saldoCaixaMes)}
-            format={fmt}
-            icon={Landmark}
-            accent={saldoCaixaMes >= 0 ? theme.mint : theme.coral}
-            detalhes={detalhesSaldo}
-          />
-        </div>
-      </Reveal>
-      {!mesEscolhido && mesRef !== mesCalendario && (
-        <div className="text-xs mb-3" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
-          Ainda não há lançamentos em {monthLabel(mesCalendario)} — mostrando o último mês com movimento.
-        </div>
-      )}
 
       {/* Inadimplência + motos paradas — dois números que pedem uma decisão prática
-          (cobrar alguém, tirar uma moto da prateleira), não só "mais um card bonito" */}
+          (cobrar alguém, tirar uma moto da prateleira), não só "mais um card bonito".
+          Par pequeno/quadrado — depois vem um card grande (Payback), depois outro par
+          pequeno (Lucro/Déficit), alternando pra não empilhar tudo largo igual antes */}
       <Reveal delay={60}>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+        <div className="grid grid-cols-2 gap-3 mb-3 mt-3">
           <div className="rounded-2xl p-4 mbr-card-lift" style={{ background: `linear-gradient(150deg, ${theme.card} 0%, ${theme.card2} 130%)`, border: `1px solid ${theme.cardBorder}` }}>
             <div className="flex items-center gap-2 mb-2">
               <div
@@ -4881,7 +4863,7 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
               <div className="flex flex-col gap-1">
                 {motosParadas.slice(0, 3).map((m) => (
                   <div key={m.placa} className="flex items-center justify-between text-xs">
-                    <span style={{ fontFamily: "monospace", fontWeight: 700, color: theme.text }}>{formatPlaca(m.placa)}</span>
+                    <span style={{ fontFamily: MONO_FONT, fontWeight: 500, color: theme.text }}>{formatPlaca(m.placa)}</span>
                     <span style={{ color: m.dias > 30 ? theme.coral : theme.textMuted, fontFamily: BODY_FONT }}>
                       há {m.dias} dia{m.dias === 1 ? "" : "s"}
                     </span>
@@ -4897,6 +4879,86 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
           </div>
         </div>
       </Reveal>
+
+      {paybackPorMoto.length > 0 && (
+        <Reveal delay={70}>
+          <div className="rounded-2xl p-4 mb-3 mbr-card-lift" style={{ background: `linear-gradient(150deg, ${theme.card} 0%, ${theme.card2} 130%)`, border: `1px solid ${theme.cardBorder}` }}>
+            <div className="flex items-center justify-between mb-1">
+              <SectionTitle color={theme.mint} className="">Payback por moto</SectionTitle>
+              {paybackPorMoto.length > 8 && (
+                <button
+                  onClick={() => setVerTodasRetorno((v) => !v)}
+                  className="text-xs font-semibold flex-shrink-0"
+                  style={{ color: theme.mint, fontFamily: BODY_FONT }}
+                >
+                  {verTodasRetorno ? "Ver menos" : `Ver mais (${paybackPorMoto.length - 8})`}
+                </button>
+              )}
+            </div>
+            <div className="text-xs mb-3" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+              Quanto falta pra cada moto se pagar (compra + custos + manutenção), da mais perto pra mais longe.
+            </div>
+            <div className="flex flex-col gap-3">
+              {(verTodasRetorno ? paybackPorMoto : paybackPorMoto.slice(0, 8)).map((r) => {
+                const clamped = Math.max(0, Math.min(100, r.percentPago));
+                // cor comunica "quão perto está de bater o olho": verde até 6 meses,
+                // âmbar de 7 a 12, vermelho acima disso — sem contrato ativo fica neutro
+                // (não dá pra comparar prazo de algo que não está gerando receita agora)
+                const cor = r.jaPagou
+                  ? theme.mint
+                  : r.mesesRestantes == null
+                  ? theme.textFaint
+                  : r.mesesRestantes <= 6
+                  ? theme.mint
+                  : r.mesesRestantes <= 12
+                  ? theme.amber
+                  : theme.coral;
+                const legenda = r.jaPagou ? "Pago" : r.mesesRestantes != null ? `faltam ~${r.mesesRestantes} ${r.mesesRestantes === 1 ? "mês" : "meses"}` : "sem contrato ativo";
+                return (
+                  <div key={r.placa} title={valoresOcultos ? undefined : `${formatCurrency(r.recebidoReal)} de ${formatCurrency(r.investimentoTotal)}`}>
+                    <div className="flex items-center justify-between text-xs mb-1">
+                      <span style={{ fontFamily: MONO_FONT, fontWeight: 500, color: theme.text }}>{formatPlaca(r.placa)}</span>
+                      <span style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>{legenda}</span>
+                    </div>
+                    <BarraComCometa pct={clamped} color={cor} />
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </Reveal>
+      )}
+
+      <Reveal delay={80}>
+        <div className="grid grid-cols-2 gap-3 mb-3">
+          <HeroStat
+            label={`${lucroMes >= 0 ? "Lucro operacional" : "Prejuízo operacional"} (${rotuloMes})`}
+            caption="sem investimentos"
+            footnote={`margem: ${margemLucro.toFixed(1)}%`}
+            value={Math.abs(lucroMes)}
+            format={fmt}
+            icon={Wallet}
+            accent={lucroMes >= 0 ? theme.mint : theme.coral}
+            deltaPercent={deltaLucro}
+            deltaLabel={`vs ${rotuloMesAnterior}`}
+            detalhes={detalhesLucro}
+          />
+          <HeroStat
+            label={`${saldoCaixaMes >= 0 ? "Saldo de caixa" : "Déficit de caixa"} (${rotuloMes})`}
+            caption="com investimentos"
+            value={Math.abs(saldoCaixaMes)}
+            format={fmt}
+            icon={Landmark}
+            accent={saldoCaixaMes >= 0 ? theme.mint : theme.coral}
+            detalhes={detalhesSaldo}
+          />
+        </div>
+      </Reveal>
+      {!mesEscolhido && mesRef !== mesCalendario && (
+        <div className="text-xs mb-3" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+          Ainda não há lançamentos em {monthLabel(mesCalendario)} — mostrando o último mês com movimento.
+        </div>
+      )}
 
       {/* Indicadores secundários — grade fixa (2 colunas no celular), pra não quebrar torto */}
       <Reveal delay={80}>
@@ -4961,9 +5023,8 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
         </div>
       </Reveal>
 
-      <div className={retornoPorMoto.length > 0 ? "grid grid-cols-1 lg:grid-cols-[1.3fr_1fr] gap-3 mb-4" : ""}>
       <Reveal delay={0}>
-      <div className={`rounded-2xl p-4 mbr-card-lift ${retornoPorMoto.length > 0 ? "" : "mb-4"}`} style={{ background: `linear-gradient(150deg, ${theme.card} 0%, ${theme.card2} 130%)`, border: `1px solid ${theme.cardBorder}` }}>
+      <div className="rounded-2xl p-4 mb-4 mbr-card-lift" style={{ background: `linear-gradient(150deg, ${theme.card} 0%, ${theme.card2} 130%)`, border: `1px solid ${theme.cardBorder}` }}>
         <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
           <SectionTitle color={theme.mint} className="">Entradas, saídas e lucro</SectionTitle>
           <div className="flex items-center gap-2 flex-wrap">
@@ -5178,56 +5239,6 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
         </div>
       </div>
       </Reveal>
-
-      {paybackPorMoto.length > 0 && (
-        <Reveal delay={40}>
-          <div className="rounded-2xl p-4 mbr-card-lift h-full flex flex-col" style={{ background: `linear-gradient(150deg, ${theme.card} 0%, ${theme.card2} 130%)`, border: `1px solid ${theme.cardBorder}` }}>
-            <div className="flex items-center justify-between mb-1">
-              <SectionTitle color={theme.mint} className="">Payback por moto</SectionTitle>
-              {paybackPorMoto.length > 8 && (
-                <button
-                  onClick={() => setVerTodasRetorno((v) => !v)}
-                  className="text-xs font-semibold flex-shrink-0"
-                  style={{ color: theme.mint, fontFamily: BODY_FONT }}
-                >
-                  {verTodasRetorno ? "Ver menos" : `Ver mais (${paybackPorMoto.length - 8})`}
-                </button>
-              )}
-            </div>
-            <div className="text-xs mb-3" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
-              Quanto falta pra cada moto se pagar (compra + custos + manutenção), da mais perto pra mais longe.
-            </div>
-            <div className="flex flex-col gap-3">
-              {(verTodasRetorno ? paybackPorMoto : paybackPorMoto.slice(0, 8)).map((r) => {
-                const clamped = Math.max(0, Math.min(100, r.percentPago));
-                // cor comunica "quão perto está de bater o olho": verde até 6 meses,
-                // âmbar de 7 a 12, vermelho acima disso — sem contrato ativo fica neutro
-                // (não dá pra comparar prazo de algo que não está gerando receita agora)
-                const cor = r.jaPagou
-                  ? theme.mint
-                  : r.mesesRestantes == null
-                  ? theme.textFaint
-                  : r.mesesRestantes <= 6
-                  ? theme.mint
-                  : r.mesesRestantes <= 12
-                  ? theme.amber
-                  : theme.coral;
-                const legenda = r.jaPagou ? "Pago" : r.mesesRestantes != null ? `faltam ~${r.mesesRestantes} ${r.mesesRestantes === 1 ? "mês" : "meses"}` : "sem contrato ativo";
-                return (
-                  <div key={r.placa} title={valoresOcultos ? undefined : `${formatCurrency(r.recebidoReal)} de ${formatCurrency(r.investimentoTotal)}`}>
-                    <div className="flex items-center justify-between text-xs mb-1">
-                      <span style={{ fontFamily: MONO_FONT, fontWeight: 500, color: theme.text }}>{formatPlaca(r.placa)}</span>
-                      <span style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>{legenda}</span>
-                    </div>
-                    <BarraComCometa pct={clamped} color={cor} />
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </Reveal>
-      )}
-      </div>
 
       {(futuros || []).length > 0 && (
         <Reveal delay={50}>
@@ -5967,10 +5978,21 @@ function CampoSenha({ label, value, onChange, autoComplete }) {
 }
 
 function TelaCentralizada({ children }) {
+  // telas de login/criação de admin são só um formulário centralizado — não tem
+  // motivo pra rolar. Trava o scroll enquanto uma dessas telas está montada e
+  // devolve ao normal ao saída (não é uma regra global do app, só dessas telas)
+  useEffect(() => {
+    const anterior = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = anterior;
+    };
+  }, []);
+
   return (
     <div
-      className="min-h-screen flex items-center justify-center px-6"
-      style={{ background: theme.bg }}
+      className="h-screen flex items-center justify-center px-6"
+      style={{ background: theme.bg, overflow: "hidden" }}
     >
       <div className="w-full" style={{ maxWidth: 340 }}>
         <div className="flex justify-center mb-8">

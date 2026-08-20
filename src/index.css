@@ -12,6 +12,14 @@ body {
   margin: 0;
 }
 
+/* o ícone nativo do calendário em input[type=date] carrega um padding próprio do
+   navegador que engorda a altura do campo mesmo com o CSS igual ao dos outros
+   inputs — zera esse padding pra ele só ocupar o espaço do ícone em si */
+input[type="date"]::-webkit-calendar-picker-indicator {
+  padding: 0;
+  margin: 0;
+}
+
 /* o site é desenhado só pro modo retrato (vertical). No manifest.json existe
    "orientation: portrait-primary", mas isso só trava a tela quando o app é
    INSTALADO na tela inicial e o navegador respeita esse travamento — funciona no
