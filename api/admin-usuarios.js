@@ -62,6 +62,10 @@ export default async function handler(req, res) {
         res.status(400).json({ erro: "Informe um usuário e uma senha com pelo menos 6 caracteres." });
         return;
       }
+      if (username.includes("@")) {
+        res.status(400).json({ erro: "O usuário não pode ser um email — use só um nome ou apelido, sem @." });
+        return;
+      }
       const { data: criado, error: criarErro } = await admin.auth.admin.createUser({
         email: emailDoUsuario(username),
         password: senha,
@@ -82,6 +86,10 @@ export default async function handler(req, res) {
       }
       if (!username?.trim() || !senha || senha.length < 6) {
         res.status(400).json({ erro: "Informe um usuário e uma senha com pelo menos 6 caracteres." });
+        return;
+      }
+      if (username.includes("@")) {
+        res.status(400).json({ erro: "O usuário não pode ser um email — use só um nome ou apelido, sem @." });
         return;
       }
       const nivel = NIVEIS_ATRIBUIVEIS.includes(role) ? role : "editor";

@@ -5073,9 +5073,18 @@ function NovoUsuarioModal({ onClose, onSaved }) {
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState("");
 
+  // o "usuário" vira um email por trás dos panos (usuario@mobirelli.local) — se a
+  // pessoa digitar um email de verdade aqui, dá um email inválido (dois "@") e o
+  // Supabase recusa com uma mensagem genérica que não explica o motivo real
+  const pareceEmail = username.includes("@");
+
   const salvar = async () => {
     if (!username.trim() || senha.length < 6) {
       setErro("Informe um usuário e uma senha com pelo menos 6 caracteres.");
+      return;
+    }
+    if (pareceEmail) {
+      setErro("O usuário não pode ser um email — use só um nome ou apelido, sem @.");
       return;
     }
     if (senha !== confirmar) {
@@ -5097,6 +5106,11 @@ function NovoUsuarioModal({ onClose, onSaved }) {
     <Modal title="Novo usuário" onClose={onClose}>
       <FieldLabel>Usuário</FieldLabel>
       <input style={inputStyle} value={username} onChange={(e) => setUsername(e.target.value)} autoFocus />
+      {pareceEmail && (
+        <div className="text-xs mb-3 -mt-2 flex items-center gap-1" style={{ color: theme.amber, fontFamily: BODY_FONT }}>
+          <AlertTriangle size={13} /> Isso parece um email — use só um nome ou apelido, sem @.
+        </div>
+      )}
       <CampoSenha label="Senha (mínimo 6 caracteres)" value={senha} onChange={(e) => setSenha(e.target.value)} autoComplete="new-password" />
       <CampoSenha label="Confirmar senha" value={confirmar} onChange={(e) => setConfirmar(e.target.value)} autoComplete="new-password" />
       <FieldLabel>Nível de acesso</FieldLabel>
