@@ -2605,7 +2605,23 @@ function MotosView({ motos, persist, clientes, persistClientes, config, lancamen
     setModal(null);
   };
 
-  const excluirMoto = async (id) => persist(motos.filter((m) => m.id !== id));
+  // trava: nunca deixa excluir uma moto alugada (o botão já não aparece nesse caso, isso
+  // aqui é só uma segunda garantia). Se a moto já teve lançamentos de caixa vinculados a
+  // ela (histórico de recebimentos, custos, manutenções), avisa antes — eles continuam
+  // contando no Faturamento/Lucro normalmente, só perdem a etiqueta de "qual moto era"
+  const excluirMoto = async (id) => {
+    const moto = motos.find((m) => m.id === id);
+    if (moto?.status === "alugada") return;
+    const qtdVinculados = (lancamentos || []).filter((l) => l.motoId === id).length;
+    if (qtdVinculados > 0) {
+      const plural = qtdVinculados === 1 ? "lançamento" : "lançamentos";
+      const ok = window.confirm(
+        `Essa moto tem ${qtdVinculados} ${plural} de caixa vinculado${qtdVinculados === 1 ? "" : "s"} a ela (recebimentos, custos ou manutenções). Eles vão continuar contando no Faturamento e no Lucro normalmente, só que sem saber de qual moto eram. Quer excluir a moto mesmo assim?`
+      );
+      if (!ok) return;
+    }
+    await persist(motos.filter((m) => m.id !== id));
+  };
 
   const confirmarContrato = async (moto, dados) => {
     let clienteId = dados.clienteId;
@@ -2975,13 +2991,15 @@ function MotosView({ motos, persist, clientes, persistClientes, config, lancamen
                       >
                         <Pencil size={12} /> Editar
                       </button>
-                      <button
-                        onClick={() => excluirMoto(moto.id)}
-                        className="text-xs font-semibold rounded-xl px-3 py-1.5 flex items-center gap-1"
-                        style={{ border: `1px solid ${theme.cardBorder}`, color: theme.coral }}
-                      >
-                        <Trash2 size={12} /> Excluir
-                      </button>
+                      {moto.status !== "alugada" && (
+                        <button
+                          onClick={() => excluirMoto(moto.id)}
+                          className="text-xs font-semibold rounded-xl px-3 py-1.5 flex items-center gap-1"
+                          style={{ border: `1px solid ${theme.cardBorder}`, color: theme.coral }}
+                        >
+                          <Trash2 size={12} /> Excluir
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
@@ -3035,6 +3053,14 @@ function LancamentoModal({ lancamento, onClose, onSave, onDelete, motos, editand
 
   const selecionarMoto = (id) => setForm((f) => ({ ...f, motoId: id }));
 
+  // o formulário só mostra Valor/Data/Natureza/Categoria de cara — "Moto relacionada",
+  // "Forma de pagamento", "Parcelas" e "Descrição" ficam atrás de "Mais opções", já
+  // abertas sozinhas se o lançamento (ao editar) já usa algum desses campos, pra não
+  // esconder informação que a pessoa já tinha preenchido antes
+  const [maisOpcoes, setMaisOpcoes] = useState(
+    !!(form.motoId || form.forma || Number(form.parcelas) > 1 || form.descricao)
+  );
+
   return (
     <Modal title={editando ? "Editar lançamento" : "Novo lançamento"} onClose={onClose}>
       <div className="flex gap-2 mb-3">
@@ -3054,26 +3080,9 @@ function LancamentoModal({ lancamento, onClose, onSave, onDelete, motos, editand
         ))}
       </div>
 
-      {(motos || []).length > 0 && (
-        <>
-          <FieldLabel>Moto relacionada (opcional)</FieldLabel>
-          <SelectField
-            value={form.motoId || ""}
-            onChange={(e) => selecionarMoto(e.target.value)}
-            options={[
-              { value: "", label: "Nenhuma / não é de uma moto específica" },
-              ...motos.map((m) => ({ value: m.id, label: `${formatPlaca(m.placa)} — ${m.modelo || "modelo?"}` })),
-            ]}
-          />
-          <div className="text-xs -mt-2 mb-3" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
-            Use pra mensalidade, manutenção, combustível, despachante — qualquer gasto ou receita de uma moto específica.
-          </div>
-        </>
-      )}
-
       <FieldLabel>Natureza</FieldLabel>
       <SelectField value={form.natureza} onChange={set("natureza")} options={NATUREZAS.map((n) => ({ value: n, label: n }))} />
-      <FieldLabel>Categoria / descrição curta</FieldLabel>
+      <FieldLabel>Categoria</FieldLabel>
       <input style={inputStyle} value={form.categoria} onChange={set("categoria")} placeholder="Mensalidade, manutenção, combustível..." />
       <Row2>
         <div>
@@ -3085,25 +3094,56 @@ function LancamentoModal({ lancamento, onClose, onSave, onDelete, motos, editand
           <input type="date" style={inputStyle} value={form.data} onChange={set("data")} />
         </div>
       </Row2>
-      <FieldLabel>Forma de pagamento (opcional)</FieldLabel>
-      <input style={inputStyle} value={form.forma} onChange={set("forma")} placeholder="Pix, boleto, cartão..." />
-      <FieldLabel>Parcelas</FieldLabel>
-      <input
-        type="number"
-        min="1"
-        style={inputStyle}
-        value={form.parcelas}
-        onChange={(e) => setForm({ ...form, parcelas: Math.max(1, Number(e.target.value) || 1) })}
-      />
-      {Number(form.parcelas) > 1 && (
-        <div className="text-xs -mt-2 mb-3" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
-          {Number(form.parcelas) > (lancamento?.parcelasTotal || 1)
-            ? `Esse lançamento entra como a 1ª parcela — as outras ${Number(form.parcelas) - (lancamento?.parcelasTotal || 1)} entram automaticamente em "Contas futuras", uma por mês.`
-            : `Marcado como parcela 1 de ${Number(form.parcelas)}.`}
-        </div>
+
+      {!maisOpcoes ? (
+        <button
+          type="button"
+          onClick={() => setMaisOpcoes(true)}
+          className="text-xs font-semibold mb-3"
+          style={{ color: theme.mint, fontFamily: BODY_FONT }}
+        >
+          + Mais opções (moto, forma de pagamento, parcelas, detalhe extra)
+        </button>
+      ) : (
+        <>
+          {(motos || []).length > 0 && (
+            <>
+              <FieldLabel>Moto relacionada (opcional)</FieldLabel>
+              <SelectField
+                value={form.motoId || ""}
+                onChange={(e) => selecionarMoto(e.target.value)}
+                options={[
+                  { value: "", label: "Nenhuma / não é de uma moto específica" },
+                  ...motos.map((m) => ({ value: m.id, label: `${formatPlaca(m.placa)} — ${m.modelo || "modelo?"}` })),
+                ]}
+              />
+              <div className="text-xs -mt-2 mb-3" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+                Use pra mensalidade, manutenção, combustível, despachante — qualquer gasto ou receita de uma moto específica.
+              </div>
+            </>
+          )}
+          <FieldLabel>Forma de pagamento (opcional)</FieldLabel>
+          <input style={inputStyle} value={form.forma} onChange={set("forma")} placeholder="Pix, boleto, cartão..." />
+          <FieldLabel>Parcelas</FieldLabel>
+          <input
+            type="number"
+            min="1"
+            style={inputStyle}
+            value={form.parcelas}
+            onChange={(e) => setForm({ ...form, parcelas: Math.max(1, Number(e.target.value) || 1) })}
+          />
+          {Number(form.parcelas) > 1 && (
+            <div className="text-xs -mt-2 mb-3" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+              {Number(form.parcelas) > (lancamento?.parcelasTotal || 1)
+                ? `Esse lançamento entra como a 1ª parcela — as outras ${Number(form.parcelas) - (lancamento?.parcelasTotal || 1)} entram automaticamente em "Contas futuras", uma por mês.`
+                : `Marcado como parcela 1 de ${Number(form.parcelas)}.`}
+            </div>
+          )}
+          <FieldLabel>Detalhe extra (opcional)</FieldLabel>
+          <input style={inputStyle} value={form.descricao} onChange={set("descricao")} placeholder="Alguma observação a mais, se precisar" />
+        </>
       )}
-      <FieldLabel>Descrição (opcional)</FieldLabel>
-      <input style={inputStyle} value={form.descricao} onChange={set("descricao")} />
+
       <div className="flex gap-2">
         <button
           onClick={() => onSave({ ...form, valor: Number(form.valor) || 0 })}
@@ -3403,6 +3443,9 @@ const FuturosView = forwardRef(function FuturosView({ futuros, persist, motos, c
               </div>
             ))}
           </div>
+          <div className="text-xs mt-3" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+            As motos alugadas aparecem aqui automaticamente, vindo do contrato ativo de cada uma — pra editar, mude o contrato na aba Motos.
+          </div>
         </div>
       )}
 
@@ -3450,30 +3493,6 @@ const FuturosView = forwardRef(function FuturosView({ futuros, persist, motos, c
           </div>
         )}
       </div>
-
-      {contratos.length > 0 && (
-        <div className="mb-4">
-          <div className="text-xs uppercase tracking-wide mb-2" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
-            Contratos ativos (automático)
-          </div>
-          <div className="flex flex-col gap-2">
-            {contratos.map((f) => (
-              <div key={f.id} className="flex items-center justify-between px-4 py-3 rounded-2xl" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
-                <div>
-                  <div style={{ color: theme.text, fontFamily: BODY_FONT, fontWeight: 600 }}>{f.descricao}</div>
-                  <div style={{ color: theme.textMuted, fontFamily: BODY_FONT, fontSize: 12 }}>
-                    Todo mês{f.dataTermino ? ` · até ${formatDate(f.dataTermino)}` : " · sem prazo definido"}
-                  </div>
-                </div>
-                <span style={{ color: theme.mint, fontFamily: HEAD_FONT, fontSize: 16 }}>+ {formatCurrency(f.valor)}</span>
-              </div>
-            ))}
-          </div>
-          <div className="text-xs mt-2" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
-            Vem direto dos contratos de aluguel ativos — pra editar, mude o contrato na aba Motos.
-          </div>
-        </div>
-      )}
 
       {recorrentes.length > 0 && (
         <div className="mb-4">
@@ -3686,13 +3705,13 @@ function FluxoCaixaView({ lancamentos, persist, motos, clientes, futuros, persis
                 background: theme.mint,
                 color: theme.mintText,
                 whiteSpace: "nowrap",
-                width: view === "lancado" ? 96 : 190,
+                width: view === "lancado" ? 96 : 140,
                 transition: "width 0.32s cubic-bezier(0.22, 1, 0.36, 1)",
               }}
             >
               <Plus size={16} style={{ flexShrink: 0 }} />
               <span key={view} className="mbr-rotulo-troca" style={{ display: "inline-block" }}>
-                {view === "lancado" ? "Novo" : "Nova conta futura"}
+                {view === "lancado" ? "Novo" : "Nova conta"}
               </span>
             </button>
           )}
