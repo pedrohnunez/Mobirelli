@@ -44,8 +44,11 @@ export default async function handler(req, res) {
     return;
   }
 
-  const { action, username, senha, userId, ativo } = req.body || {};
+  const { action, username, senha, userId, ativo, role } = req.body || {};
   const token = (req.headers.authorization || "").replace(/^Bearer\s+/i, "");
+  // "admin" nunca é atribuível por aqui — só existe o admin criado no bootstrap
+  // (primeiro acesso). Quem cria por essa tela só escolhe entre esses dois níveis.
+  const NIVEIS_ATRIBUIVEIS = ["editor", "visualizador"];
 
   try {
     if (action === "bootstrap-admin") {
@@ -81,14 +84,40 @@ export default async function handler(req, res) {
         res.status(400).json({ erro: "Informe um usuário e uma senha com pelo menos 6 caracteres." });
         return;
       }
+      const nivel = NIVEIS_ATRIBUIVEIS.includes(role) ? role : "editor";
       const { data: criado, error: criarErro } = await admin.auth.admin.createUser({
         email: emailDoUsuario(username),
         password: senha,
         email_confirm: true,
       });
       if (criarErro) throw criarErro;
-      const { error: perfilErro } = await admin.from("perfis").insert({ id: criado.user.id, username: username.trim(), role: "usuario" });
+      const { error: perfilErro } = await admin.from("perfis").insert({ id: criado.user.id, username: username.trim(), role: nivel });
       if (perfilErro) throw perfilErro;
+      res.status(200).json({ ok: true });
+      return;
+    }
+
+    if (action === "definir-role") {
+      const verificacao = await exigirAdmin(admin, token);
+      if (verificacao.erro) {
+        res.status(403).json({ erro: verificacao.erro });
+        return;
+      }
+      if (!userId || !NIVEIS_ATRIBUIVEIS.includes(role)) {
+        res.status(400).json({ erro: "Escolha um nível válido (editor ou visualizador)." });
+        return;
+      }
+      const { data: alvo, error: alvoErro } = await admin.from("perfis").select("role").eq("id", userId).maybeSingle();
+      if (alvoErro || !alvo) {
+        res.status(400).json({ erro: "Usuário não encontrado." });
+        return;
+      }
+      if (alvo.role === "admin") {
+        res.status(400).json({ erro: "Não é possível alterar o nível do administrador." });
+        return;
+      }
+      const { error: updateErro } = await admin.from("perfis").update({ role }).eq("id", userId);
+      if (updateErro) throw updateErro;
       res.status(200).json({ ok: true });
       return;
     }

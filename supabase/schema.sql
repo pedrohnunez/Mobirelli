@@ -12,17 +12,30 @@ create table if not exists kv_store (
 
 -- Tabela de usuários do app (login por usuário/senha). A senha em si NUNCA fica aqui —
 -- ela vive protegida dentro de auth.users, gerenciada pelo próprio Supabase Auth. Essa
--- tabela só guarda o nome de usuário escolhido, se é administrador, e se o acesso está
+-- tabela só guarda o nome de usuário escolhido, o nível de acesso, e se o acesso está
 -- ativo. Só o "primeiro acesso" (quando essa tabela ainda está vazia) pode virar
 -- administrador sozinho — todos os outros logins só são criados pelo administrador, pela
--- tela de Usuários do app (que chama a função serverless api/admin-usuarios.js).
+-- tela de Usuários do app (que chama a função serverless api/admin-usuarios.js), e nunca
+-- como "admin" — esse nível fica travado pra sempre com quem fez o primeiro acesso.
+--
+-- três níveis:
+--   admin        — acesso completo, é o único que gerencia login de outras pessoas
+--   editor       — pode ver e editar motos/clientes/caixa, mas não mexe em usuários
+--   visualizador — só pode ver, nenhuma tela de cadastro/edição fica disponível
 create table if not exists perfis (
   id uuid primary key references auth.users(id) on delete cascade,
   username text not null unique,
-  role text not null default 'usuario' check (role in ('admin', 'usuario')),
+  role text not null default 'editor',
   ativo boolean not null default true,
   created_at timestamptz not null default now()
 );
+
+-- se essa tabela já existia de uma versão anterior (só "admin"/"usuario"), atualiza pro
+-- novo esquema de 3 níveis sem perder ninguém: quem já tinha o antigo "usuario" (que só
+-- existia como "edita tudo, não é admin") vira "editor", o novo nível equivalente
+update perfis set role = 'editor' where role = 'usuario';
+alter table perfis drop constraint if exists perfis_role_check;
+alter table perfis add constraint perfis_role_check check (role in ('admin', 'editor', 'visualizador'));
 
 alter table perfis enable row level security;
 
@@ -42,14 +55,19 @@ create policy "perfis select" on perfis for select using (true);
 -- vai dentro do JavaScript do site), então isso é o que de fato tranca o acesso agora
 alter table kv_store enable row level security;
 
+-- qualquer pessoa logada pode VER (os 3 níveis, incluindo visualizador)
 drop policy if exists "kv_store select" on kv_store;
 create policy "kv_store select" on kv_store for select to authenticated using (true);
 
+-- só admin/editor podem gravar — "visualizador" não consegue, mesmo tentando por fora
+-- da tela (essa é a trava de verdade; a tela só esconde os botões de editar)
 drop policy if exists "kv_store insert" on kv_store;
-create policy "kv_store insert" on kv_store for insert to authenticated with check (true);
+create policy "kv_store insert" on kv_store for insert to authenticated
+  with check (exists (select 1 from perfis where id = auth.uid() and role in ('admin', 'editor') and ativo));
 
 drop policy if exists "kv_store update" on kv_store;
-create policy "kv_store update" on kv_store for update to authenticated using (true);
+create policy "kv_store update" on kv_store for update to authenticated
+  using (exists (select 1 from perfis where id = auth.uid() and role in ('admin', 'editor') and ativo));
 
 -- Habilita realtime (pra você e sua equipe verem as mudanças um do outro na hora) — o
 -- Supabase Realtime respeita as políticas de RLS acima automaticamente. Em bloco
@@ -68,12 +86,14 @@ insert into storage.buckets (id, name, public)
 values ('arquivos', 'arquivos', true)
 on conflict (id) do nothing;
 
--- mesma troca: só quem está logado pode enviar/ver arquivos agora
+-- mesma ideia: qualquer logado vê, só admin/editor enviam ou substituem arquivo
 drop policy if exists "arquivos select" on storage.objects;
 create policy "arquivos select" on storage.objects for select to authenticated using (bucket_id = 'arquivos');
 
 drop policy if exists "arquivos insert" on storage.objects;
-create policy "arquivos insert" on storage.objects for insert to authenticated with check (bucket_id = 'arquivos');
+create policy "arquivos insert" on storage.objects for insert to authenticated
+  with check (bucket_id = 'arquivos' and exists (select 1 from perfis where id = auth.uid() and role in ('admin', 'editor') and ativo));
 
 drop policy if exists "arquivos update" on storage.objects;
-create policy "arquivos update" on storage.objects for update to authenticated using (bucket_id = 'arquivos');
+create policy "arquivos update" on storage.objects for update to authenticated
+  using (bucket_id = 'arquivos' and exists (select 1 from perfis where id = auth.uid() and role in ('admin', 'editor') and ativo));

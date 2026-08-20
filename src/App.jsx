@@ -90,6 +90,11 @@ const theme = {
   textMuted: "#8AA894",
 };
 
+// mesma ideia do "theme" acima — mutado uma vez no topo de AppAutenticado (a partir do
+// perfil logado) e lido "ao vivo" por qualquer componente que precise esconder um botão
+// de criar/editar/excluir pra quem só pode visualizar
+const permissoes = { podeEditar: true, podeGerenciarUsuarios: false };
+
 const clamp255 = (n) => Math.min(255, Math.max(0, n));
 const hexToRgb = (hex) => {
   const h = (hex || "#000000").replace("#", "");
@@ -1485,13 +1490,15 @@ function ClientesView({ clientes, persistClientes, motos, persistMotos }) {
     <div>
       <div className="flex items-center justify-between mb-3">
         <h2 style={{ fontFamily: HEAD_FONT, fontSize: 22, fontWeight: 800, color: theme.mint }}>Clientes</h2>
-        <button
-          onClick={() => setModal({ mode: "novo", cliente: emptyCliente() })}
-          className="flex items-center gap-1 rounded-xl px-3 py-2 text-sm font-semibold"
-          style={{ background: theme.mint, color: theme.mintText }}
-        >
-          <Plus size={16} /> Novo cliente
-        </button>
+        {permissoes.podeEditar && (
+          <button
+            onClick={() => setModal({ mode: "novo", cliente: emptyCliente() })}
+            className="flex items-center gap-1 rounded-xl px-3 py-2 text-sm font-semibold"
+            style={{ background: theme.mint, color: theme.mintText }}
+          >
+            <Plus size={16} /> Novo cliente
+          </button>
+        )}
       </div>
 
       <div className="relative mb-4">
@@ -1566,18 +1573,20 @@ function ClientesView({ clientes, persistClientes, motos, persistMotos }) {
                           tituloPreview={`Contrato — ${formatPlaca(motoVinculada.placa)}`}
                           onAbrir={(url, title) => setPreview({ url, title })}
                         />
-                        <button
-                          onClick={() => setModal({ type: "contrato", moto: motoVinculada })}
-                          className="inline-flex items-center gap-1 text-xs mbr-hover-grow"
-                          style={{ color: theme.text }}
-                        >
-                          <Pencil size={12} /> Editar contrato
-                        </button>
+                        {permissoes.podeEditar && (
+                          <button
+                            onClick={() => setModal({ type: "contrato", moto: motoVinculada })}
+                            className="inline-flex items-center gap-1 text-xs mbr-hover-grow"
+                            style={{ color: theme.text }}
+                          >
+                            <Pencil size={12} /> Editar contrato
+                          </button>
+                        )}
                       </div>
                     </div>
                   )}
 
-                  {!motoVinculada && (
+                  {!motoVinculada && permissoes.podeEditar && (
                     <button
                       onClick={() => setModal({ mode: "vincular", cliente: c })}
                       className="text-xs font-semibold rounded-xl px-3 py-1.5 mb-2"
@@ -1587,24 +1596,26 @@ function ClientesView({ clientes, persistClientes, motos, persistMotos }) {
                     </button>
                   )}
 
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => setModal({ mode: "editar", cliente: c })}
-                      className="text-xs font-semibold rounded-xl px-3 py-1.5 flex items-center gap-1"
-                      style={{ border: `1px solid ${theme.cardBorder}`, color: theme.text }}
-                    >
-                      <Pencil size={12} /> Editar
-                    </button>
-                    {!motoVinculada && (
+                  {permissoes.podeEditar && (
+                    <div className="flex gap-2">
                       <button
-                        onClick={() => excluir(c.id)}
+                        onClick={() => setModal({ mode: "editar", cliente: c })}
                         className="text-xs font-semibold rounded-xl px-3 py-1.5 flex items-center gap-1"
-                        style={{ border: `1px solid ${theme.cardBorder}`, color: theme.coral }}
+                        style={{ border: `1px solid ${theme.cardBorder}`, color: theme.text }}
                       >
-                        <Trash2 size={12} /> Excluir
+                        <Pencil size={12} /> Editar
                       </button>
-                    )}
-                  </div>
+                      {!motoVinculada && (
+                        <button
+                          onClick={() => excluir(c.id)}
+                          className="text-xs font-semibold rounded-xl px-3 py-1.5 flex items-center gap-1"
+                          style={{ border: `1px solid ${theme.cardBorder}`, color: theme.coral }}
+                        >
+                          <Trash2 size={12} /> Excluir
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               </Collapse>
             </div>
@@ -2658,13 +2669,15 @@ function MotosView({ motos, persist, clientes, persistClientes, config, lancamen
           >
             <Search size={15} /> Consultar placa
           </button>
-          <button
-            onClick={() => setModal({ type: "moto", mode: "novo", moto: emptyMoto() })}
-            className="flex items-center gap-1 rounded-xl px-3 py-2 text-sm font-semibold"
-            style={{ background: theme.mint, color: theme.mintText }}
-          >
-            <Plus size={16} /> Nova moto
-          </button>
+          {permissoes.podeEditar && (
+            <button
+              onClick={() => setModal({ type: "moto", mode: "novo", moto: emptyMoto() })}
+              className="flex items-center gap-1 rounded-xl px-3 py-2 text-sm font-semibold"
+              style={{ background: theme.mint, color: theme.mintText }}
+            >
+              <Plus size={16} /> Nova moto
+            </button>
+          )}
         </div>
       </div>
 
@@ -2777,22 +2790,24 @@ function MotosView({ motos, persist, clientes, persistClientes, config, lancamen
                           />
                         </div>
                       )}
-                      <div className="flex gap-2 mt-2">
-                        <button
-                          onClick={() => setModal({ type: "contrato", mode: "editar", moto })}
-                          className="text-xs font-semibold rounded-xl px-3 py-1.5 flex items-center gap-1"
-                          style={{ border: `1px solid ${theme.cardBorder}`, color: theme.text }}
-                        >
-                          <Pencil size={12} /> Editar contrato
-                        </button>
-                        <button
-                          onClick={() => encerrarContrato(moto)}
-                          className="text-xs font-semibold rounded-xl px-3 py-1.5"
-                          style={{ border: `1px solid ${theme.cardBorder}`, color: theme.text }}
-                        >
-                          Encerrar contrato
-                        </button>
-                      </div>
+                      {permissoes.podeEditar && (
+                        <div className="flex gap-2 mt-2">
+                          <button
+                            onClick={() => setModal({ type: "contrato", mode: "editar", moto })}
+                            className="text-xs font-semibold rounded-xl px-3 py-1.5 flex items-center gap-1"
+                            style={{ border: `1px solid ${theme.cardBorder}`, color: theme.text }}
+                          >
+                            <Pencil size={12} /> Editar contrato
+                          </button>
+                          <button
+                            onClick={() => encerrarContrato(moto)}
+                            className="text-xs font-semibold rounded-xl px-3 py-1.5"
+                            style={{ border: `1px solid ${theme.cardBorder}`, color: theme.text }}
+                          >
+                            Encerrar contrato
+                          </button>
+                        </div>
+                      )}
                     </div>
                   ) : null}
 
@@ -2822,7 +2837,7 @@ function MotosView({ motos, persist, clientes, persistClientes, config, lancamen
                     )}
                   </div>
 
-                  {!moto.contratoAtual && (
+                  {!moto.contratoAtual && permissoes.podeEditar && (
                     <button
                       onClick={() => setModal({ type: "contrato", moto })}
                       className="text-xs font-semibold rounded-xl px-3 py-1.5 mb-3"
@@ -2837,9 +2852,11 @@ function MotosView({ motos, persist, clientes, persistClientes, config, lancamen
                       <span className="text-xs uppercase tracking-wide" style={{ color: theme.textMuted }}>
                         Manutenções
                       </span>
-                      <button onClick={() => setModal({ type: "manutencao", moto })} className="mbr-hover-grow" style={{ color: theme.blue }}>
-                        <Plus size={14} />
-                      </button>
+                      {permissoes.podeEditar && (
+                        <button onClick={() => setModal({ type: "manutencao", moto })} className="mbr-hover-grow" style={{ color: theme.blue }}>
+                          <Plus size={14} />
+                        </button>
+                      )}
                     </div>
                     {manutencoesDaMoto(moto, lancamentos).length === 0 ? (
                       <div style={{ color: theme.textMuted, fontSize: 12 }}>Nenhuma registrada.</div>
@@ -2860,9 +2877,11 @@ function MotosView({ motos, persist, clientes, persistClientes, config, lancamen
                       <span className="text-xs uppercase tracking-wide" style={{ color: theme.textMuted }}>
                         Custos
                       </span>
-                      <button onClick={() => setModal({ type: "custoExtra", moto })} className="mbr-hover-grow" style={{ color: theme.blue }}>
-                        <Plus size={14} />
-                      </button>
+                      {permissoes.podeEditar && (
+                        <button onClick={() => setModal({ type: "custoExtra", moto })} className="mbr-hover-grow" style={{ color: theme.blue }}>
+                          <Plus size={14} />
+                        </button>
+                      )}
                     </div>
                     {custosDaMoto(moto, lancamentos).length === 0 ? (
                       <div style={{ color: theme.textMuted, fontSize: 12 }}>Nenhum registrado.</div>
@@ -2878,22 +2897,24 @@ function MotosView({ motos, persist, clientes, persistClientes, config, lancamen
                     )}
                   </div>
 
-                  <div className="flex gap-2 mt-2">
-                    <button
-                      onClick={() => setModal({ type: "moto", mode: "editar", moto })}
-                      className="text-xs font-semibold rounded-xl px-3 py-1.5 flex items-center gap-1"
-                      style={{ border: `1px solid ${theme.cardBorder}`, color: theme.text }}
-                    >
-                      <Pencil size={12} /> Editar
-                    </button>
-                    <button
-                      onClick={() => excluirMoto(moto.id)}
-                      className="text-xs font-semibold rounded-xl px-3 py-1.5 flex items-center gap-1"
-                      style={{ border: `1px solid ${theme.cardBorder}`, color: theme.coral }}
-                    >
-                      <Trash2 size={12} /> Excluir
-                    </button>
-                  </div>
+                  {permissoes.podeEditar && (
+                    <div className="flex gap-2 mt-2">
+                      <button
+                        onClick={() => setModal({ type: "moto", mode: "editar", moto })}
+                        className="text-xs font-semibold rounded-xl px-3 py-1.5 flex items-center gap-1"
+                        style={{ border: `1px solid ${theme.cardBorder}`, color: theme.text }}
+                      >
+                        <Pencil size={12} /> Editar
+                      </button>
+                      <button
+                        onClick={() => excluirMoto(moto.id)}
+                        className="text-xs font-semibold rounded-xl px-3 py-1.5 flex items-center gap-1"
+                        style={{ border: `1px solid ${theme.cardBorder}`, color: theme.coral }}
+                      >
+                        <Trash2 size={12} /> Excluir
+                      </button>
+                    </div>
+                  )}
                 </div>
               </Collapse>
             </div>
@@ -3212,8 +3233,8 @@ const FuturosView = forwardRef(function FuturosView({ futuros, persist, motos, c
     return (
     <div
       key={f.id}
-      onClick={() => setModal(f)}
-      className="flex items-center justify-between px-4 py-3 rounded-2xl cursor-pointer"
+      onClick={() => permissoes.podeEditar && setModal(f)}
+      className={`flex items-center justify-between px-4 py-3 rounded-2xl${permissoes.podeEditar ? " cursor-pointer" : ""}`}
       style={{ background: theme.card, border: `1px solid ${theme.cardBorder}`, opacity: f.pago ? 0.55 : 1 }}
     >
       <div>
@@ -3230,16 +3251,18 @@ const FuturosView = forwardRef(function FuturosView({ futuros, persist, motos, c
         <span style={{ color: f.tipo === "entrada" ? theme.mint : theme.coral, fontFamily: HEAD_FONT, fontSize: 16 }}>
           {f.tipo === "entrada" ? "+" : "-"} {formatCurrency(f.valor)}
         </span>
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            excluir(f.id);
-          }}
-          className="mbr-hover-grow"
-          style={{ color: theme.textMuted }}
-        >
-          <Trash2 size={14} />
-        </button>
+        {permissoes.podeEditar && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              excluir(f.id);
+            }}
+            className="mbr-hover-grow"
+            style={{ color: theme.textMuted }}
+          >
+            <Trash2 size={14} />
+          </button>
+        )}
       </div>
     </div>
     );
@@ -3586,22 +3609,24 @@ function FluxoCaixaView({ lancamentos, persist, motos, clientes, futuros, persis
               troca (num único span remontado, sem dois textos coexistindo) e a caixa
               cresce/encolhe pra caber, em vez de um botão sumir aqui e outro nascer
               solto em outro lugar da tela (era isso que ficava "esquisito") */}
-          <button
-            onClick={() => (view === "lancado" ? setModal(emptyLancamento()) : futurosViewRef.current?.abrirNovo())}
-            className="flex items-center gap-1 rounded-xl px-3 py-2 text-sm font-semibold overflow-hidden"
-            style={{
-              background: theme.mint,
-              color: theme.mintText,
-              whiteSpace: "nowrap",
-              width: view === "lancado" ? 96 : 190,
-              transition: "width 0.32s cubic-bezier(0.22, 1, 0.36, 1)",
-            }}
-          >
-            <Plus size={16} style={{ flexShrink: 0 }} />
-            <span key={view} className="mbr-rotulo-troca" style={{ display: "inline-block" }}>
-              {view === "lancado" ? "Novo" : "Nova conta futura"}
-            </span>
-          </button>
+          {permissoes.podeEditar && (
+            <button
+              onClick={() => (view === "lancado" ? setModal(emptyLancamento()) : futurosViewRef.current?.abrirNovo())}
+              className="flex items-center gap-1 rounded-xl px-3 py-2 text-sm font-semibold overflow-hidden"
+              style={{
+                background: theme.mint,
+                color: theme.mintText,
+                whiteSpace: "nowrap",
+                width: view === "lancado" ? 96 : 190,
+                transition: "width 0.32s cubic-bezier(0.22, 1, 0.36, 1)",
+              }}
+            >
+              <Plus size={16} style={{ flexShrink: 0 }} />
+              <span key={view} className="mbr-rotulo-troca" style={{ display: "inline-block" }}>
+                {view === "lancado" ? "Novo" : "Nova conta futura"}
+              </span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -3695,8 +3720,8 @@ function FluxoCaixaView({ lancamentos, persist, motos, clientes, futuros, persis
                     return (
                       <div
                         key={l.id}
-                        onClick={() => setModal(l)}
-                        className="flex items-center justify-between px-4 py-3 cursor-pointer"
+                        onClick={() => permissoes.podeEditar && setModal(l)}
+                        className={`flex items-center justify-between px-4 py-3${permissoes.podeEditar ? " cursor-pointer" : ""}`}
                         style={{
                           background: theme.card2,
                           borderBottom: i < itens.length - 1 ? `1px solid ${theme.cardBorder}` : "none",
@@ -3726,16 +3751,18 @@ function FluxoCaixaView({ lancamentos, persist, motos, clientes, futuros, persis
                           <span style={{ color: l.tipo === "entrada" ? theme.mint : theme.coral, fontFamily: HEAD_FONT, fontSize: 16 }}>
                             {l.tipo === "entrada" ? "+" : "-"} {formatCurrency(l.valor)}
                           </span>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              excluir(l.id);
-                            }}
-                            className="mbr-hover-grow"
-                            style={{ color: theme.textMuted }}
-                          >
-                            <Trash2 size={14} />
-                          </button>
+                          {permissoes.podeEditar && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                excluir(l.id);
+                              }}
+                              className="mbr-hover-grow"
+                              style={{ color: theme.textMuted }}
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          )}
                         </div>
                       </div>
                     );
@@ -5002,10 +5029,47 @@ function RastreioView({ config, motos, clientes, topInset, bottomInset }) {
   );
 }
 
+// os dois únicos níveis que dá pra atribuir por aqui — "admin" nunca aparece como opção,
+// fica travado com quem criou a conta no primeiro acesso (bootstrap)
+const NIVEIS_USUARIO = [
+  { value: "editor", label: "Editor", desc: "Vê e edita motos, clientes e caixa", icon: Pencil },
+  { value: "visualizador", label: "Visualizador", desc: "Só consegue ver, não edita nada", icon: Eye },
+];
+
+function SeletorNivel({ value, onChange }) {
+  return (
+    <div className="flex flex-col gap-2 mb-3">
+      {NIVEIS_USUARIO.map((n) => {
+        const Icon = n.icon;
+        const ativo = value === n.value;
+        return (
+          <button
+            key={n.value}
+            type="button"
+            onClick={() => onChange(n.value)}
+            className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-left"
+            style={{
+              background: ativo ? `${theme.mint}1F` : theme.card2,
+              border: `1px solid ${ativo ? theme.mint : theme.cardBorder}`,
+            }}
+          >
+            <Icon size={16} color={ativo ? theme.mint : theme.textMuted} />
+            <div className="min-w-0">
+              <div style={{ color: theme.text, fontFamily: BODY_FONT, fontWeight: 600, fontSize: 14 }}>{n.label}</div>
+              <div style={{ color: theme.textMuted, fontFamily: BODY_FONT, fontSize: 12 }}>{n.desc}</div>
+            </div>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function NovoUsuarioModal({ onClose, onSaved }) {
   const [username, setUsername] = useState("");
   const [senha, setSenha] = useState("");
   const [confirmar, setConfirmar] = useState("");
+  const [role, setRole] = useState("editor");
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState("");
 
@@ -5020,7 +5084,7 @@ function NovoUsuarioModal({ onClose, onSaved }) {
     }
     setEnviando(true);
     setErro("");
-    const resultado = await chamarAdminApi("criar", { username, senha });
+    const resultado = await chamarAdminApi("criar", { username, senha, role });
     setEnviando(false);
     if (!resultado.ok) {
       setErro(resultado.erro);
@@ -5035,6 +5099,8 @@ function NovoUsuarioModal({ onClose, onSaved }) {
       <input style={inputStyle} value={username} onChange={(e) => setUsername(e.target.value)} autoFocus />
       <CampoSenha label="Senha (mínimo 6 caracteres)" value={senha} onChange={(e) => setSenha(e.target.value)} autoComplete="new-password" />
       <CampoSenha label="Confirmar senha" value={confirmar} onChange={(e) => setConfirmar(e.target.value)} autoComplete="new-password" />
+      <FieldLabel>Nível de acesso</FieldLabel>
+      <SeletorNivel value={role} onChange={setRole} />
       {erro && (
         <div className="text-xs mb-3 flex items-center gap-1" style={{ color: theme.coral, fontFamily: BODY_FONT }}>
           <AlertTriangle size={13} /> {erro}
@@ -5131,6 +5197,16 @@ function UsuariosSection({ meuId }) {
     carregar();
   };
 
+  const alternarRole = async (usuario) => {
+    const novoRole = usuario.role === "editor" ? "visualizador" : "editor";
+    const resultado = await chamarAdminApi("definir-role", { userId: usuario.id, role: novoRole });
+    if (!resultado.ok) {
+      setErro(resultado.erro);
+      return;
+    }
+    carregar();
+  };
+
   return (
     <div className="rounded-2xl p-4 mb-4" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
       <div className="flex items-center justify-between mb-3">
@@ -5162,12 +5238,23 @@ function UsuariosSection({ meuId }) {
                 <div style={{ color: theme.text, fontFamily: BODY_FONT, fontWeight: 600 }} className="truncate">
                   {u.username}
                 </div>
-                {u.role === "admin" && (
+                {u.role === "admin" ? (
                   <span
                     className="text-xs font-semibold rounded-full px-2 py-0.5 flex items-center gap-1 flex-shrink-0"
                     style={{ background: hexToRgba(theme.amber, 0.18), color: theme.amber }}
                   >
                     <ShieldCheck size={11} /> Admin
+                  </span>
+                ) : (
+                  <span
+                    className="text-xs font-semibold rounded-full px-2 py-0.5 flex items-center gap-1 flex-shrink-0"
+                    style={{
+                      background: hexToRgba(u.role === "editor" ? theme.blue : theme.textMuted, 0.18),
+                      color: u.role === "editor" ? theme.blue : theme.textMuted,
+                    }}
+                  >
+                    {u.role === "editor" ? <Pencil size={11} /> : <Eye size={11} />}
+                    {u.role === "editor" ? "Editor" : "Visualizador"}
                   </span>
                 )}
                 {!u.ativo && (
@@ -5180,6 +5267,16 @@ function UsuariosSection({ meuId }) {
                 )}
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
+                {u.role !== "admin" && (
+                  <button
+                    onClick={() => alternarRole(u)}
+                    className="mbr-hover-grow"
+                    style={{ color: theme.textMuted }}
+                    title={u.role === "editor" ? "Trocar pra Visualizador" : "Trocar pra Editor"}
+                  >
+                    {u.role === "editor" ? <Eye size={15} /> : <Pencil size={15} />}
+                  </button>
+                )}
                 <button
                   onClick={() => setModal({ type: "senha", usuario: u })}
                   className="mbr-hover-grow"
@@ -5352,6 +5449,8 @@ function ConfiguracoesView({ config, persist, perfil, onSignOut }) {
 
       {perfil?.role === "admin" && <UsuariosSection meuId={perfil.id} />}
 
+      {permissoes.podeEditar && (
+      <>
       <div className="rounded-2xl p-4 mb-4" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
         <FieldLabel>Logo da empresa</FieldLabel>
         <div className="flex items-center gap-3 mb-2">
@@ -5565,6 +5664,8 @@ function ConfiguracoesView({ config, persist, perfil, onSignOut }) {
           </div>
         </div>
       </div>
+      </>
+      )}
 
       {status.text && (
         <div
@@ -5873,6 +5974,12 @@ function AppAutenticado({ perfil, onSignOut }) {
   // recalcula o tema ativo (mutando o objeto compartilhado) a partir das configurações salvas —
   // como nenhum componente aqui usa memo, todo mundo lê os valores atualizados no próximo render
   Object.assign(theme, buildTheme(configState.value));
+
+  // mesma lógica pras permissões — "visualizador" nunca pode criar/editar/excluir nada,
+  // só o "admin" mexe em usuários. A trava de verdade fica no RLS do Supabase (schema.sql);
+  // isso aqui só evita mostrar botão de ação pra quem não pode usar
+  permissoes.podeEditar = perfil?.role === "admin" || perfil?.role === "editor";
+  permissoes.podeGerenciarUsuarios = perfil?.role === "admin";
 
   // cobre a área que aparece durante o "elástico" do scroll (Mac) — sem isso, dava pra
   // ver o fundo padrão (branco) do navegador atrás do site ao arrastar além do topo/fim
