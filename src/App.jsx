@@ -49,6 +49,7 @@ import {
   ShieldCheck,
   KeyRound,
   Ban,
+  Info,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -4010,7 +4011,7 @@ function BordaCometa({ color }) {
   );
 }
 
-function HeroStat({ label, value, format = formatCurrency, icon: Icon, accent, deltaPercent, deltaLabel, sparkData, fill }) {
+function HeroStat({ label, value, format = formatCurrency, icon: Icon, accent, deltaPercent, deltaLabel, sparkData, fill, detalhes }) {
   const hasDelta = deltaPercent !== null && deltaPercent !== undefined && Number.isFinite(deltaPercent);
   const gradId = `mbrSparkFill-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
   const brilho = mixColors(accent, "#FFFFFF", 0.65);
@@ -4018,14 +4019,57 @@ function HeroStat({ label, value, format = formatCurrency, icon: Icon, accent, d
   // girando no CARD, então nesses casos a borda fica neutra (só a luz da linha do
   // gráfico continua, essa não depende do valor estar em zero ou não)
   const semDestaque = !value;
+
+  // "detalhes" (o que compõe esse valor) abre num cartãozinho por cima — no
+  // mouse (hover) e/ou toque (clique/tap), sem precisar diferenciar celular de
+  // computador: hover abre sozinho no mouse (que não existe no toque), e o clique
+  // "fixa" aberto, o que cobre o toque igual. Fecha ao tocar fora, no toque.
+  const temDetalhes = Array.isArray(detalhes) && detalhes.length > 0;
+  const [hover, setHover] = useState(false);
+  const [fixado, setFixado] = useState(false);
+  const aberto = temDetalhes && (hover || fixado);
+  const cardRef = useRef(null);
+  const [popoverRect, setPopoverRect] = useState(null);
+  useEffect(() => {
+    if (!fixado) return;
+    const aoTocarFora = (e) => {
+      if (cardRef.current && !cardRef.current.contains(e.target)) setFixado(false);
+    };
+    document.addEventListener("pointerdown", aoTocarFora);
+    return () => document.removeEventListener("pointerdown", aoTocarFora);
+  }, [fixado]);
+  // o card tem :hover que aplica um transform (o "lift") — isso cria um novo contexto
+  // de empilhamento no CSS e prende o z-index do popover lá dentro, então ele nunca
+  // consegue aparecer por cima do card vizinho por mais alto que o z-index seja. Por
+  // isso o popover é desenhado direto no <body> (portal), com posição calculada a
+  // partir do card real, em vez de ficar aninhado dentro do card
+  useLayoutEffect(() => {
+    if (!aberto || !cardRef.current) return;
+    const medir = () => {
+      const r = cardRef.current.getBoundingClientRect();
+      setPopoverRect({ top: r.bottom + 8, left: r.left, width: r.width });
+    };
+    medir();
+    window.addEventListener("resize", medir);
+    window.addEventListener("scroll", medir, true);
+    return () => {
+      window.removeEventListener("resize", medir);
+      window.removeEventListener("scroll", medir, true);
+    };
+  }, [aberto]);
+
   return (
     <div
-      className={`relative rounded-2xl mbr-card-lift${fill ? " h-full" : ""}`}
+      ref={cardRef}
+      className={`relative rounded-2xl mbr-card-lift${fill ? " h-full" : ""}${temDetalhes ? " cursor-pointer" : ""}`}
       style={{
         background: `linear-gradient(150deg, ${theme.card} 0%, ${theme.card2} 130%)`,
         border: `1px solid ${semDestaque ? theme.cardBorder : `${accent}55`}`,
         boxShadow: semDestaque ? "0 2px 12px rgba(0,0,0,0.22)" : `0 2px 12px rgba(0,0,0,0.22), 0 0 28px ${accent}1F`,
       }}
+      onMouseEnter={temDetalhes ? () => setHover(true) : undefined}
+      onMouseLeave={temDetalhes ? () => setHover(false) : undefined}
+      onClick={temDetalhes ? () => setFixado((v) => !v) : undefined}
     >
       {!semDestaque && <BordaCometa color={brilho} />}
       <div
@@ -4034,8 +4078,9 @@ function HeroStat({ label, value, format = formatCurrency, icon: Icon, accent, d
         }}
       >
         <div className="flex items-center justify-between gap-2 min-w-0">
-          <span className="text-xs uppercase tracking-wide truncate" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+          <span className="text-xs uppercase tracking-wide truncate flex items-center gap-1" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
             {label}
+            {temDetalhes && <Info size={11} style={{ flexShrink: 0, opacity: 0.7 }} />}
           </span>
           <div
             className="rounded-full flex items-center justify-center flex-shrink-0"
@@ -4105,6 +4150,39 @@ function HeroStat({ label, value, format = formatCurrency, icon: Icon, accent, d
           </div>
         )}
       </div>
+      {aberto &&
+        popoverRect &&
+        createPortal(
+          <div
+            className="fixed rounded-2xl p-3 mbr-fade-in"
+            style={{
+              top: popoverRect.top,
+              left: popoverRect.left,
+              width: popoverRect.width,
+              zIndex: 100,
+              background: theme.panel,
+              border: `1px solid ${theme.cardBorder}`,
+              boxShadow: "0 8px 24px rgba(0,0,0,0.35)",
+            }}
+            // clicar dentro do cartão de detalhes não deve fechar ele (o listener de
+            // "tocar fora" só olha pra fora do card inteiro, isso aqui é redundante mas
+            // evita o próprio clique de abrir/fechar do card pai disparar de novo
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex flex-col gap-1.5">
+              {detalhes.map((d, i) => (
+                <div key={i} className="flex items-center justify-between gap-3 text-xs" style={{ fontFamily: BODY_FONT }}>
+                  <span style={{ color: theme.textMuted }}>{d.label}</span>
+                  <span style={{ color: d.cor || theme.text, fontWeight: 700, whiteSpace: "nowrap" }}>
+                    {d.valor < 0 ? "- " : ""}
+                    {formatCurrency(Math.abs(d.valor))}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   );
 }
@@ -4274,6 +4352,34 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
   const saidasMes = saidasOperacionaisMes + manutencaoMes;
   const lucroMes = entradasMes - saidasMes;
   const margemLucro = entradasMes > 0 ? (lucroMes / entradasMes) * 100 : 0;
+
+  // detalhamento pro cartão que abre no hover/toque do Faturamento e do Lucro — agrupa
+  // por categoria (entradas) / natureza (saídas) em vez de listar lançamento por
+  // lançamento, senão um mês com muitos lançamentos ficaria com uma lista enorme
+  const agruparPorChave = (lista, chaveFn, valorFn) => {
+    const porChave = new Map();
+    lista.forEach((item) => {
+      const chave = chaveFn(item) || "Sem categoria";
+      porChave.set(chave, (porChave.get(chave) || 0) + Number(valorFn(item)));
+    });
+    return [...porChave.entries()].sort((a, b) => b[1] - a[1]);
+  };
+  const detalhesFaturamento = agruparPorChave(
+    lancamentos.filter((l) => l.tipo === "entrada" && noMes(l.data)),
+    (l) => l.categoria,
+    (l) => l.valor
+  ).map(([label, valor]) => ({ label, valor, cor: theme.mint }));
+  const detalhesLucro = (() => {
+    const itens = [{ label: "Entradas", valor: entradasMes, cor: theme.mint }];
+    agruparPorChave(
+      lancamentos.filter((l) => l.tipo === "saida" && l.natureza !== "Expansão" && noMes(l.data)),
+      (l) => l.natureza,
+      (l) => l.valor
+    ).forEach(([natureza, valor]) => itens.push({ label: natureza, valor: -valor, cor: theme.coral }));
+    if (manutencaoMes > 0) itens.push({ label: "Manutenção", valor: -manutencaoMes, cor: theme.coral });
+    itens.push({ label: lucroMes >= 0 ? "Lucro" : "Prejuízo", valor: lucroMes, cor: lucroMes >= 0 ? theme.mint : theme.coral });
+    return itens;
+  })();
 
   const [refAno, refMesNum] = mesRef.split("-").map(Number);
 
@@ -4524,6 +4630,7 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
             deltaPercent={deltaFaturamento}
             deltaLabel={`vs ${rotuloMesAnterior}`}
             sparkData={sparkFaturamento}
+            detalhes={detalhesFaturamento}
             fill
           />
           <div className="grid grid-rows-2 gap-3">
@@ -4535,6 +4642,7 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
               accent={lucroMes >= 0 ? theme.mint : theme.coral}
               deltaPercent={deltaLucro}
               deltaLabel={`vs ${rotuloMesAnterior}`}
+              detalhes={detalhesLucro}
               fill
             />
             <RadialStat
