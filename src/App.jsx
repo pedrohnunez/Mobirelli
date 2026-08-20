@@ -130,7 +130,7 @@ function buildTheme(config) {
     bg,
     panel: mixColors(bg, text, 0.07),
     card: mixColors(bg, text, 0.09),
-    card2: mixColors(bg, text, 0.14),
+    card2: mixColors(bg, text, 0.115),
     cardBorder: mixColors(bg, text, 0.26),
     text,
     textMuted: mixColors(bg, text, 0.55),
@@ -3956,11 +3956,10 @@ function BordaCometa({ color }) {
   const DURACAO = 5;
   const totalSpan = Math.max(14, perimetro * 0.085);
   const nucleo = totalSpan * 0.4;
-  const meio = totalSpan * 0.7;
   const externo = totalSpan;
   const atraso = (comprimento) => (perimetro > 0 ? ((comprimento - nucleo) / 2 / perimetro) * DURACAO : 0);
   const styleAnim = { "--mbr-perimetro-neg": `${-perimetro}px` };
-  // três cópias do mesmo traço, do mais largo (bem apagado e borrado) ao mais estreito
+  // várias cópias do mesmo traço, do mais largo (bem apagado e borrado) ao mais estreito
   // (bem vivo, sem blur) — todas centradas no mesmo ponto (o atraso de fase compensa a
   // diferença de comprimento), então o meio da luz fica bem iluminado e as duas pontas
   // vão esmaecendo gradualmente, em vez de um traço com brilho parelho do início ao fim
@@ -3978,6 +3977,21 @@ function BordaCometa({ color }) {
     className: "mbr-borda-cometa",
     style: { ...styleAnim, animationDelay: `${atraso(comprimento)}s`, filter: blurPx ? `blur(${blurPx}px)` : undefined },
   });
+  // antes eram só 3 camadas com opacidade fixa cada — o corte abrupto no fim de cada
+  // traço (stroke-dasharray não tem gradiente embutido) criava "degraus" visíveis em vez
+  // de um esmaecimento suave. Gerando mais camadas com opacidade caindo numa curva (em
+  // vez de 3 saltos) o degradê fica contínuo — sem mudar a duração nem o movimento
+  const NUM_CAMADAS = 7;
+  const OPACIDADE_NUCLEO = 0.4;
+  const camadas = Array.from({ length: NUM_CAMADAS }, (_, i) => {
+    const t = i / (NUM_CAMADAS - 1); // 0 = núcleo, 1 = ponta externa
+    const comprimento = nucleo + (externo - nucleo) * t;
+    const opacidade = OPACIDADE_NUCLEO * Math.pow(1 - t, 1.6);
+    // nem o núcleo fica 100% nítido (0.4px de blur mínimo) — evita o "fio" de luz cortado
+    // à faca que ficava destacado demais no meio do resto, todo suave/borrado
+    const blurPx = 0.4 + t * 1.8;
+    return camada(comprimento, opacidade, blurPx);
+  });
   return (
     <div ref={wrapRef} className="absolute" style={{ inset: -1, pointerEvents: "none" }}>
       {perimetro > 0 && (
@@ -3987,9 +4001,9 @@ function BordaCometa({ color }) {
               borda, cantos ou lados retos, porque é uma largura de traço fixa, não um
               gradiente angular (esse era o problema da versão antiga em conic-gradient:
               ficava fino perto dos cantos e "gordo" no meio dos lados horizontais) */}
-          <rect {...camada(externo, 0.1, 2)} />
-          <rect {...camada(meio, 0.2, 1)} />
-          <rect {...camada(nucleo, 0.42, 0)} />
+          {camadas.map((props, i) => (
+            <rect key={i} {...props} />
+          ))}
         </svg>
       )}
     </div>
