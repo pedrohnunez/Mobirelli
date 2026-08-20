@@ -43,7 +43,6 @@ import {
   ExternalLink,
   Eye,
   EyeOff,
-  Undo2,
   LogOut,
   Lock,
   ShieldCheck,
@@ -69,29 +68,30 @@ import {
 } from "recharts";
 
 /* ===========================================================
-   THEME — verde floresta (fundo), mint (marca), âmbar/coral (sinalização)
-   inspirado diretamente na identidade visual da mobi relli
+   THEME — sistema de design fixo: cinza-grafite neutro, verde da marca
+   como único destaque, zero bordas visíveis (superfícies separadas por
+   contraste, não por contorno)
 =========================================================== */
-const DEFAULT_THEME = {
-  bg: "#141715",
-  mint: "#2FA666",
-  amber: "#C9A24B",
-  coral: "#D9694F",
-  blue: "#6FA8D8",
-};
-
-// objeto mutável — lido "ao vivo" por todos os componentes a cada renderização,
-// então recalculá-lo em buildTheme()/Object.assign no topo do App já repinta tudo
 const theme = {
-  ...DEFAULT_THEME,
-  panel: "#1B1F1C",
-  card: "#1F2421",
-  card2: "#262B27",
-  cardBorder: "#232825",
+  bg: "#121212",
+  panel: "#1A1A1A",
+  card: "#1A1A1A",
+  card2: "#242420",
+  // sem bordas em card/badge/avatar/ícone — único uso permitido é como divisor
+  // fino (borderTop/Bottom) entre linhas de uma lista, nunca como caixa
+  cardBorder: "transparent",
+  divider: "#242420",
+  mint: "#2FA666",
   mintText: "#0E2116",
   sage: "#6FA087",
-  text: "#EDF5EF",
-  textMuted: "#8B948E",
+  amber: "#D9A25A",
+  coral: "#D9695E",
+  text: "#F5F4EF",
+  textMuted: "#8A8D85",
+  textFaint: "#5A5D58",
+  outline: "#2A2E29",
+  outlineText: "#C7CAC2",
+  chartMuted: "#4A4D48",
 };
 
 // mesma ideia do "theme" acima — mutado uma vez no topo de AppAutenticado (a partir do
@@ -117,49 +117,14 @@ const mixColors = (hexA, hexB, t) => {
   const b = hexToRgb(hexB);
   return rgbToHex({ r: a.r + (b.r - a.r) * t, g: a.g + (b.g - a.g) * t, b: a.b + (b.b - a.b) * t });
 };
-const luminance = (hex) => {
-  const { r, g, b } = hexToRgb(hex);
-  return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-};
-const contrastText = (hex) => (luminance(hex) > 0.6 ? "#0E2116" : "#EDF5EF");
-
-function buildTheme(config) {
-  const bg = (config && config.bg) || DEFAULT_THEME.bg;
-  const accent = (config && config.accent) || DEFAULT_THEME.amber;
-  const brand = (config && config.brand) || DEFAULT_THEME.mint;
-  const coral = (config && config.coral) || DEFAULT_THEME.coral;
-  const blue = (config && config.blue) || DEFAULT_THEME.blue;
-  const text = contrastText(bg);
-  return {
-    bg,
-    // superfícies separadas por contraste sutil (elevação), não por contorno desenhado —
-    // cada nível (panel < card < card2) é um pouco mais claro que o de baixo
-    panel: mixColors(bg, text, 0.05),
-    card: mixColors(bg, text, 0.08),
-    card2: mixColors(bg, text, 0.12),
-    // quase invisível de propósito — ainda existe pra servir de linha fina divisória
-    // dentro de listas (ex: entre um lançamento e outro), mas não desenha "caixa" em
-    // volta de card/botão/badge nenhum
-    cardBorder: mixColors(bg, text, 0.09),
-    text,
-    textMuted: mixColors(bg, text, 0.55),
-    mint: brand,
-    mintText: contrastText(brand),
-    sage: mixColors(brand, bg, 0.45),
-    amber: accent,
-    coral,
-    blue,
-  };
-}
-
-// só 2 pesos no app inteiro (regular e semibold) — números grandes/títulos usam o
-// semibold da Inter Tight (geométrica, mais "cheia" que a Inter comum) num tamanho
-// grande, em vez de depender de um peso extra-bold só pra parecer "forte"
+// títulos usam Inter Tight peso 700 (geométrica, mais "cheia"); o resto da interface
+// usa Inter em só 2 pesos (400 regular e 600 semibold)
 const HEAD_FONT = "'Inter Tight', -apple-system, BlinkMacSystemFont, system-ui, sans-serif";
 const BODY_FONT = "'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif";
+const MONO_FONT = "'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace";
 
 const fontImport = `
-@import url('https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;600&family=Inter:wght@400;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter+Tight:wght@700&family=Inter:wght@400;600&family=IBM+Plex+Mono:wght@500&display=swap');
 `;
 
 /* ===========================================================
@@ -687,20 +652,17 @@ function MotoPlate({ placa, size = "normal" }) {
   return (
     <div
       style={{
-        background: theme.bg,
-        border: `${grande ? 3 : 2}px solid ${theme.amber}`,
+        background: theme.card2,
         borderRadius: grande ? 9 : 6,
         padding: grande ? "6px 14px" : "3px 9px",
         display: "inline-flex",
         alignItems: "center",
-        gap: grande ? 9 : 6,
       }}
     >
-      <div style={{ width: grande ? 9 : 6, height: grande ? 22 : 14, background: theme.blue, borderRadius: 2 }} />
       <span
         style={{
-          fontFamily: "monospace",
-          fontWeight: 700,
+          fontFamily: MONO_FONT,
+          fontWeight: 500,
           letterSpacing: grande ? 2 : 1.5,
           fontSize: grande ? 22 : 14,
           color: theme.text,
@@ -850,7 +812,7 @@ function PdfViewer({ url, title, onClose }) {
       >
         <div
           className="flex items-center justify-between px-4 py-3 gap-3"
-          style={{ borderBottom: `1px solid ${theme.cardBorder}`, background: theme.card }}
+          style={{ borderBottom: `1px solid ${theme.divider}`, background: theme.card }}
         >
           <span style={{ fontFamily: HEAD_FONT, fontSize: 15, color: theme.text }} className="truncate">
             {title}
@@ -861,7 +823,7 @@ function PdfViewer({ url, title, onClose }) {
               target="_blank"
               rel="noreferrer"
               className="inline-flex items-center gap-1 text-xs font-semibold mbr-hover-grow"
-              style={{ color: theme.blue }}
+              style={{ color: theme.mint }}
             >
               <ExternalLink size={13} /> Nova aba
             </a>
@@ -961,7 +923,7 @@ function AnexoField({ label, linkValue, storageKey, fileName, onChange }) {
           type="button"
           onClick={() => inputRef.current?.click()}
           className="text-xs font-semibold rounded-xl px-3 py-1.5"
-          style={{ border: `1px solid ${theme.cardBorder}`, color: theme.text }}
+          style={{ border: `1px solid ${theme.outline}`, color: theme.outlineText }}
         >
           Anexar arquivo
         </button>
@@ -972,7 +934,7 @@ function AnexoField({ label, linkValue, storageKey, fileName, onChange }) {
               target="_blank"
               rel="noreferrer"
               className="text-xs font-semibold rounded-xl px-3 py-1.5 flex items-center gap-1"
-              style={{ background: theme.mint, color: theme.mintText }}
+              style={{ background: theme.mint, color: theme.text, fontWeight: 600 }}
             >
               <FileText size={12} /> {fileName}
             </a>
@@ -1013,7 +975,7 @@ function ContratoAnexosButton({ anexos, label = "Contrato", tituloPreview, onAbr
       <button
         onClick={() => onAbrir(anexos[0].link, tituloPreview)}
         className="inline-flex items-center gap-1.5 text-xs font-semibold rounded-xl px-3 mbr-hover-grow"
-        style={{ background: theme.card2, color: theme.blue, minHeight: 40 }}
+        style={{ background: theme.card2, color: theme.mint, minHeight: 44 }}
       >
         <FileText size={13} /> {label}
       </button>
@@ -1025,7 +987,7 @@ function ContratoAnexosButton({ anexos, label = "Contrato", tituloPreview, onAbr
       <button
         onClick={() => setAberto((v) => !v)}
         className="inline-flex items-center gap-1.5 text-xs font-semibold rounded-xl px-3 mbr-hover-grow"
-        style={{ background: theme.card2, color: theme.blue, minHeight: 40 }}
+        style={{ background: theme.card2, color: theme.mint, minHeight: 44 }}
       >
         <FileText size={13} /> {label} ({anexos.length})
       </button>
@@ -1044,7 +1006,7 @@ function ContratoAnexosButton({ anexos, label = "Contrato", tituloPreview, onAbr
                   setAberto(false);
                 }}
                 className="flex items-center gap-2 px-3 py-2 text-xs text-left mbr-hover-grow"
-                style={{ color: theme.text, borderBottom: i < anexos.length - 1 ? `1px solid ${theme.cardBorder}` : "none" }}
+                style={{ color: theme.text, borderBottom: i < anexos.length - 1 ? `1px solid ${theme.divider}` : "none" }}
               >
                 <FileText size={12} /> Página {i + 1}
               </button>
@@ -1123,7 +1085,7 @@ function ValorComDetalhe({ children, itens, fmt }) {
                 <div
                   key={i}
                   className="flex items-center justify-between gap-3 text-xs py-1"
-                  style={{ color: theme.text, fontFamily: BODY_FONT, borderBottom: i < itens.length - 1 ? `1px solid ${theme.cardBorder}` : "none" }}
+                  style={{ color: theme.text, fontFamily: BODY_FONT, borderBottom: i < itens.length - 1 ? `1px solid ${theme.divider}` : "none" }}
                 >
                   <span className="truncate">{it.label}</span>
                   <span style={{ fontWeight: 700, flexShrink: 0 }}>{fmt(it.total)}</span>
@@ -1196,7 +1158,7 @@ function AnexoMultiField({ label, anexos, storageKey, onChange }) {
           type="button"
           onClick={adicionarLink}
           className="rounded-xl px-3 text-sm font-semibold flex-shrink-0"
-          style={{ border: `1px solid ${theme.cardBorder}`, color: theme.text }}
+          style={{ border: `1px solid ${theme.outline}`, color: theme.outlineText }}
         >
           +
         </button>
@@ -1206,7 +1168,7 @@ function AnexoMultiField({ label, anexos, storageKey, onChange }) {
         type="button"
         onClick={() => inputRef.current?.click()}
         className="text-xs font-semibold rounded-xl px-3 py-1.5 mb-2"
-        style={{ border: `1px solid ${theme.cardBorder}`, color: theme.text }}
+        style={{ border: `1px solid ${theme.outline}`, color: theme.outlineText }}
       >
         Anexar arquivo(s)
       </button>
@@ -1362,7 +1324,7 @@ function ClienteFormModal({ cliente, onClose, onSave, title }) {
           />
         </div>
       </Row2>
-      <button onClick={() => onSave(form)} className="w-full rounded-xl py-2 font-semibold mt-1" style={{ background: theme.mint, color: theme.mintText }}>
+      <button onClick={() => onSave(form)} className="w-full rounded-xl py-2 font-semibold mt-1" style={{ background: theme.mint, color: theme.text, fontWeight: 600 }}>
         Salvar
       </button>
     </Modal>
@@ -1457,7 +1419,7 @@ function VincularMotoModal({ cliente, motosDisponiveis, onClose, onSave }) {
           onSave({ motoId, contrato: { ...contrato, id: contratoId, valorMensal: Number(contrato.valorMensal) || 0 } })
         }
         className="w-full rounded-xl py-2 font-semibold mt-1"
-        style={{ background: theme.mint, color: theme.mintText }}
+        style={{ background: theme.mint, color: theme.text, fontWeight: 600 }}
       >
         Confirmar vínculo
       </button>
@@ -1502,12 +1464,12 @@ function ClientesView({ clientes, persistClientes, motos, persistMotos }) {
   return (
     <div>
       <div className="flex items-center justify-between mb-3">
-        <h2 style={{ fontFamily: HEAD_FONT, fontSize: 22, fontWeight: 800, color: theme.mint }}>Clientes</h2>
+        <h2 style={{ fontFamily: HEAD_FONT, fontSize: 22, fontWeight: 700, color: theme.mint }}>Clientes</h2>
         {permissoes.podeEditar && (
           <button
             onClick={() => setModal({ mode: "novo", cliente: emptyCliente() })}
             className="flex items-center gap-1 rounded-xl px-3 py-2 text-sm font-semibold"
-            style={{ background: theme.mint, color: theme.mintText }}
+            style={{ background: theme.mint, color: theme.text, fontWeight: 600 }}
           >
             <Plus size={16} /> Novo cliente
           </button>
@@ -1544,10 +1506,10 @@ function ClientesView({ clientes, persistClientes, motos, persistMotos }) {
               <button className="w-full flex items-center gap-3 justify-between px-4 py-3 text-left" onClick={() => setExpandido(aberto ? null : c.id)}>
                 <div className="flex items-center gap-3 min-w-0">
                   <div
-                    className="rounded-full flex items-center justify-center flex-shrink-0"
-                    style={{ width: 36, height: 36, background: `linear-gradient(150deg, ${theme.blue}3D 0%, ${theme.blue}14 100%)` }}
+                    className="flex items-center justify-center flex-shrink-0"
+                    style={{ width: 28, height: 28, borderRadius: 8, background: theme.card2 }}
                   >
-                    <Users size={16} color={theme.blue} />
+                    <Users size={16} color={theme.textMuted} />
                   </div>
                   <div className="flex flex-col gap-1.5 min-w-0">
                     <div style={{ fontFamily: HEAD_FONT, fontSize: 17, color: theme.text }}>{c.nome || "Sem nome"}</div>
@@ -1615,8 +1577,8 @@ function ClientesView({ clientes, persistClientes, motos, persistMotos }) {
                   {!motoVinculada && permissoes.podeEditar && (
                     <button
                       onClick={() => setModal({ mode: "vincular", cliente: c })}
-                      className="text-xs font-semibold rounded-xl px-3 py-1.5 mb-2"
-                      style={{ background: theme.amber, color: theme.mintText }}
+                      className="text-xs font-semibold rounded-xl px-3 mb-2"
+                      style={{ background: theme.mint, color: theme.text, minHeight: 44 }}
                     >
                       Vincular a uma moto disponível
                     </button>
@@ -1627,7 +1589,7 @@ function ClientesView({ clientes, persistClientes, motos, persistMotos }) {
                       <button
                         onClick={() => setModal({ mode: "editar", cliente: c })}
                         className="text-xs font-semibold rounded-xl px-3 py-1.5 flex items-center gap-1"
-                        style={{ border: `1px solid ${theme.cardBorder}`, color: theme.text }}
+                        style={{ border: `1px solid ${theme.outline}`, color: theme.outlineText }}
                       >
                         <Pencil size={12} /> Editar
                       </button>
@@ -1735,7 +1697,7 @@ const RASTREIO_LEGENDA = [
 ];
 
 function rastreioMarkerHtml(placa, corHex) {
-  const rotulo = `<div style="background:${theme.bg};border:1.5px solid ${corHex};border-radius:6px;padding:2px 7px;display:flex;align-items:center;gap:5px;white-space:nowrap;"><div style="width:5px;height:12px;background:${theme.blue};border-radius:2px;flex-shrink:0;"></div><span style="font-family:monospace;font-weight:700;font-size:11px;letter-spacing:0.5px;color:${theme.text};">${formatPlaca(placa)}</span></div>`;
+  const rotulo = `<div style="background:${theme.card2};border-radius:6px;padding:2px 7px;display:flex;align-items:center;white-space:nowrap;"><span style="font-family:${MONO_FONT};font-weight:500;font-size:11px;letter-spacing:0.5px;color:${theme.text};">${formatPlaca(placa)}</span></div>`;
   return `
     <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
       <div style="width:13px;height:13px;border-radius:50%;background:${corHex};box-shadow:0 0 0 5px ${corHex}33,0 1px 3px rgba(0,0,0,0.5);"></div>
@@ -1750,14 +1712,14 @@ function rastreioPopupHtml(placa, device, moto, clienteNome) {
   const statusTxt = device?.online === "offline" ? "Offline" : velocidade > 0 ? `Em movimento · ${Math.round(velocidade)} km/h` : "Parada";
   const modelo = moto?.modelo ? `<div style="font-size:12px;color:${theme.textMuted};margin-top:2px;">${moto.modelo}</div>` : "";
   const contrato = moto?.contratoAtual
-    ? `<div style="margin-top:6px;padding-top:6px;border-top:1px solid ${theme.cardBorder};font-size:12px;color:${theme.textMuted};">
+    ? `<div style="margin-top:6px;padding-top:6px;border-top:1px solid ${theme.divider};font-size:12px;color:${theme.textMuted};">
          ${clienteNome ? `Cliente: <b style="color:${theme.text}">${clienteNome}</b><br/>` : ""}
          <span style="color:${theme.amber};font-weight:700;">${new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(moto.contratoAtual.valorMensal || 0)}</span>/mês
        </div>`
     : "";
   return `
     <div style="font-family:${BODY_FONT};min-width:150px;">
-      <div style="display:flex;align-items:center;gap:6px;"><div style="width:6px;height:14px;background:${theme.blue};border-radius:2px;flex-shrink:0;"></div><span style="font-family:monospace;font-weight:700;font-size:14px;letter-spacing:1px;color:${theme.text};">${formatPlaca(placa)}</span></div>
+      <div style="display:flex;align-items:center;"><span style="font-family:${MONO_FONT};font-weight:500;font-size:14px;letter-spacing:1px;color:${theme.text};">${formatPlaca(placa)}</span></div>
       ${modelo}
       <div style="font-size:12px;margin-top:4px;color:${cor};font-weight:600;">${statusTxt}</div>
       ${contrato}
@@ -2122,8 +2084,8 @@ function MotoTrackingBlock({ link, placa }) {
       <button
         type="button"
         onClick={() => setAberto((v) => !v)}
-        className="flex items-center gap-1.5 text-xs font-semibold rounded-xl px-3 py-1.5"
-        style={{ background: hexToRgba(theme.blue, 0.16), color: theme.blue }}
+        className="flex items-center gap-1.5 text-xs font-semibold rounded-xl px-3"
+        style={{ background: hexToRgba(theme.mint, 0.16), color: theme.mint, minHeight: 44 }}
       >
         <MapPin size={13} /> {aberto ? "Ocultar localização" : "Ver localização em tempo real"}
       </button>
@@ -2232,7 +2194,7 @@ function MotoFormModal({ moto, onClose, onSave, title }) {
       <div className="text-xs -mt-2 mb-3" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
         Na Melocaliza: Compartilhar localização → Novo → escolha esta moto → validade "Nenhum" → copie o link gerado.
       </div>
-      <button onClick={() => onSave(form)} className="w-full rounded-xl py-2 font-semibold mt-1" style={{ background: theme.mint, color: theme.mintText }}>
+      <button onClick={() => onSave(form)} className="w-full rounded-xl py-2 font-semibold mt-1" style={{ background: theme.mint, color: theme.text, fontWeight: 600 }}>
         Salvar
       </button>
     </Modal>
@@ -2452,7 +2414,7 @@ function ContratoModal({ moto, clientes, onClose, onSave, editando }) {
           })
         }
         className="w-full rounded-xl py-2 font-semibold mt-1"
-        style={{ background: theme.mint, color: theme.mintText }}
+        style={{ background: theme.mint, color: theme.text, fontWeight: 600 }}
       >
         {editando ? "Salvar contrato" : "Confirmar aluguel"}
       </button>
@@ -2483,7 +2445,7 @@ function CustoExtraModal({ onClose, onSave }) {
       <button
         onClick={() => onSave({ ...form, valorGasto: Number(form.valorGasto) || 0 })}
         className="w-full rounded-xl py-2 font-semibold mt-1"
-        style={{ background: theme.mint, color: theme.mintText }}
+        style={{ background: theme.mint, color: theme.text, fontWeight: 600 }}
       >
         Salvar
       </button>
@@ -2518,7 +2480,7 @@ function ManutencaoModal({ onClose, onSave }) {
       <button
         onClick={() => onSave({ ...form, valorGasto: Number(form.valorGasto) || 0 })}
         className="w-full rounded-xl py-2 font-semibold mt-1"
-        style={{ background: theme.mint, color: theme.mintText }}
+        style={{ background: theme.mint, color: theme.text, fontWeight: 600 }}
       >
         Salvar
       </button>
@@ -2557,7 +2519,7 @@ function ConsultaPlacaModal({ onClose }) {
 
   const Campo = ({ label, valor }) =>
     valor ? (
-      <div className="flex justify-between text-sm py-1.5" style={{ borderBottom: `1px solid ${theme.cardBorder}` }}>
+      <div className="flex justify-between text-sm py-1.5" style={{ borderBottom: `1px solid ${theme.divider}` }}>
         <span style={{ color: theme.textMuted }}>{label}</span>
         <span style={{ color: theme.text, fontWeight: 600, textAlign: "right" }}>{String(valor)}</span>
       </div>
@@ -2579,7 +2541,7 @@ function ConsultaPlacaModal({ onClose }) {
           onClick={consultar}
           disabled={status === "carregando"}
           className="rounded-xl px-4 font-semibold text-sm"
-          style={{ background: theme.mint, color: theme.mintText, opacity: status === "carregando" ? 0.6 : 1 }}
+          style={{ background: theme.mint, color: theme.text, fontWeight: 600, opacity: status === "carregando" ? 0.6 : 1 }}
         >
           Consultar
         </button>
@@ -2756,12 +2718,12 @@ function MotosView({ motos, persist, clientes, persistClientes, config, lancamen
   return (
     <div>
       <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
-        <h2 style={{ fontFamily: HEAD_FONT, fontSize: 22, fontWeight: 800, color: theme.mint }}>Motos</h2>
+        <h2 style={{ fontFamily: HEAD_FONT, fontSize: 22, fontWeight: 700, color: theme.mint }}>Motos</h2>
         <div className="flex items-center gap-2">
           <button
             onClick={() => setModal({ type: "consulta" })}
             className="flex items-center gap-1 rounded-xl px-3 py-2 text-sm font-semibold"
-            style={{ border: `1px solid ${theme.cardBorder}`, color: theme.text }}
+            style={{ border: `1px solid ${theme.outline}`, color: theme.outlineText }}
           >
             <Search size={15} /> Consultar placa
           </button>
@@ -2769,7 +2731,7 @@ function MotosView({ motos, persist, clientes, persistClientes, config, lancamen
             <button
               onClick={() => setModal({ type: "moto", mode: "novo", moto: emptyMoto() })}
               className="flex items-center gap-1 rounded-xl px-3 py-2 text-sm font-semibold"
-              style={{ background: theme.mint, color: theme.mintText }}
+              style={{ background: theme.mint, color: theme.text, fontWeight: 600 }}
             >
               <Plus size={16} /> Nova moto
             </button>
@@ -2804,10 +2766,10 @@ function MotosView({ motos, persist, clientes, persistClientes, config, lancamen
               <button className="w-full flex items-center gap-3 justify-between px-4 py-3 text-left" onClick={() => setExpandido(aberto ? null : moto.id)}>
                 <div className="flex items-center gap-3 min-w-0">
                   <div
-                    className="rounded-full flex items-center justify-center flex-shrink-0"
-                    style={{ width: 36, height: 36, background: `linear-gradient(150deg, ${theme.mint}3D 0%, ${theme.mint}14 100%)` }}
+                    className="flex items-center justify-center flex-shrink-0"
+                    style={{ width: 28, height: 28, borderRadius: 8, background: theme.card2 }}
                   >
-                    <Bike size={16} color={theme.mint} />
+                    <Bike size={16} color={theme.textMuted} />
                   </div>
                   <div className="flex flex-col gap-3 min-w-0">
                     <MotoPlate placa={moto.placa} />
@@ -2831,43 +2793,43 @@ function MotosView({ motos, persist, clientes, persistClientes, config, lancamen
 
                   <MotoTrackingBlock link={moto.linkRastreamento || config?.linkRastreioGeral} placa={moto.placa} />
 
-                  <div className="flex items-center gap-2 flex-wrap mb-3">
+                  <div className="grid grid-cols-2 gap-2 mb-3">
                     {notaFiscalAnexosOf(moto).map((a, i, lista) => (
                       <button
                         key={`nf-${i}`}
                         onClick={() => setPreview({ url: a.link, title: `Nota fiscal — ${formatPlaca(moto.placa)}` })}
-                        className="inline-flex items-center gap-1.5 text-xs font-semibold rounded-xl px-3 mbr-hover-grow"
-                        style={{ background: theme.card2, color: theme.blue, minHeight: 40 }}
+                        className="flex items-center justify-center gap-1.5 text-xs font-semibold rounded-xl px-2 text-center mbr-hover-grow"
+                        style={{ background: theme.card2, color: theme.mint, minHeight: 44 }}
                       >
-                        <FileText size={13} /> {lista.length > 1 ? `Nota fiscal ${i + 1}` : "Nota fiscal"}
+                        <FileText size={13} className="flex-shrink-0" /> {lista.length > 1 ? `Nota fiscal ${i + 1}` : "Nota fiscal"}
                       </button>
                     ))}
                     {notaFiscalFabricaAnexosOf(moto).map((a, i, lista) => (
                       <button
                         key={`nff-${i}`}
                         onClick={() => setPreview({ url: a.link, title: `Nota fiscal de fábrica — ${formatPlaca(moto.placa)}` })}
-                        className="inline-flex items-center gap-1.5 text-xs font-semibold rounded-xl px-3 mbr-hover-grow"
-                        style={{ background: theme.card2, color: theme.blue, minHeight: 40 }}
+                        className="flex items-center justify-center gap-1.5 text-xs font-semibold rounded-xl px-2 text-center mbr-hover-grow"
+                        style={{ background: theme.card2, color: theme.mint, minHeight: 44 }}
                       >
-                        <FileText size={13} /> {lista.length > 1 ? `Nota fiscal de fábrica ${i + 1}` : "Nota fiscal de fábrica"}
+                        <FileText size={13} className="flex-shrink-0" /> {lista.length > 1 ? `NF de fábrica ${i + 1}` : "NF de fábrica"}
                       </button>
                     ))}
                     {moto.documentoLink && (
                       <button
                         onClick={() => setPreview({ url: moto.documentoLink, title: `Documento — ${formatPlaca(moto.placa)}` })}
-                        className="inline-flex items-center gap-1.5 text-xs font-semibold rounded-xl px-3 mbr-hover-grow"
-                        style={{ background: theme.card2, color: theme.blue, minHeight: 40 }}
+                        className="flex items-center justify-center gap-1.5 text-xs font-semibold rounded-xl px-2 text-center mbr-hover-grow"
+                        style={{ background: theme.card2, color: theme.mint, minHeight: 44 }}
                       >
-                        <FileText size={13} /> Documento
+                        <FileText size={13} className="flex-shrink-0" /> Documento
                       </button>
                     )}
                     {moto.certificadoLink && (
                       <button
                         onClick={() => setPreview({ url: moto.certificadoLink, title: `Certificado de garantia — ${formatPlaca(moto.placa)}` })}
-                        className="inline-flex items-center gap-1.5 text-xs font-semibold rounded-xl px-3 mbr-hover-grow"
-                        style={{ background: theme.card2, color: theme.blue, minHeight: 40 }}
+                        className="flex items-center justify-center gap-1.5 text-xs font-semibold rounded-xl px-2 text-center mbr-hover-grow"
+                        style={{ background: theme.card2, color: theme.mint, minHeight: 44 }}
                       >
-                        <FileText size={13} /> Certificado de garantia
+                        <FileText size={13} className="flex-shrink-0" /> Certificado
                       </button>
                     )}
                   </div>
@@ -2899,14 +2861,14 @@ function MotosView({ motos, persist, clientes, persistClientes, config, lancamen
                           <button
                             onClick={() => setModal({ type: "contrato", mode: "editar", moto })}
                             className="text-xs font-semibold rounded-xl px-3 py-1.5 flex items-center gap-1"
-                            style={{ border: `1px solid ${theme.cardBorder}`, color: theme.text }}
+                            style={{ border: `1px solid ${theme.outline}`, color: theme.outlineText }}
                           >
                             <Pencil size={12} /> Editar contrato
                           </button>
                           <button
                             onClick={() => encerrarContrato(moto)}
                             className="text-xs font-semibold rounded-xl px-3 py-1.5"
-                            style={{ border: `1px solid ${theme.cardBorder}`, color: theme.text }}
+                            style={{ border: `1px solid ${theme.outline}`, color: theme.outlineText }}
                           >
                             Encerrar contrato
                           </button>
@@ -2930,7 +2892,7 @@ function MotosView({ motos, persist, clientes, persistClientes, config, lancamen
                           <span>{formatCurrency(pagamentos.reduce((s, p) => s + Number(p.valor), 0))}</span>
                         </div>
                         {pagamentos.map((p) => (
-                          <div key={p.id} className="flex items-center justify-between text-xs py-1" style={{ borderTop: `1px solid ${theme.cardBorder}` }}>
+                          <div key={p.id} className="flex items-center justify-between text-xs py-1" style={{ borderTop: `1px solid ${theme.divider}` }}>
                             <span style={{ color: theme.text }}>
                               {formatDate(p.data)} · {p.categoria || "Sem categoria"}
                             </span>
@@ -2944,8 +2906,8 @@ function MotosView({ motos, persist, clientes, persistClientes, config, lancamen
                   {!moto.contratoAtual && permissoes.podeEditar && (
                     <button
                       onClick={() => setModal({ type: "contrato", moto })}
-                      className="text-xs font-semibold rounded-xl px-3 py-1.5 mb-3"
-                      style={{ background: theme.amber, color: theme.mintText }}
+                      className="text-xs font-semibold rounded-xl px-3 mb-3"
+                      style={{ background: theme.mint, color: theme.text, minHeight: 44 }}
                     >
                       Alugar / novo contrato
                     </button>
@@ -2957,8 +2919,12 @@ function MotosView({ motos, persist, clientes, persistClientes, config, lancamen
                         Manutenções
                       </span>
                       {permissoes.podeEditar && (
-                        <button onClick={() => setModal({ type: "manutencao", moto })} className="mbr-hover-grow" style={{ color: theme.blue }}>
-                          <Plus size={14} />
+                        <button
+                          onClick={() => setModal({ type: "manutencao", moto })}
+                          className="flex items-center justify-center mbr-hover-grow"
+                          style={{ color: theme.mint, width: 44, height: 44, marginRight: -10 }}
+                        >
+                          <Plus size={16} />
                         </button>
                       )}
                     </div>
@@ -2966,15 +2932,19 @@ function MotosView({ motos, persist, clientes, persistClientes, config, lancamen
                       <div style={{ color: theme.textMuted, fontSize: 12 }}>Nenhuma registrada.</div>
                     ) : (
                       [...manutencoesDaMoto(moto, lancamentos)].reverse().map((mnt) => (
-                        <div key={mnt.id} className="flex items-center justify-between gap-2 text-xs py-1" style={{ borderTop: `1px solid ${theme.cardBorder}` }}>
+                        <div key={mnt.id} className="flex items-center justify-between gap-2 text-xs py-1" style={{ borderTop: `1px solid ${theme.divider}` }}>
                           <span style={{ color: theme.text }}>
                             {formatDate(mnt.data)} · {mnt.descricao}
                           </span>
                           <span className="flex items-center gap-2 flex-shrink-0">
                             <span style={{ color: theme.textMuted }}>{formatCurrency(mnt.valorGasto)}</span>
                             {permissoes.podeEditar && (
-                              <button onClick={() => excluirManutencao(moto, mnt.id)} className="mbr-hover-grow" style={{ color: theme.coral }}>
-                                <Trash2 size={12} />
+                              <button
+                                onClick={() => excluirManutencao(moto, mnt.id)}
+                                className="flex items-center justify-center mbr-hover-grow"
+                                style={{ color: theme.coral, width: 44, height: 44, margin: "-12px -10px -12px 0" }}
+                              >
+                                <Trash2 size={13} />
                               </button>
                             )}
                           </span>
@@ -2989,8 +2959,12 @@ function MotosView({ motos, persist, clientes, persistClientes, config, lancamen
                         Custos
                       </span>
                       {permissoes.podeEditar && (
-                        <button onClick={() => setModal({ type: "custoExtra", moto })} className="mbr-hover-grow" style={{ color: theme.blue }}>
-                          <Plus size={14} />
+                        <button
+                          onClick={() => setModal({ type: "custoExtra", moto })}
+                          className="flex items-center justify-center mbr-hover-grow"
+                          style={{ color: theme.mint, width: 44, height: 44, marginRight: -10 }}
+                        >
+                          <Plus size={16} />
                         </button>
                       )}
                     </div>
@@ -2998,15 +2972,19 @@ function MotosView({ motos, persist, clientes, persistClientes, config, lancamen
                       <div style={{ color: theme.textMuted, fontSize: 12 }}>Nenhum registrado.</div>
                     ) : (
                       [...custosDaMoto(moto, lancamentos)].reverse().map((c) => (
-                        <div key={c.id} className="flex items-center justify-between gap-2 text-xs py-1" style={{ borderTop: `1px solid ${theme.cardBorder}` }}>
+                        <div key={c.id} className="flex items-center justify-between gap-2 text-xs py-1" style={{ borderTop: `1px solid ${theme.divider}` }}>
                           <span style={{ color: theme.text }}>
                             {formatDate(c.data)} · {c.descricao}
                           </span>
                           <span className="flex items-center gap-2 flex-shrink-0">
                             <span style={{ color: theme.textMuted }}>{formatCurrency(c.valorGasto)}</span>
                             {permissoes.podeEditar && (
-                              <button onClick={() => excluirCustoExtra(moto, c.id)} className="mbr-hover-grow" style={{ color: theme.coral }}>
-                                <Trash2 size={12} />
+                              <button
+                                onClick={() => excluirCustoExtra(moto, c.id)}
+                                className="flex items-center justify-center mbr-hover-grow"
+                                style={{ color: theme.coral, width: 44, height: 44, margin: "-12px -10px -12px 0" }}
+                              >
+                                <Trash2 size={13} />
                               </button>
                             )}
                           </span>
@@ -3020,7 +2998,7 @@ function MotosView({ motos, persist, clientes, persistClientes, config, lancamen
                       <button
                         onClick={() => setModal({ type: "moto", mode: "editar", moto })}
                         className="text-xs font-semibold rounded-xl px-3 py-1.5 flex items-center gap-1"
-                        style={{ border: `1px solid ${theme.cardBorder}`, color: theme.text }}
+                        style={{ border: `1px solid ${theme.outline}`, color: theme.outlineText }}
                       >
                         <Pencil size={12} /> Editar
                       </button>
@@ -3181,7 +3159,7 @@ function LancamentoModal({ lancamento, onClose, onSave, onDelete, motos, editand
         <button
           onClick={() => onSave({ ...form, valor: Number(form.valor) || 0 })}
           className="flex-1 rounded-xl py-2 font-semibold mt-1"
-          style={{ background: theme.mint, color: theme.mintText }}
+          style={{ background: theme.mint, color: theme.text, fontWeight: 600 }}
         >
           Salvar
         </button>
@@ -3302,7 +3280,7 @@ function FuturoModal({ futuro, onClose, onSave, onDelete, editando, motos }) {
         <button
           onClick={salvar}
           className="flex-1 rounded-xl py-2 font-semibold mt-1"
-          style={{ background: theme.mint, color: theme.mintText }}
+          style={{ background: theme.mint, color: theme.text, fontWeight: 600 }}
         >
           Salvar
         </button>
@@ -3381,14 +3359,10 @@ const FuturosView = forwardRef(function FuturosView({ futuros, persist, motos, c
     >
       <div className="flex items-center gap-3 min-w-0">
         <div
-          className="rounded-full flex items-center justify-center flex-shrink-0"
-          style={{
-            width: 32,
-            height: 32,
-            background: `linear-gradient(150deg, ${f.tipo === "entrada" ? theme.mint : theme.coral}3D 0%, ${f.tipo === "entrada" ? theme.mint : theme.coral}14 100%)`,
-          }}
+          className="flex items-center justify-center flex-shrink-0"
+          style={{ width: 28, height: 28, borderRadius: 8, background: theme.card2 }}
         >
-          {f.tipo === "entrada" ? <TrendingUp size={14} color={theme.mint} /> : <TrendingDown size={14} color={theme.coral} />}
+          {f.tipo === "entrada" ? <TrendingUp size={16} color={theme.mint} /> : <TrendingDown size={16} color={theme.coral} />}
         </div>
         <div className="min-w-0">
           <div style={{ color: theme.text, fontFamily: BODY_FONT, fontWeight: 600, textDecoration: f.pago ? "line-through" : "none" }}>
@@ -3466,11 +3440,11 @@ const FuturosView = forwardRef(function FuturosView({ futuros, persist, motos, c
               <div
                 key={dia}
                 className="flex items-start gap-3 py-2.5"
-                style={{ borderTop: i === 0 ? "none" : `1px solid ${theme.cardBorder}` }}
+                style={{ borderTop: i === 0 ? "none" : `1px solid ${theme.divider}` }}
               >
                 <div
                   className="flex-shrink-0 flex items-center justify-center rounded-lg"
-                  style={{ width: 38, height: 38, background: hexToRgba(theme.blue, 0.16), color: theme.blue, fontFamily: HEAD_FONT, fontWeight: 800, fontSize: 13 }}
+                  style={{ width: 38, height: 38, background: theme.card2, color: theme.text, fontFamily: HEAD_FONT, fontWeight: 700, fontSize: 13 }}
                 >
                   {String(dia).padStart(2, "0")}
                 </div>
@@ -3701,7 +3675,7 @@ function FluxoCaixaView({ lancamentos, persist, motos, clientes, futuros, persis
   return (
     <div>
       <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
-        <h2 style={{ fontFamily: HEAD_FONT, fontSize: 22, fontWeight: 800, color: theme.mint }}>Fluxo de caixa</h2>
+        <h2 style={{ fontFamily: HEAD_FONT, fontSize: 22, fontWeight: 700, color: theme.mint }}>Fluxo de caixa</h2>
         <div className="flex items-center gap-2">
           <div ref={viewToggleRef} className="relative flex rounded-xl p-1" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
             {viewPillRect && (
@@ -3778,7 +3752,7 @@ function FluxoCaixaView({ lancamentos, persist, motos, clientes, futuros, persis
           className="rounded-2xl p-4 mb-3"
           style={{ background: `linear-gradient(150deg, ${theme.card} 0%, ${theme.card2} 130%)`, border: `1px solid ${theme.cardBorder}` }}
         >
-          <SectionTitle color={theme.blue} className="mb-3">Resumo mensal</SectionTitle>
+          <SectionTitle className="mb-3">Resumo mensal</SectionTitle>
           <div className="flex flex-col gap-2">
             {mesesOrdenados.slice(0, 4).map((mesKey) => {
               const itensResumo = porMes[mesKey];
@@ -3792,13 +3766,13 @@ function FluxoCaixaView({ lancamentos, persist, motos, clientes, futuros, persis
                   style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}
                 >
                   <div className="flex items-center justify-between gap-2 mb-1.5">
-                    <span style={{ color: theme.text, fontWeight: 800, fontFamily: HEAD_FONT, fontSize: 14 }}>
+                    <span style={{ color: theme.text, fontWeight: 700, fontFamily: HEAD_FONT, fontSize: 14 }}>
                       {mesKey === "sem-data" ? "Sem data" : monthLabel(mesKey)}
                     </span>
                     <span
                       style={{
                         color: saldoResumo >= 0 ? theme.mint : theme.coral,
-                        fontWeight: 800,
+                        fontWeight: 700,
                         fontFamily: BODY_FONT,
                         fontSize: 14,
                       }}
@@ -3847,7 +3821,7 @@ function FluxoCaixaView({ lancamentos, persist, motos, clientes, futuros, persis
               </button>
 
               <Collapse open={aberto}>
-                <div style={{ borderTop: `1px solid ${theme.cardBorder}` }}>
+                <div style={{ borderTop: `1px solid ${theme.divider}` }}>
                   {itens.map((l, i) => {
                     const motoLigada = motos?.find((m) => m.id === l.motoId);
                     return (
@@ -3857,19 +3831,15 @@ function FluxoCaixaView({ lancamentos, persist, motos, clientes, futuros, persis
                         className={`flex items-center justify-between px-4 py-3${permissoes.podeEditar ? " cursor-pointer" : ""}`}
                         style={{
                           background: theme.card2,
-                          borderBottom: i < itens.length - 1 ? `1px solid ${theme.cardBorder}` : "none",
+                          borderBottom: i < itens.length - 1 ? `1px solid ${theme.divider}` : "none",
                         }}
                       >
                         <div className="flex items-center gap-3 min-w-0">
                           <div
-                            className="rounded-full flex items-center justify-center flex-shrink-0"
-                            style={{
-                              width: 32,
-                              height: 32,
-                              background: `linear-gradient(150deg, ${l.tipo === "entrada" ? theme.mint : theme.coral}3D 0%, ${l.tipo === "entrada" ? theme.mint : theme.coral}14 100%)`,
-                            }}
+                            className="flex items-center justify-center flex-shrink-0"
+                            style={{ width: 28, height: 28, borderRadius: 8, background: theme.card2 }}
                           >
-                            {l.tipo === "entrada" ? <TrendingUp size={14} color={theme.mint} /> : <TrendingDown size={14} color={theme.coral} />}
+                            {l.tipo === "entrada" ? <TrendingUp size={16} color={theme.mint} /> : <TrendingDown size={16} color={theme.coral} />}
                           </div>
                           <div className="min-w-0">
                             <div className="flex items-center gap-1.5 flex-wrap">
@@ -3877,7 +3847,7 @@ function FluxoCaixaView({ lancamentos, persist, motos, clientes, futuros, persis
                               {l.parcelasTotal > 1 && (
                                 <span
                                   className="text-xs font-semibold rounded-full px-2"
-                                  style={{ background: hexToRgba(theme.blue, 0.16), color: theme.blue, fontFamily: BODY_FONT }}
+                                  style={{ background: theme.card2, color: theme.textMuted, fontFamily: BODY_FONT }}
                                 >
                                   Parcela {l.parcelaAtual || 1}/{l.parcelasTotal}
                                 </span>
@@ -3984,8 +3954,8 @@ const reduceMotion = () =>
 // painel, em vez de todo título ficar no mesmo tom neutro
 function SectionTitle({ color = theme.mint, className = "mb-3", children }) {
   return (
-    <h3 className={`flex items-center gap-2 ${className}`} style={{ fontFamily: HEAD_FONT, fontSize: 16, color: theme.text }}>
-      <span style={{ width: 4, height: 16, borderRadius: 2, background: color, boxShadow: `0 0 8px ${color}77`, flexShrink: 0 }} />
+    <h3 className={`flex items-center gap-2 ${className}`} style={{ fontFamily: BODY_FONT, fontSize: 13, fontWeight: 600, color: theme.text }}>
+      <span style={{ width: 4, height: 14, borderRadius: 2, background: color, boxShadow: `0 0 8px ${color}77`, flexShrink: 0 }} />
       {children}
     </h3>
   );
@@ -4255,7 +4225,7 @@ function HeroStat({ label, value, format = formatCurrency, icon: Icon, accent, d
           style={{
             fontFamily: HEAD_FONT,
             fontSize: "clamp(18px, 6vw, 28px)",
-            fontWeight: 800,
+            fontWeight: 700,
             backgroundImage: `linear-gradient(120deg, ${theme.text} 30%, ${accent} 145%)`,
             WebkitBackgroundClip: "text",
             backgroundClip: "text",
@@ -4737,13 +4707,13 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
   return (
     <div>
       <div className="flex items-center justify-between gap-2 mb-4 flex-wrap">
-        <h2 style={{ fontFamily: HEAD_FONT, fontSize: 22, fontWeight: 800, color: theme.mint }}>Visão geral</h2>
+        <h2 style={{ fontFamily: HEAD_FONT, fontSize: 22, fontWeight: 700, color: theme.mint }}>Visão geral</h2>
         <div className="flex items-center gap-2 flex-wrap">
           <button
             onClick={() => setValoresOcultos((v) => !v)}
             className="mbr-hover-grow flex items-center justify-center rounded-full"
             title={valoresOcultos ? "Mostrar valores" : "Ocultar valores"}
-            style={{ width: 34, height: 34, background: theme.card, border: `1px solid ${theme.cardBorder}`, color: theme.text, transition: "transform 0.18s ease" }}
+            style={{ width: 44, height: 44, background: theme.card, border: `1px solid ${theme.outline}`, color: theme.text, transition: "transform 0.18s ease" }}
           >
             {valoresOcultos ? <EyeOff size={16} /> : <Eye size={16} />}
           </button>
@@ -4789,7 +4759,7 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
       </div>
 
       {vencidas > 0 && (
-        <div className="rounded-2xl p-4 mb-4 mbr-card-lift" style={{ background: `${theme.coral}1F`, border: `1px solid ${theme.coral}` }}>
+        <div className="rounded-2xl p-4 mb-4 mbr-card-lift" style={{ background: "#241A19" }}>
           <div className="flex items-center gap-2 mb-2">
             <AlertTriangle size={16} color={theme.coral} />
             <span style={{ fontFamily: HEAD_FONT, fontSize: 15, color: theme.text }}>
@@ -4841,7 +4811,7 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
             detalhes={detalhesLucro}
           />
           <HeroStat
-            label={`Saldo de caixa (${rotuloMes})`}
+            label={`${saldoCaixaMes >= 0 ? "Saldo de caixa" : "Déficit de caixa"} (${rotuloMes})`}
             caption="com investimentos"
             value={Math.abs(saldoCaixaMes)}
             format={fmt}
@@ -4884,9 +4854,9 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
             <div className="flex items-center gap-2 mb-2">
               <div
                 className="rounded-full flex items-center justify-center flex-shrink-0"
-                style={{ width: 30, height: 30, background: `linear-gradient(150deg, ${theme.blue}3D 0%, ${theme.blue}14 100%)` }}
+                style={{ width: 30, height: 30, background: `linear-gradient(150deg, ${theme.amber}3D 0%, ${theme.amber}14 100%)` }}
               >
-                <Timer size={14} color={theme.blue} />
+                <Timer size={14} color={theme.amber} />
               </div>
               <span className="text-xs uppercase tracking-wide" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
                 Motos paradas
@@ -4924,7 +4894,7 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
           style={{ background: `linear-gradient(150deg, ${theme.card} 0%, ${theme.card2} 130%)`, border: `1px solid ${theme.cardBorder}` }}
         >
           {[
-            { icon: TrendingUp, label: "Faturamento previsto/mês", value: faturamentoPrevisto, format: fmt, accent: theme.blue },
+            { icon: TrendingUp, label: "Faturamento previsto/mês", value: faturamentoPrevisto, format: fmt, accent: theme.mint },
             { icon: TrendingDown, label: `Gastos operacionais (${rotuloMes})`, value: saidasMes, format: fmt, accent: theme.coral },
             { icon: Wallet, label: "Ticket médio", value: ticketMedio, format: fmt, accent: theme.mint },
             {
@@ -4934,11 +4904,11 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
               format: (v) => `${v.toFixed(1)}%`,
               accent: lucroMes >= 0 ? theme.mint : theme.coral,
             },
-            { icon: Users, label: "Total de clientes", value: totalClientes, accent: theme.blue },
-            { icon: TrendingUp, label: "Investido em frota", value: investimentoFrota, format: fmt, accent: theme.blue },
+            { icon: Users, label: "Total de clientes", value: totalClientes, accent: theme.textMuted },
+            { icon: TrendingUp, label: "Investido em frota", value: investimentoFrota, format: fmt, accent: theme.textMuted },
             { icon: Wallet, label: "Faturamento acumulado", value: faturamentoAcumulado, format: fmt, accent: theme.mint },
             { icon: Wrench, label: "Manutenção acumulada", value: manutencaoAcumulada, format: fmt, accent: theme.coral },
-            { icon: FileText, label: "Contratos encerrados", value: contratosEncerrados, accent: theme.blue },
+            { icon: FileText, label: "Contratos encerrados", value: contratosEncerrados, accent: theme.textMuted },
           ].map((s) => (
             <div key={s.label} className="flex items-center gap-2 min-w-0">
               <div
@@ -4967,7 +4937,7 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
           style={{ background: `linear-gradient(150deg, ${theme.card} 0%, ${theme.card2} 130%)`, border: `1px solid ${theme.cardBorder}` }}
         >
           <RadialStat bare label="Taxa de ocupação" percent={taxaOcupacao} color={theme.amber} sublabel={`${alugadas} de ${motos.length} motos`} />
-          <div className="flex-1 grid grid-cols-4 gap-2 min-w-[220px]" style={{ borderLeft: `1px solid ${theme.cardBorder}`, paddingLeft: 16 }}>
+          <div className="flex-1 grid grid-cols-4 gap-2 min-w-[220px]" style={{ borderLeft: `1px solid ${theme.divider}`, paddingLeft: 16 }}>
             {[
               { label: "Motos", value: motos.length, color: theme.text },
               { label: "Alugadas", value: alugadas, color: theme.amber },
@@ -5034,9 +5004,9 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
               onClick={() => setMostrarInvestimentos((v) => !v)}
               className="text-xs font-semibold rounded-full px-2.5 py-1"
               style={{
-                border: `1px solid ${theme.cardBorder}`,
-                background: mostrarInvestimentos ? hexToRgba(theme.blue, 0.18) : "transparent",
-                color: mostrarInvestimentos ? theme.blue : theme.textMuted,
+                border: `1px solid ${theme.outline}`,
+                background: mostrarInvestimentos ? theme.card2 : "transparent",
+                color: mostrarInvestimentos ? theme.text : theme.textMuted,
               }}
             >
               Investimentos
@@ -5047,7 +5017,7 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
           <span style={{ color: theme.mint }}>Entradas no período: {fmt(chartData.reduce((s, d) => s + d.Entradas, 0))}</span>
           <span style={{ color: theme.coral }}>Saídas no período: {fmt(chartData.reduce((s, d) => s + d.Saídas, 0))}</span>
           {investMontada && (
-            <span style={{ color: theme.blue, opacity: investOpaca ? 1 : 0, transition: "opacity 0.3s ease" }}>
+            <span style={{ color: theme.textMuted, opacity: investOpaca ? 1 : 0, transition: "opacity 0.3s ease" }}>
               Investido no período: {fmt(chartData.reduce((s, d) => s + d.Investimentos, 0))}
             </span>
           )}
@@ -5065,8 +5035,8 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
                   <stop offset="100%" stopColor={theme.coral} stopOpacity={0} />
                 </linearGradient>
                 <linearGradient id="mbrGradInvest" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor={theme.blue} stopOpacity={0.35} />
-                  <stop offset="100%" stopColor={theme.blue} stopOpacity={0} />
+                  <stop offset="0%" stopColor={theme.chartMuted} stopOpacity={0.35} />
+                  <stop offset="100%" stopColor={theme.chartMuted} stopOpacity={0} />
                 </linearGradient>
                 <linearGradient id="mbrGradLucro" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor={theme.amber} stopOpacity={0.4} />
@@ -5171,7 +5141,7 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
                     yAxisId="left"
                     type="monotone"
                     dataKey="Investimentos"
-                    stroke={theme.blue}
+                    stroke={theme.chartMuted}
                     strokeWidth={2.5}
                     fill="url(#mbrGradInvest)"
                     strokeOpacity={investOpaca ? 1 : 0}
@@ -5188,7 +5158,7 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
                       yAxisId="left"
                       type="monotone"
                       dataKey="Investimentos"
-                      stroke={mixColors(theme.blue, "#FFFFFF", 0.65)}
+                      stroke={mixColors(theme.chartMuted, "#FFFFFF", 0.65)}
                       strokeOpacity={0.55}
                       strokeWidth={2}
                       dot={false}
@@ -5247,7 +5217,7 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
       {(futuros || []).length > 0 && (
         <Reveal delay={50}>
           <div className="rounded-2xl p-4 mb-4 mbr-card-lift" style={{ background: `linear-gradient(150deg, ${theme.card} 0%, ${theme.card2} 130%)`, border: `1px solid ${theme.cardBorder}` }}>
-            <SectionTitle color={theme.blue}>Contas futuras</SectionTitle>
+            <SectionTitle>Contas futuras</SectionTitle>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {(() => {
                 const { previstoEntrada12Meses, previstoSaida12Meses, saldoPrevisto12Meses } = totaisFuturos(futuros, motos);
@@ -5277,7 +5247,7 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
                 );
               })()}
             </div>
-            <div className="mt-4 pt-4" style={{ borderTop: `1px solid ${theme.cardBorder}` }}>
+            <div className="mt-4 pt-4" style={{ borderTop: `1px solid ${theme.divider}` }}>
               <div className="text-xs uppercase tracking-wide mb-2" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
                 Próximos 7 dias
               </div>
@@ -5486,7 +5456,7 @@ function NovoUsuarioModal({ onClose, onSaved }) {
         onClick={salvar}
         disabled={enviando}
         className="w-full rounded-xl py-2 font-semibold"
-        style={{ background: theme.mint, color: theme.mintText, opacity: enviando ? 0.7 : 1 }}
+        style={{ background: theme.mint, color: theme.text, fontWeight: 600, opacity: enviando ? 0.7 : 1 }}
       >
         {enviando ? "Criando..." : "Criar usuário"}
       </button>
@@ -5533,7 +5503,7 @@ function RedefinirSenhaModal({ usuario, onClose, onSaved }) {
         onClick={salvar}
         disabled={enviando}
         className="w-full rounded-xl py-2 font-semibold"
-        style={{ background: theme.mint, color: theme.mintText, opacity: enviando ? 0.7 : 1 }}
+        style={{ background: theme.mint, color: theme.text, fontWeight: 600, opacity: enviando ? 0.7 : 1 }}
       >
         {enviando ? "Salvando..." : "Salvar nova senha"}
       </button>
@@ -5545,6 +5515,20 @@ function RedefinirSenhaModal({ usuario, onClose, onSaved }) {
 // desativa/reativa acesso. Toda mudança passa por chamarAdminApi (api/admin-usuarios.js
 // no servidor, com a service role key) — daqui só se lê a lista (perfis é público pra
 // leitura, sem senha nenhuma nela) e se dispara as ações
+// um único visual pra qualquer badge de cargo/status — fundo sólido igual pra todos,
+// só a cor do texto/ícone muda por tipo (nunca contorno, nunca fundo diferente)
+function CargoBadge({ icon: Icon, children, color }) {
+  return (
+    <span
+      className="text-xs font-semibold rounded-full px-2 py-0.5 flex items-center gap-1 flex-shrink-0"
+      style={{ background: theme.card2, color }}
+    >
+      {Icon && <Icon size={11} />}
+      {children}
+    </span>
+  );
+}
+
 function UsuariosSection({ meuId }) {
   const [usuarios, setUsuarios] = useState(null); // null = carregando
   const [erro, setErro] = useState("");
@@ -5590,7 +5574,7 @@ function UsuariosSection({ meuId }) {
         <button
           onClick={() => setModal({ type: "novo" })}
           className="text-xs font-semibold rounded-xl px-3 py-1.5 flex items-center gap-1"
-          style={{ background: theme.mint, color: theme.mintText }}
+          style={{ background: theme.mint, color: theme.text, fontWeight: 600 }}
         >
           <Plus size={14} /> Novo usuário
         </button>
@@ -5615,39 +5599,20 @@ function UsuariosSection({ meuId }) {
                   {u.username}
                 </div>
                 {u.role === "admin" ? (
-                  <span
-                    className="text-xs font-semibold rounded-full px-2 py-0.5 flex items-center gap-1 flex-shrink-0"
-                    style={{ background: hexToRgba(theme.amber, 0.18), color: theme.amber }}
-                  >
-                    <ShieldCheck size={11} /> Admin
-                  </span>
+                  <CargoBadge icon={ShieldCheck} color={theme.amber}>Admin</CargoBadge>
                 ) : (
-                  <span
-                    className="text-xs font-semibold rounded-full px-2 py-0.5 flex items-center gap-1 flex-shrink-0"
-                    style={{
-                      background: hexToRgba(u.role === "editor" ? theme.blue : theme.textMuted, 0.18),
-                      color: u.role === "editor" ? theme.blue : theme.textMuted,
-                    }}
-                  >
-                    {u.role === "editor" ? <Pencil size={11} /> : <Eye size={11} />}
+                  <CargoBadge icon={u.role === "editor" ? Pencil : Eye} color={u.role === "editor" ? theme.mint : theme.textMuted}>
                     {u.role === "editor" ? "Editor" : "Visualizador"}
-                  </span>
+                  </CargoBadge>
                 )}
-                {!u.ativo && (
-                  <span
-                    className="text-xs font-semibold rounded-full px-2 py-0.5 flex-shrink-0"
-                    style={{ background: hexToRgba(theme.coral, 0.18), color: theme.coral }}
-                  >
-                    Desativado
-                  </span>
-                )}
+                {!u.ativo && <CargoBadge color={theme.coral}>Desativado</CargoBadge>}
               </div>
-              <div className="flex items-center gap-2 flex-shrink-0">
+              <div className="flex items-center flex-shrink-0" style={{ marginRight: -10 }}>
                 {u.role !== "admin" && (
                   <button
                     onClick={() => alternarRole(u)}
-                    className="mbr-hover-grow"
-                    style={{ color: theme.textMuted }}
+                    className="flex items-center justify-center mbr-hover-grow"
+                    style={{ color: theme.textMuted, width: 40, height: 40 }}
                     title={u.role === "editor" ? "Trocar pra Visualizador" : "Trocar pra Editor"}
                   >
                     {u.role === "editor" ? <Eye size={15} /> : <Pencil size={15} />}
@@ -5655,8 +5620,8 @@ function UsuariosSection({ meuId }) {
                 )}
                 <button
                   onClick={() => setModal({ type: "senha", usuario: u })}
-                  className="mbr-hover-grow"
-                  style={{ color: theme.textMuted }}
+                  className="flex items-center justify-center mbr-hover-grow"
+                  style={{ color: theme.textMuted, width: 40, height: 40 }}
                   title="Redefinir senha"
                 >
                   <KeyRound size={15} />
@@ -5664,8 +5629,8 @@ function UsuariosSection({ meuId }) {
                 {u.id !== meuId && (
                   <button
                     onClick={() => alternarAtivo(u)}
-                    className="mbr-hover-grow"
-                    style={{ color: u.ativo ? theme.coral : theme.mint }}
+                    className="flex items-center justify-center mbr-hover-grow"
+                    style={{ color: u.ativo ? theme.coral : theme.mint, width: 40, height: 40 }}
                     title={u.ativo ? "Desativar acesso" : "Reativar acesso"}
                   >
                     {u.ativo ? <Ban size={15} /> : <CheckCircle2 size={15} />}
@@ -5693,20 +5658,16 @@ function UsuariosSection({ meuId }) {
   );
 }
 
-const CORES_CONFIGURAVEIS = ["bg", "accent", "brand", "coral", "blue"];
-
 function ConfiguracoesView({ config, persist, perfil, onSignOut }) {
   const [local, setLocal] = useState(config);
   const [status, setStatus] = useState({ text: "", kind: "" }); // kind: "ok" | "erro" | ""
-  const [historicoCores, setHistoricoCores] = useState([]);
-  const [novoPresetNome, setNovoPresetNome] = useState("");
   const logoInputRef = useRef(null);
 
   // se outra pessoa (ex. seu pai) mudar as configurações, reflete aqui
   useEffect(() => {
     setLocal(config);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [config.bg, config.accent, config.brand, config.coral, config.blue, config.logoDataUrl]);
+  }, [config.logoDataUrl, config.logoSize, config.linkRastreioGeral]);
 
   const salvarAgora = async (next) => {
     setStatus({ text: "Salvando...", kind: "" });
@@ -5744,65 +5705,9 @@ function ConfiguracoesView({ config, persist, perfil, onSignOut }) {
     salvarAgora(next);
   };
 
-  // enquanto arrasta o seletor de cor, só atualiza a prévia local (sem gravar a cada pixel);
-  // a gravação de verdade acontece ao soltar (onBlur) ou ao tocar em "Aplicar cores"
-  const setCorLocal = (chave) => (e) => setLocal((l) => ({ ...l, [chave]: e.target.value }));
-
-  // guarda a combinação de cores anterior antes de aplicar uma nova — é o que
-  // o botão "Voltar" usa pra desfazer a última alteração
-  const snapshotCores = (fonte) => {
-    const snap = {};
-    CORES_CONFIGURAVEIS.forEach((c) => (snap[c] = fonte[c] || ""));
-    return snap;
-  };
-  const guardarHistorico = () => setHistoricoCores((h) => [...h.slice(-9), snapshotCores(config)]);
-
-  const aplicarCores = () => {
-    guardarHistorico();
-    salvarAgora(local);
-  };
-
-  const restaurarCores = () => {
-    guardarHistorico();
-    const next = { ...local, bg: "", accent: "", brand: "", coral: "", blue: "" };
-    setLocal(next);
-    salvarAgora(next);
-  };
-
-  const desfazerUltimaCor = () => {
-    if (historicoCores.length === 0) return;
-    const anterior = historicoCores[historicoCores.length - 1];
-    setHistoricoCores((h) => h.slice(0, -1));
-    const next = { ...local, ...anterior };
-    setLocal(next);
-    salvarAgora(next);
-  };
-
-  const salvarPresetAtual = () => {
-    const nome = novoPresetNome.trim() || `Preset ${(local.presetsCores?.length || 0) + 1}`;
-    const preset = { id: uid(), nome, ...snapshotCores(local) };
-    const next = { ...local, presetsCores: [...(local.presetsCores || []), preset] };
-    setLocal(next);
-    salvarAgora(next);
-    setNovoPresetNome("");
-  };
-
-  const aplicarPreset = (preset) => {
-    guardarHistorico();
-    const next = { ...local, ...snapshotCores(preset) };
-    setLocal(next);
-    salvarAgora(next);
-  };
-
-  const excluirPreset = (id) => {
-    const next = { ...local, presetsCores: (local.presetsCores || []).filter((p) => p.id !== id) };
-    setLocal(next);
-    salvarAgora(next);
-  };
-
   return (
     <div>
-      <h2 style={{ fontFamily: HEAD_FONT, fontSize: 22, fontWeight: 800, color: theme.mint }} className="mb-4">
+      <h2 style={{ fontFamily: HEAD_FONT, fontSize: 22, fontWeight: 700, color: theme.mint }} className="mb-4">
         Configurações
       </h2>
 
@@ -5846,7 +5751,7 @@ function ConfiguracoesView({ config, persist, perfil, onSignOut }) {
               type="button"
               onClick={() => logoInputRef.current?.click()}
               className="text-xs font-semibold rounded-xl px-3 py-1.5"
-              style={{ background: theme.mint, color: theme.mintText }}
+              style={{ background: theme.mint, color: theme.text, fontWeight: 600 }}
             >
               Enviar imagem da logo
             </button>
@@ -5862,7 +5767,7 @@ function ConfiguracoesView({ config, persist, perfil, onSignOut }) {
         </div>
 
         {local.logoDataUrl && (
-          <div className="pt-3" style={{ borderTop: `1px solid ${theme.cardBorder}` }}>
+          <div className="pt-3" style={{ borderTop: `1px solid ${theme.divider}` }}>
             <div className="flex items-center justify-between mb-1.5">
               <span style={{ color: theme.text, fontFamily: BODY_FONT, fontSize: 13, fontWeight: 600 }}>
                 Tamanho da logo no topo
@@ -5900,146 +5805,6 @@ function ConfiguracoesView({ config, persist, perfil, onSignOut }) {
         </div>
       </div>
 
-      <div className="rounded-2xl p-4 mb-4" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
-        <FieldLabel>Cores do site</FieldLabel>
-        <div className="flex items-center justify-between py-2" style={{ borderBottom: `1px solid ${theme.cardBorder}` }}>
-          <span style={{ color: theme.text, fontFamily: BODY_FONT, fontSize: 14 }}>Cor de fundo</span>
-          <input
-            type="color"
-            value={local.bg || DEFAULT_THEME.bg}
-            onChange={setCorLocal("bg")}
-            onBlur={aplicarCores}
-            style={{ width: 40, height: 30, background: "none", border: "none" }}
-          />
-        </div>
-        <div className="flex items-center justify-between py-2" style={{ borderBottom: `1px solid ${theme.cardBorder}` }}>
-          <span style={{ color: theme.text, fontFamily: BODY_FONT, fontSize: 14 }}>Cor de destaque (status, botões)</span>
-          <input
-            type="color"
-            value={local.accent || DEFAULT_THEME.amber}
-            onChange={setCorLocal("accent")}
-            onBlur={aplicarCores}
-            style={{ width: 40, height: 30, background: "none", border: "none" }}
-          />
-        </div>
-        <div className="flex items-center justify-between py-2" style={{ borderBottom: `1px solid ${theme.cardBorder}` }}>
-          <span style={{ color: theme.text, fontFamily: BODY_FONT, fontSize: 14 }}>Cor da marca (wordmark, links)</span>
-          <input
-            type="color"
-            value={local.brand || DEFAULT_THEME.mint}
-            onChange={setCorLocal("brand")}
-            onBlur={aplicarCores}
-            style={{ width: 40, height: 30, background: "none", border: "none" }}
-          />
-        </div>
-        <div className="flex items-center justify-between py-2" style={{ borderBottom: `1px solid ${theme.cardBorder}` }}>
-          <span style={{ color: theme.text, fontFamily: BODY_FONT, fontSize: 14 }}>Cor de alerta (atrasados, saídas)</span>
-          <input
-            type="color"
-            value={local.coral || DEFAULT_THEME.coral}
-            onChange={setCorLocal("coral")}
-            onBlur={aplicarCores}
-            style={{ width: 40, height: 30, background: "none", border: "none" }}
-          />
-        </div>
-        <div className="flex items-center justify-between py-2">
-          <span style={{ color: theme.text, fontFamily: BODY_FONT, fontSize: 14 }}>Cor informativa (gráficos, contratos)</span>
-          <input
-            type="color"
-            value={local.blue || DEFAULT_THEME.blue}
-            onChange={setCorLocal("blue")}
-            onBlur={aplicarCores}
-            style={{ width: 40, height: 30, background: "none", border: "none" }}
-          />
-        </div>
-        <div className="flex gap-2 mt-3 flex-wrap">
-          <button
-            onClick={aplicarCores}
-            className="text-xs font-semibold rounded-xl px-3 py-1.5"
-            style={{ background: theme.mint, color: theme.mintText }}
-          >
-            Aplicar cores
-          </button>
-          <button
-            onClick={desfazerUltimaCor}
-            disabled={historicoCores.length === 0}
-            className="flex items-center gap-1 text-xs font-semibold rounded-xl px-3 py-1.5"
-            style={{
-              border: `1px solid ${theme.cardBorder}`,
-              color: historicoCores.length === 0 ? theme.textMuted : theme.text,
-              opacity: historicoCores.length === 0 ? 0.5 : 1,
-              cursor: historicoCores.length === 0 ? "default" : "pointer",
-            }}
-          >
-            <Undo2 size={13} /> Voltar
-          </button>
-          <button
-            onClick={restaurarCores}
-            className="text-xs font-semibold rounded-xl px-3 py-1.5"
-            style={{ border: `1px solid ${theme.cardBorder}`, color: theme.text }}
-          >
-            Restaurar padrão
-          </button>
-        </div>
-
-        <div className="pt-3 mt-3" style={{ borderTop: `1px solid ${theme.cardBorder}` }}>
-          <span style={{ color: theme.text, fontFamily: BODY_FONT, fontSize: 13, fontWeight: 600 }}>Presets de cor</span>
-          <div className="text-xs mb-2" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
-            Salve a combinação atual pra trocar de visual rapidamente depois.
-          </div>
-          {(local.presetsCores || []).length > 0 && (
-            <div className="flex flex-col gap-1.5 mb-2">
-              {local.presetsCores.map((p) => (
-                <div
-                  key={p.id}
-                  className="flex items-center justify-between rounded-xl px-2.5 py-1.5"
-                  style={{ background: theme.card2, border: `1px solid ${theme.cardBorder}` }}
-                >
-                  <button
-                    onClick={() => aplicarPreset(p)}
-                    className="flex items-center gap-2 flex-1 text-left"
-                    style={{ color: theme.text, fontFamily: BODY_FONT, fontSize: 13 }}
-                  >
-                    <span className="flex" style={{ gap: 2 }}>
-                      {CORES_CONFIGURAVEIS.map((c) => (
-                        <span
-                          key={c}
-                          style={{
-                            width: 12,
-                            height: 12,
-                            borderRadius: "50%",
-                            background: p[c] || DEFAULT_THEME[c === "accent" ? "amber" : c === "brand" ? "mint" : c] || "#888",
-                            border: `1px solid ${theme.cardBorder}`,
-                          }}
-                        />
-                      ))}
-                    </span>
-                    {p.nome}
-                  </button>
-                  <button onClick={() => excluirPreset(p.id)} className="mbr-hover-grow" style={{ color: theme.textMuted }}>
-                    <Trash2 size={13} />
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-          <div className="flex gap-2">
-            <input
-              style={{ ...inputStyle, flex: 1 }}
-              value={novoPresetNome}
-              onChange={(e) => setNovoPresetNome(e.target.value)}
-              placeholder="Nome do preset (opcional)"
-            />
-            <button
-              onClick={salvarPresetAtual}
-              className="text-xs font-semibold rounded-xl px-3 py-1.5 flex-shrink-0"
-              style={{ border: `1px solid ${theme.cardBorder}`, color: theme.text }}
-            >
-              Salvar preset atual
-            </button>
-          </div>
-        </div>
-      </div>
       </>
       )}
 
@@ -6236,7 +6001,7 @@ function LoginView() {
           type="submit"
           disabled={enviando}
           className="w-full rounded-xl py-2.5 font-semibold"
-          style={{ background: theme.mint, color: theme.mintText, opacity: enviando ? 0.7 : 1 }}
+          style={{ background: theme.mint, color: theme.text, fontWeight: 600, opacity: enviando ? 0.7 : 1 }}
         >
           {enviando ? "Entrando..." : "Entrar"}
         </button>
@@ -6298,7 +6063,7 @@ function CriarAdminView() {
           type="submit"
           disabled={enviando}
           className="w-full rounded-xl py-2.5 font-semibold"
-          style={{ background: theme.mint, color: theme.mintText, opacity: enviando ? 0.7 : 1 }}
+          style={{ background: theme.mint, color: theme.text, fontWeight: 600, opacity: enviando ? 0.7 : 1 }}
         >
           {enviando ? "Criando..." : "Criar administrador"}
         </button>
@@ -6346,10 +6111,6 @@ function AppAutenticado({ perfil, onSignOut }) {
   const fluxoState = useSharedList("mobirelli-fluxo-caixa");
   const futurosState = useSharedList("mobirelli-fluxo-futuro");
   const configState = useSharedObject("mobirelli-config", {});
-
-  // recalcula o tema ativo (mutando o objeto compartilhado) a partir das configurações salvas —
-  // como nenhum componente aqui usa memo, todo mundo lê os valores atualizados no próximo render
-  Object.assign(theme, buildTheme(configState.value));
 
   // mesma lógica pras permissões — "visualizador" nunca pode criar/editar/excluir nada,
   // só o "admin" mexe em usuários. A trava de verdade fica no RLS do Supabase (schema.sql);
@@ -6465,7 +6226,7 @@ function AppAutenticado({ perfil, onSignOut }) {
     <div
       style={{
         backgroundColor: theme.bg,
-        backgroundImage: `radial-gradient(circle at 12% -8%, ${theme.mint}12 0%, transparent 38%), radial-gradient(circle at 105% 8%, ${theme.blue}0F 0%, transparent 34%), radial-gradient(circle at 50% 115%, ${theme.amber}0A 0%, transparent 36%)`,
+        backgroundImage: `radial-gradient(circle at 12% -8%, ${theme.mint}12 0%, transparent 38%), radial-gradient(circle at 50% 115%, ${theme.amber}0A 0%, transparent 36%)`,
         backgroundAttachment: "fixed",
         minHeight: "100vh",
         fontFamily: BODY_FONT,
@@ -6512,7 +6273,7 @@ function AppAutenticado({ perfil, onSignOut }) {
             tab === "rastreio"
               ? `linear-gradient(to bottom, ${hexToRgba(theme.panel, 0.9)} 0%, ${hexToRgba(theme.panel, 0.9)} 50%, ${hexToRgba(theme.panel, 0)} 100%)`
               : hexToRgba(theme.panel, 0.82),
-          borderBottom: tab === "rastreio" ? "none" : `1px solid ${theme.cardBorder}`,
+          borderBottom: tab === "rastreio" ? "none" : `1px solid ${theme.divider}`,
           backdropFilter: tab === "rastreio" ? "none" : "saturate(1.6) blur(16px)",
           WebkitBackdropFilter: tab === "rastreio" ? "none" : "saturate(1.6) blur(16px)",
         }}
@@ -6634,7 +6395,7 @@ function AppAutenticado({ perfil, onSignOut }) {
             tab === "rastreio"
               ? `linear-gradient(to bottom, ${hexToRgba(theme.panel, 0)} 0%, ${hexToRgba(theme.panel, 0.9)} 50%, ${hexToRgba(theme.panel, 0.9)} 100%)`
               : hexToRgba(theme.panel, 0.82),
-          borderTop: tab === "rastreio" ? "none" : `1px solid ${theme.cardBorder}`,
+          borderTop: tab === "rastreio" ? "none" : `1px solid ${theme.divider}`,
           paddingBottom: "calc(6px + env(safe-area-inset-bottom, 0px))",
           backdropFilter: tab === "rastreio" ? "none" : "saturate(1.6) blur(16px)",
           WebkitBackdropFilter: tab === "rastreio" ? "none" : "saturate(1.6) blur(16px)",
