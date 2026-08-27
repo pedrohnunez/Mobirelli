@@ -362,7 +362,11 @@ function futurosProximosDias(futuros, motos, dias = 7) {
       // olha esse mês e o próximo, pra cobrir vencimento que cai virando o mês
       for (let i = 0; i < 2; i++) {
         const candidato = new Date(hoje.getFullYear(), hoje.getMonth() + i, diaVenc);
-        if (candidato >= hoje && candidato <= limite && (!fimRecorrencia || candidato <= fimRecorrencia)) {
+        const candidatoKey = `${candidato.getFullYear()}-${String(candidato.getMonth() + 1).padStart(2, "0")}`;
+        // se esse mês já foi confirmado (virou lançamento real em "Lançado"), não conta
+        // de novo aqui — senão o valor continuava aparecendo como "a pagar" mesmo depois
+        // de já ter sido pago
+        if (candidato >= hoje && candidato <= limite && (!fimRecorrencia || candidato <= fimRecorrencia) && !(f.confirmados || []).includes(candidatoKey)) {
           soma(valor);
           break;
         }
@@ -376,6 +380,31 @@ function futurosProximosDias(futuros, motos, dias = 7) {
   const paraLista = (mapa) => [...mapa.entries()].map(([label, total]) => ({ label, total })).sort((a, b) => b.total - a.total);
   return { entrada, saida, itensEntrada: paraLista(itensEntrada), itensSaida: paraLista(itensSaida) };
 }
+
+// uma conta futura (avulsa ou fixa mensal) "pendura" num mês de "Lançado" enquanto ainda
+// não foi confirmada — pra avulsa é só olhar o próprio vencimento; pra fixa mensal, ela
+// pendura em TODOS os meses dentro do período de vigência que ainda não têm essa mesma
+// conta confirmada (marcada em f.confirmados, uma lista de "AAAA-MM" já virados lançamento)
+const futuroPendenteNoMes = (f, mesKey) => {
+  if (f.recorrente) {
+    const inicioKey = (f.vencimento || todayISO()).slice(0, 7);
+    const fimKey = f.dataTermino ? f.dataTermino.slice(0, 7) : null;
+    if (mesKey < inicioKey) return false;
+    if (fimKey && mesKey > fimKey) return false;
+    return !(f.confirmados || []).includes(mesKey);
+  }
+  if (f.pago) return false;
+  return f.vencimento?.slice(0, 7) === mesKey;
+};
+
+// data usada pra ordenar/gerar o lançamento quando a conta é confirmada num mês — pra
+// fixa mensal, usa o dia de vencimento configurado dentro do mês em questão (não o mês
+// em que ela foi cadastrada originalmente)
+const dataDoFuturoNoMes = (f, mesKey) => {
+  if (!f.recorrente) return f.vencimento || `${mesKey}-01`;
+  const dia = f.diaVencimento || Number((f.vencimento || `${mesKey}-01`).slice(8, 10)) || 1;
+  return `${mesKey}-${String(dia).padStart(2, "0")}`;
+};
 
 // consulta o CEP no ViaCEP (serviço público, gratuito, sem chave) e devolve o endereço
 // pra preencher os campos sozinho — só chama quando o CEP tem os 8 dígitos
@@ -3349,7 +3378,7 @@ function FuturoModal({ futuro, onClose, onSave, onDelete, editando, motos }) {
   );
 }
 
-const FuturosView = forwardRef(function FuturosView({ futuros, persist, motos, clientes }, ref) {
+const FuturosView = forwardRef(function FuturosView({ futuros, persist, motos, clientes, onConfirmar, mesAtualKey }, ref) {
   const [modal, setModal] = useState(null);
   const [verTodasCobrancas, setVerTodasCobrancas] = useState(false);
   const [verTodosFixos, setVerTodosFixos] = useState(false);
@@ -3376,7 +3405,9 @@ const FuturosView = forwardRef(function FuturosView({ futuros, persist, motos, c
   const projecao = projecaoFuturosPorMes([...futuros, ...contratos], 12);
 
   const recorrentes = futuros.filter((f) => f.recorrente);
-  const avulsos = [...futuros.filter((f) => !f.recorrente)].sort((a, b) => (a.vencimento > b.vencimento ? 1 : -1));
+  // avulso confirmado (pago) já virou um lançamento real em "Lançado" — some daqui, não
+  // faz sentido continuar mostrando como pendência
+  const avulsos = [...futuros.filter((f) => !f.recorrente && !f.pago)].sort((a, b) => (a.vencimento > b.vencimento ? 1 : -1));
 
   // agenda de cobrança: agrupa por dia do mês quem tem que ser cobrado — pensado pra
   // quando tiver muitas motos/clientes e ficar difícil lembrar "quem vence quando" só
@@ -3404,12 +3435,15 @@ const FuturosView = forwardRef(function FuturosView({ futuros, persist, motos, c
   const FuturoRow = ({ f }) => {
     const motoLigada = motos?.find((m) => m.id === f.motoId);
     const diaDoMes = f.diaVencimento || (f.vencimento ? new Date(`${f.vencimento}T00:00:00`).getDate() : null);
+    // fixa mensal não tem "pago" (ela se repete pra sempre) — o que existe é confirmar ou
+    // não o mês atual específico; avulso pago já nem chega aqui (filtrado antes da lista)
+    const jaConfirmadoEsteMes = f.recorrente && (f.confirmados || []).includes(mesAtualKey);
     return (
     <div
       key={f.id}
       onClick={() => permissoes.podeEditar && setModal(f)}
       className={`flex items-center justify-between px-4 py-3 rounded-2xl${permissoes.podeEditar ? " cursor-pointer" : ""}`}
-      style={{ background: theme.card, border: `1px solid ${theme.cardBorder}`, opacity: f.pago ? 0.55 : 1 }}
+      style={{ background: theme.card, border: `1px solid ${theme.cardBorder}`, opacity: jaConfirmadoEsteMes ? 0.55 : 1 }}
     >
       <div className="flex items-center gap-3 min-w-0">
         <div
@@ -3419,12 +3453,12 @@ const FuturosView = forwardRef(function FuturosView({ futuros, persist, motos, c
           {f.tipo === "entrada" ? <TrendingUp size={16} color={theme.mint} /> : <TrendingDown size={16} color={theme.coral} />}
         </div>
         <div className="min-w-0">
-          <div style={{ color: theme.text, fontFamily: BODY_FONT, fontWeight: 600, textDecoration: f.pago ? "line-through" : "none" }}>
+          <div style={{ color: theme.text, fontFamily: BODY_FONT, fontWeight: 600 }}>
             {f.descricao || "Sem descrição"}
           </div>
           <div style={{ color: theme.textMuted, fontFamily: BODY_FONT, fontSize: 12 }}>
             {f.recorrente ? `Recorrente · todo dia ${diaDoMes}` : `Vence em ${formatDate(f.vencimento)}`}
-            {f.pago && (f.tipo === "entrada" ? " · Recebido" : " · Pago")}
+            {jaConfirmadoEsteMes && " · mês atual já lançado"}
             {motoLigada && ` · ${formatPlaca(motoLigada.placa)}`}
           </div>
         </div>
@@ -3433,6 +3467,19 @@ const FuturosView = forwardRef(function FuturosView({ futuros, persist, motos, c
         <span style={{ color: f.tipo === "entrada" ? theme.mint : theme.coral, fontFamily: HEAD_FONT, fontSize: 16 }}>
           {f.tipo === "entrada" ? "+" : "-"} {formatCurrency(f.valor)}
         </span>
+        {permissoes.podeEditar && !jaConfirmadoEsteMes && onConfirmar && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onConfirmar(f, f.recorrente ? mesAtualKey : undefined);
+            }}
+            title={f.tipo === "entrada" ? "Confirmar recebimento" : "Confirmar pagamento"}
+            className="mbr-hover-grow flex items-center justify-center"
+            style={{ color: theme.mint, width: 30, height: 30 }}
+          >
+            <CheckCircle2 size={16} />
+          </button>
+        )}
         {permissoes.podeEditar && (
           <button
             onClick={(e) => {
@@ -3722,7 +3769,58 @@ function FluxoCaixaView({ lancamentos, persist, motos, clientes, futuros, persis
     const key = l.data ? l.data.slice(0, 7) : "sem-data";
     (porMes[key] = porMes[key] || []).push(l);
   });
-  const mesesOrdenados = Object.keys(porMes).sort((a, b) => (a < b ? 1 : -1));
+
+  // contas futuras (avulsas ou fixas mensais) ainda não confirmadas "penduram" dentro do
+  // mês de Lançado a que pertencem — inclusive criando a abinha do mês sozinhas, antes de
+  // qualquer lançamento real existir nele, pra não ficar escondido só na aba Futuros
+  const mesAtualKey = todayISO().slice(0, 7);
+  const mesesCandidatosPendencia = new Set(
+    [
+      mesAtualKey,
+      ...Object.keys(porMes),
+      ...(futuros || []).filter((f) => !f.recorrente && !f.pago && f.vencimento).map((f) => f.vencimento.slice(0, 7)),
+    ].filter((k) => k !== "sem-data")
+  );
+  const pendenciasPorMes = {};
+  mesesCandidatosPendencia.forEach((mesKey) => {
+    const pend = (futuros || [])
+      .filter((f) => futuroPendenteNoMes(f, mesKey))
+      .map((f) => ({ ...f, id: `pend:${f.id}:${mesKey}`, _futuroId: f.id, _mesKey: mesKey, _pendente: true, data: dataDoFuturoNoMes(f, mesKey) }));
+    if (pend.length > 0) pendenciasPorMes[mesKey] = pend;
+  });
+
+  const mesesComLancamentos = Object.keys(porMes).sort((a, b) => (a < b ? 1 : -1));
+  const mesesOrdenados = [...new Set([...mesesComLancamentos, ...Object.keys(pendenciasPorMes)])].sort((a, b) => (a < b ? 1 : -1));
+
+  // confirma que uma conta futura (avulsa ou a parcela do mês de uma fixa) realmente
+  // aconteceu — gera o lançamento real em "Lançado" e marca a conta futura como resolvida
+  // (avulsa some da lista de pendências; fixa mensal só marca ESSE mês como confirmado,
+  // continua valendo pros meses seguintes)
+  const confirmarFuturo = async (f, mesKeyParam) => {
+    const original = (futuros || []).find((x) => x.id === (f._futuroId || f.id)) || f;
+    const mesKey = mesKeyParam || f._mesKey || (original.vencimento || mesAtualKey).slice(0, 7);
+    const novoLancamento = {
+      id: uid(),
+      tipo: original.tipo,
+      data: dataDoFuturoNoMes(original, mesKey),
+      natureza: "Operacional",
+      categoria: original.categoria || original.descricao || "Sem categoria",
+      valor: Number(original.valor) || 0,
+      descricao: original.recorrente ? original.descricao : "",
+      forma: "",
+      motoId: original.motoId || "",
+    };
+    await persist([...lancamentos, novoLancamento]);
+    const futurosAtualizados = (futuros || []).map((x) =>
+      x.id === original.id
+        ? original.recorrente
+          ? { ...x, confirmados: [...(x.confirmados || []), mesKey] }
+          : { ...x, pago: true }
+        : x
+    );
+    await persistFuturos(futurosAtualizados);
+    setDetalheAberto(null);
+  };
 
   const [expandido, setExpandido] = useState(mesesOrdenados[0] || null);
   const [detalheAberto, setDetalheAberto] = useState(null);
@@ -3817,10 +3915,18 @@ function FluxoCaixaView({ lancamentos, persist, motos, clientes, futuros, persis
       </div>
 
       {view === "futuros" ? (
-        <FuturosView ref={futurosViewRef} futuros={futuros || []} persist={persistFuturos} motos={motos} clientes={clientes} />
+        <FuturosView
+          ref={futurosViewRef}
+          futuros={futuros || []}
+          persist={persistFuturos}
+          motos={motos}
+          clientes={clientes}
+          onConfirmar={confirmarFuturo}
+          mesAtualKey={mesAtualKey}
+        />
       ) : (
         <>
-      {ordenados.length === 0 && (
+      {mesesOrdenados.length === 0 && (
         <div className="rounded-2xl p-6 text-center" style={{ background: theme.card, color: theme.textMuted, fontFamily: BODY_FONT, border: `1px solid ${theme.cardBorder}` }}>
           Nenhum lançamento ainda.
         </div>
@@ -3833,7 +3939,7 @@ function FluxoCaixaView({ lancamentos, persist, motos, clientes, futuros, persis
         >
           <SectionTitle className="mb-3">Resumo mensal</SectionTitle>
           <div className="flex flex-col gap-2">
-            {(verTodosResumo ? mesesOrdenados : mesesOrdenados.slice(0, 1)).map((mesKey) => {
+            {(verTodosResumo ? mesesComLancamentos : mesesComLancamentos.slice(0, 1)).map((mesKey) => {
               const itensResumo = porMes[mesKey];
               const entradaResumo = itensResumo.filter((l) => l.tipo === "entrada").reduce((s, l) => s + Number(l.valor), 0);
               const saidaResumo = itensResumo.filter((l) => l.tipo === "saida").reduce((s, l) => s + Number(l.valor), 0);
@@ -3867,13 +3973,13 @@ function FluxoCaixaView({ lancamentos, persist, motos, clientes, futuros, persis
               );
             })}
           </div>
-          {mesesOrdenados.length > 1 && (
+          {mesesComLancamentos.length > 1 && (
             <button
               onClick={() => setVerTodosResumo((v) => !v)}
               className="text-xs font-semibold mt-2"
               style={{ color: theme.mint, fontFamily: BODY_FONT, minHeight: 32 }}
             >
-              {verTodosResumo ? "Ver menos" : `Ver mais (${mesesOrdenados.length - 1})`}
+              {verTodosResumo ? "Ver menos" : `Ver mais (${mesesComLancamentos.length - 1})`}
             </button>
           )}
         </div>
@@ -3881,9 +3987,11 @@ function FluxoCaixaView({ lancamentos, persist, motos, clientes, futuros, persis
 
       <div className="flex flex-col gap-2">
         {mesesOrdenados.map((mesKey) => {
-          const itens = porMes[mesKey];
-          const totalEntrada = itens.filter((l) => l.tipo === "entrada").reduce((s, l) => s + Number(l.valor), 0);
-          const totalSaida = itens.filter((l) => l.tipo === "saida").reduce((s, l) => s + Number(l.valor), 0);
+          const itensReais = porMes[mesKey] || [];
+          const pendentesDoMes = pendenciasPorMes[mesKey] || [];
+          const itens = [...itensReais, ...pendentesDoMes].sort((a, b) => (a.data < b.data ? 1 : -1));
+          const totalEntrada = itensReais.filter((l) => l.tipo === "entrada").reduce((s, l) => s + Number(l.valor), 0);
+          const totalSaida = itensReais.filter((l) => l.tipo === "saida").reduce((s, l) => s + Number(l.valor), 0);
           const saldo = totalEntrada - totalSaida;
           const aberto = expandido === mesKey;
           return (
@@ -3897,7 +4005,10 @@ function FluxoCaixaView({ lancamentos, persist, motos, clientes, futuros, persis
                     {mesKey === "sem-data" ? "Sem data" : monthLabel(mesKey)}
                   </div>
                   <div className="text-xs" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
-                    {itens.length} lançamento{itens.length === 1 ? "" : "s"}
+                    {itensReais.length} lançamento{itensReais.length === 1 ? "" : "s"}
+                    {pendentesDoMes.length > 0 && (
+                      <span style={{ color: theme.amber }}> · {pendentesDoMes.length} previsto{pendentesDoMes.length === 1 ? "" : "s"}</span>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
@@ -3914,11 +4025,13 @@ function FluxoCaixaView({ lancamentos, persist, motos, clientes, futuros, persis
                     const motoLigada = motos?.find((m) => m.id === l.motoId);
                     const detalheEsteAberto = detalheAberto === l.id;
                     const temDetalhe = !!(l.natureza || l.forma || l.descricao);
+                    const pendente = !!l._pendente;
+                    const corItem = pendente ? theme.amber : l.tipo === "entrada" ? theme.mint : theme.coral;
                     return (
                       <div
                         key={l.id}
                         style={{
-                          background: theme.card2,
+                          background: pendente ? `${theme.amber}14` : theme.card2,
                           borderBottom: i < itens.length - 1 ? `1px solid ${theme.divider}` : "none",
                         }}
                       >
@@ -3931,7 +4044,13 @@ function FluxoCaixaView({ lancamentos, persist, motos, clientes, futuros, persis
                               className="flex items-center justify-center flex-shrink-0"
                               style={{ width: 28, height: 28, borderRadius: 8, background: theme.card2 }}
                             >
-                              {l.tipo === "entrada" ? <TrendingUp size={16} color={theme.mint} /> : <TrendingDown size={16} color={theme.coral} />}
+                              {pendente ? (
+                                <Clock size={16} color={theme.amber} />
+                              ) : l.tipo === "entrada" ? (
+                                <TrendingUp size={16} color={theme.mint} />
+                              ) : (
+                                <TrendingDown size={16} color={theme.coral} />
+                              )}
                             </div>
                             <div className="min-w-0">
                               <div className="flex items-center gap-1.5 flex-wrap">
@@ -3944,20 +4063,29 @@ function FluxoCaixaView({ lancamentos, persist, motos, clientes, futuros, persis
                                     Parcela {l.parcelaAtual || 1}/{l.parcelasTotal}
                                   </span>
                                 )}
+                                {pendente && (
+                                  <span
+                                    className="text-xs font-semibold rounded-full px-2"
+                                    style={{ background: `${theme.amber}26`, color: theme.amber, fontFamily: BODY_FONT }}
+                                  >
+                                    Previsto
+                                  </span>
+                                )}
                               </div>
                               <div style={{ color: theme.textFaint, fontFamily: BODY_FONT, fontSize: 12 }}>
                                 {formatDate(l.data)}
                                 {motoLigada && ` · ${formatPlaca(motoLigada.placa)}`}
+                                {pendente && l.recorrente && " · fixo mensal"}
                               </div>
                             </div>
                           </div>
                           <div className="flex items-center gap-1 flex-shrink-0">
-                            <span style={{ color: l.tipo === "entrada" ? theme.mint : theme.coral, fontFamily: HEAD_FONT, fontWeight: 700, fontSize: 16 }}>
+                            <span style={{ color: corItem, fontFamily: HEAD_FONT, fontWeight: 700, fontSize: 16 }}>
                               {l.tipo === "entrada" ? "+" : "-"} {formatCurrency(l.valor)}
                             </span>
-                            {(temDetalhe || permissoes.podeEditar) &&
+                            {(temDetalhe || pendente || permissoes.podeEditar) &&
                               (detalheEsteAberto ? <ChevronUp size={16} color={theme.textMuted} /> : <ChevronDown size={16} color={theme.textMuted} />)}
-                            {permissoes.podeEditar && (
+                            {!pendente && permissoes.podeEditar && (
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -3971,6 +4099,28 @@ function FluxoCaixaView({ lancamentos, persist, motos, clientes, futuros, persis
                             )}
                           </div>
                         </div>
+                        {pendente ? (
+                          <Collapse open={detalheEsteAberto}>
+                            <div className="px-4 pb-3 flex flex-col gap-2" style={{ borderTop: `1px solid ${theme.divider}`, paddingTop: 10 }}>
+                              <div className="text-xs" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+                                Ainda não {l.tipo === "entrada" ? "recebido" : "pago"} — essa conta está cadastrada em
+                                "Futuros" e ainda não virou um lançamento real.
+                              </div>
+                              {permissoes.podeEditar && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    confirmarFuturo(l);
+                                  }}
+                                  className="flex items-center justify-center gap-1.5 rounded-xl py-2 font-semibold text-sm"
+                                  style={{ background: theme.mint, color: theme.mintText }}
+                                >
+                                  <CheckCircle2 size={14} /> Confirmar {l.tipo === "entrada" ? "recebimento" : "pagamento"}
+                                </button>
+                              )}
+                            </div>
+                          </Collapse>
+                        ) : (
                         <Collapse open={detalheEsteAberto}>
                           <div className="px-4 pb-3 flex flex-col gap-1.5" style={{ borderTop: `1px solid ${theme.divider}`, paddingTop: 10 }}>
                             {l.natureza && (
@@ -4005,6 +4155,7 @@ function FluxoCaixaView({ lancamentos, persist, motos, clientes, futuros, persis
                             )}
                           </div>
                         </Collapse>
+                        )}
                       </div>
                     );
                   })}
