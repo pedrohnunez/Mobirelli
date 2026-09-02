@@ -47,7 +47,6 @@ import {
   Lock,
   ShieldCheck,
   KeyRound,
-  Ban,
   Info,
   Landmark,
   Timer,
@@ -5755,8 +5754,10 @@ function UsuariosSection({ meuId }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const alternarAtivo = async (usuario) => {
-    const resultado = await chamarAdminApi("definir-ativo", { userId: usuario.id, ativo: !usuario.ativo });
+  const excluirUsuario = async (usuario) => {
+    const ok = window.confirm(`Excluir o usuário "${usuario.username}" para sempre? O login dele deixa de existir e não dá pra desfazer.`);
+    if (!ok) return;
+    const resultado = await chamarAdminApi("excluir", { userId: usuario.id });
     if (!resultado.ok) {
       setErro(resultado.erro);
       return;
@@ -5835,12 +5836,12 @@ function UsuariosSection({ meuId }) {
                 </button>
                 {u.id !== meuId && (
                   <button
-                    onClick={() => alternarAtivo(u)}
+                    onClick={() => excluirUsuario(u)}
                     className="flex items-center justify-center mbr-hover-grow"
-                    style={{ color: u.ativo ? theme.coral : theme.mint, width: 40, height: 40 }}
-                    title={u.ativo ? "Desativar acesso" : "Reativar acesso"}
+                    style={{ color: theme.textMuted, width: 40, height: 40, marginRight: -8 }}
+                    title="Excluir usuário"
                   >
-                    {u.ativo ? <Ban size={15} /> : <CheckCircle2 size={15} />}
+                    <Trash2 size={15} />
                   </button>
                 )}
               </div>

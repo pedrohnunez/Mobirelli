@@ -166,6 +166,37 @@ export default async function handler(req, res) {
       return;
     }
 
+    if (action === "excluir") {
+      const verificacao = await exigirAdmin(admin, token);
+      if (verificacao.erro) {
+        res.status(403).json({ erro: verificacao.erro });
+        return;
+      }
+      if (!userId) {
+        res.status(400).json({ erro: "Usuário não informado." });
+        return;
+      }
+      if (userId === verificacao.uid) {
+        res.status(400).json({ erro: "Você não pode excluir seu próprio usuário." });
+        return;
+      }
+      const { data: alvo, error: alvoErro } = await admin.from("perfis").select("role").eq("id", userId).maybeSingle();
+      if (alvoErro || !alvo) {
+        res.status(400).json({ erro: "Usuário não encontrado." });
+        return;
+      }
+      if (alvo.role === "admin") {
+        res.status(403).json({ erro: "Não é possível excluir o administrador." });
+        return;
+      }
+      // apaga a conta de login (auth.users) — a linha em "perfis" some sozinha junto,
+      // por causa do "on delete cascade" do schema
+      const { error: excluirErro } = await admin.auth.admin.deleteUser(userId);
+      if (excluirErro) throw excluirErro;
+      res.status(200).json({ ok: true });
+      return;
+    }
+
     res.status(400).json({ erro: "Ação inválida." });
   } catch (e) {
     const mensagem = e?.message || "";
