@@ -35,7 +35,6 @@ import {
   Mail,
   MapPin,
   Settings,
-  Image as ImageIcon,
   Navigation,
   Crosshair,
   Route,
@@ -616,70 +615,10 @@ function useSharedObject(key, defaultValue) {
 /* ===========================================================
    UI ATOMS
 =========================================================== */
-function Wordmark({ compact, logoDataUrl, logoSize }) {
-  const [erro, setErro] = useState(false);
-  const src = logoDataUrl || "/logo-header.png";
-  if (!erro) {
-    const height = logoSize || (compact ? 28 : 38);
-    return (
-      <img
-        src={src}
-        alt="Mobirelli"
-        style={{ height, width: "auto", maxWidth: "60vw", objectFit: "contain", display: "block" }}
-        onError={() => setErro(true)}
-      />
-    );
-  }
-  return <WordmarkFallback compact={compact} />;
-}
-
-function WordmarkFallback({ compact }) {
-  return (
-    <div style={{ display: "inline-flex", flexDirection: "column", gap: 3 }}>
-      <div className="flex items-center gap-1.5">
-        <span style={{ fontFamily: HEAD_FONT, fontWeight: 500, fontSize: compact ? 20 : 26, color: theme.mint }}>mobi</span>
-        <span
-          style={{
-            fontFamily: HEAD_FONT,
-            fontWeight: 700,
-            fontSize: compact ? 20 : 26,
-            color: theme.mintText,
-            background: theme.mint,
-            borderRadius: 8,
-            padding: "1px 10px",
-          }}
-        >
-          relli
-        </span>
-      </div>
-      {!compact && (
-        <div className="flex items-center gap-1.5 ml-1">
-          <div style={{ width: 12, height: 9, borderLeft: `2px solid ${theme.sage}`, borderBottom: `2px solid ${theme.sage}`, borderBottomLeftRadius: 5 }} />
-          <span
-            style={{
-              fontFamily: BODY_FONT,
-              fontSize: 12,
-              fontWeight: 700,
-              color: theme.mintText,
-              background: theme.mint,
-              borderRadius: 6,
-              padding: "1px 7px",
-              letterSpacing: 0.2,
-            }}
-          >
-            aluguel de motos
-          </span>
-        </div>
-      )}
-    </div>
-  );
-}
-
 /* ===========================================================
    REDESIGN — marca compacta do shell novo (Etapa 2). Ícone das "duas rodas"
-   copiado à risca do mockup exportado do Claude Design; não é o mesmo
-   componente de logo configurável (Wordmark) — essa marca não muda por
-   conta própria/config, só pelo tema do redesign.
+   copiado à risca do mockup exportado do Claude Design. A logo própria
+   configurável foi removida (ver Ajustes) — a marca do shell é fixa.
 =========================================================== */
 function MarcaMobirelli({ size = 38, raio = 11 }) {
   return (
@@ -5941,48 +5880,18 @@ function UsuariosSection({ meuId }) {
 function ConfiguracoesView({ config, persist, perfil, onSignOut }) {
   const [local, setLocal] = useState(config);
   const [status, setStatus] = useState({ text: "", kind: "" }); // kind: "ok" | "erro" | ""
-  const logoInputRef = useRef(null);
 
   // se outra pessoa (ex. seu pai) mudar as configurações, reflete aqui
   useEffect(() => {
     setLocal(config);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [config.logoDataUrl, config.logoSize, config.linkRastreioGeral]);
+  }, [config.linkRastreioGeral]);
 
   const salvarAgora = async (next) => {
     setStatus({ text: "Salvando...", kind: "" });
     await persist(next);
     setStatus({ text: "Salvo ✓", kind: "ok" });
     setTimeout(() => setStatus({ text: "", kind: "" }), 1800);
-  };
-
-  const handleLogo = (e) => {
-    const file = e.target.files[0];
-    e.target.value = "";
-    if (!file) return;
-    if (file.size > 5 * 1024 * 1024) {
-      setStatus({ text: "Imagem acima de 5MB — tente uma versão menor.", kind: "erro" });
-      return;
-    }
-    setStatus({ text: "Enviando logo...", kind: "" });
-    (async () => {
-      const url = await uploadArquivo(`logo-${Date.now()}-${nomeArquivoSeguro(file.name)}`, file);
-      if (!url) {
-        setStatus({ text: "Não foi possível enviar a logo agora.", kind: "erro" });
-        return;
-      }
-      const next = { ...local, logoDataUrl: url, logoName: file.name };
-      setLocal(next);
-      await persist(next);
-      setStatus({ text: "Logo salva ✓", kind: "ok" });
-      setTimeout(() => setStatus({ text: "", kind: "" }), 1800);
-    })();
-  };
-
-  const removerLogo = () => {
-    const next = { ...local, logoDataUrl: "", logoName: "" };
-    setLocal(next);
-    salvarAgora(next);
   };
 
   return (
@@ -6012,65 +5921,6 @@ function ConfiguracoesView({ config, persist, perfil, onSignOut }) {
 
       {permissoes.podeEditar && (
       <>
-      <div className="rounded-2xl p-4 mb-4" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
-        <FieldLabel>Logo da empresa</FieldLabel>
-        <div className="flex items-center gap-3 mb-2">
-          <div
-            className="flex items-center justify-center rounded-xl"
-            style={{ width: 64, height: 64, background: theme.bg, border: `1px solid ${theme.cardBorder}` }}
-          >
-            {local.logoDataUrl ? (
-              <img src={local.logoDataUrl} alt="Logo atual" style={{ maxWidth: 56, maxHeight: 56 }} />
-            ) : (
-              <ImageIcon size={22} color={theme.textMuted} />
-            )}
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <input ref={logoInputRef} type="file" accept="image/*" onChange={handleLogo} style={{ display: "none" }} />
-            <button
-              type="button"
-              onClick={() => logoInputRef.current?.click()}
-              className="text-xs font-semibold rounded-xl px-3 py-1.5"
-              style={{ background: theme.mint, color: theme.text, fontWeight: 600 }}
-            >
-              Enviar imagem da logo
-            </button>
-            {local.logoDataUrl && (
-              <button type="button" onClick={removerLogo} className="text-xs font-semibold" style={{ color: theme.coral }}>
-                Remover e usar a marca padrão
-              </button>
-            )}
-          </div>
-        </div>
-        <div className="text-xs mb-3" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
-          PNG com fundo transparente funciona melhor. Até 5MB.
-        </div>
-
-        {local.logoDataUrl && (
-          <div className="pt-3" style={{ borderTop: `1px solid ${theme.divider}` }}>
-            <div className="flex items-center justify-between mb-1.5">
-              <span style={{ color: theme.text, fontFamily: BODY_FONT, fontSize: 13, fontWeight: 600 }}>
-                Tamanho da logo no topo
-              </span>
-              <span style={{ color: theme.textMuted, fontFamily: BODY_FONT, fontSize: 12 }}>
-                {local.logoSize || 38}px
-              </span>
-            </div>
-            <input
-              type="range"
-              min={24}
-              max={90}
-              step={2}
-              value={local.logoSize || 38}
-              onChange={(e) => setLocal((l) => ({ ...l, logoSize: Number(e.target.value) }))}
-              onMouseUp={() => salvarAgora({ ...local })}
-              onTouchEnd={() => salvarAgora({ ...local })}
-              style={{ width: "100%", accentColor: theme.mint }}
-            />
-          </div>
-        )}
-      </div>
-
       <div className="rounded-2xl p-4 mb-4" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
         <FieldLabel>Link de rastreio (aba Rastreio)</FieldLabel>
         <input
