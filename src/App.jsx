@@ -1508,65 +1508,134 @@ function ClientesView({ clientes, persistClientes, motos, persistMotos }) {
   const semMotoAgora = clientes.filter((c) => !motos.some((m) => m.contratoAtual?.clienteId === c.id)).length;
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-3">
-        <h2 style={{ fontFamily: HEAD_FONT, fontSize: 22, fontWeight: 700, color: theme.mint }}>Clientes</h2>
+    <div className="flex flex-col" style={{ gap: 18 }}>
+      <div className="flex items-center flex-wrap" style={{ gap: 16 }}>
+        <div className="flex flex-col" style={{ gap: 3 }}>
+          <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, letterSpacing: "-0.02em", color: "var(--rd-text)", fontFamily: "var(--rd-font)" }}>Clientes</h1>
+          <span style={{ fontSize: 12.5, color: "var(--rd-text-dim)" }}>
+            {clientes.length} cliente{clientes.length === 1 ? "" : "s"} · {semMotoAgora} sem moto no momento
+          </span>
+        </div>
         {permissoes.podeEditar && (
           <button
             onClick={() => setModal({ mode: "novo", cliente: emptyCliente() })}
-            className="flex items-center gap-1 rounded-xl px-3 py-2 text-sm font-semibold"
-            style={{ background: theme.mint, color: theme.text, fontWeight: 600 }}
+            className="flex items-center"
+            style={{ gap: 8, marginLeft: "auto", background: "var(--rd-brand-soft)", color: "var(--rd-shell)", borderRadius: 999, padding: "10px 18px", fontSize: 13.5, fontWeight: 700 }}
           >
-            <Plus size={16} /> Novo cliente
+            <Plus size={15} strokeWidth={3} /> Novo cliente
           </button>
         )}
       </div>
-      <div className="text-xs mb-3" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
-        {clientes.length} cliente{clientes.length === 1 ? "" : "s"}
-        {" · "}
-        {semMotoAgora} sem moto no momento
-      </div>
 
-      <div className="relative mb-4">
-        <Search size={15} style={{ position: "absolute", left: 10, top: 10, color: theme.textMuted }} />
+      <div className="relative">
+        <Search size={15} strokeWidth={2.75} style={{ position: "absolute", left: 14, top: 12, color: "var(--rd-text-dim)" }} />
         <input
-          style={{ ...inputStyle, paddingLeft: 32, marginBottom: 0 }}
+          style={{
+            width: "100%",
+            background: "var(--rd-surface-2)",
+            border: "1px solid var(--rd-border)",
+            borderRadius: 12,
+            padding: "10px 14px 10px 38px",
+            color: "var(--rd-text)",
+            fontSize: 13.5,
+            fontFamily: "var(--rd-font)",
+          }}
           placeholder="Buscar por nome ou CPF/CNPJ"
           value={busca}
           onChange={(e) => setBusca(e.target.value)}
         />
       </div>
 
-      {filtrados.length === 0 && (
-        <div className="rounded-2xl p-6 text-center" style={{ background: theme.card, color: theme.textMuted, fontFamily: BODY_FONT }}>
+      {filtrados.length === 0 ? (
+        <div className="rounded-2xl p-6 text-center" style={{ background: "var(--rd-surface)", border: "1px solid var(--rd-border)", color: "var(--rd-text-dim)", fontFamily: "var(--rd-font)" }}>
           Nenhum cliente encontrado.
         </div>
-      )}
+      ) : (
+        <>
+          <div
+            className="mbr-desktop-grid"
+            style={{
+              gridTemplateColumns: "1fr 150px 200px 170px 84px",
+              padding: "0 4px 10px",
+              borderBottom: "1px solid var(--rd-border-soft)",
+              fontSize: 11,
+              fontWeight: 700,
+              letterSpacing: "0.14em",
+              textTransform: "uppercase",
+              color: "var(--rd-text-faint)",
+            }}
+          >
+            <span>Cliente</span>
+            <span>CPF/CNPJ</span>
+            <span>Contato</span>
+            <span>Moto</span>
+            <span></span>
+          </div>
 
-      <div className="flex flex-col gap-2">
-        {filtrados.map((c) => {
+          <div className="flex flex-col" style={{ gap: 10 }}>
+            {filtrados.map((c) => {
           const motoVinculada = motos.find((m) => m.contratoAtual?.clienteId === c.id);
           const aberto = expandido === c.id;
           return (
-            <div key={c.id} className="rounded-2xl overflow-hidden" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
-              <button className="w-full flex items-center gap-3 justify-between px-4 py-3 text-left" onClick={() => setExpandido(aberto ? null : c.id)}>
-                <div className="flex items-center gap-3 min-w-0">
-                  <div
-                    className="flex items-center justify-center flex-shrink-0"
-                    style={{ width: 28, height: 28, borderRadius: 8, background: theme.card2 }}
-                  >
-                    <Users size={16} color={motoVinculada ? theme.mint : theme.textGhost} />
+            <div key={c.id} className="rounded-2xl overflow-hidden" style={{ background: "var(--rd-surface)", border: "1px solid var(--rd-border)" }}>
+              <button
+                className="w-full text-left mbr-desktop-grid"
+                onClick={() => setExpandido(aberto ? null : c.id)}
+                style={{ gridTemplateColumns: "1fr 150px 200px 170px 84px", alignItems: "center", padding: "16px 18px" }}
+              >
+                <div className="flex flex-col min-w-0" style={{ gap: 2 }}>
+                  <span className="truncate" style={{ fontSize: 13.5, fontWeight: 600, color: "var(--rd-text)" }}>{c.nome || "Sem nome"}</span>
+                  <span className="truncate" style={{ fontSize: 11.5, color: "var(--rd-text-dim)" }}>{[c.cidade, c.estado].filter(Boolean).join("/") || "—"}</span>
+                </div>
+                <span style={{ fontFamily: "ui-monospace, monospace", fontSize: 12.5, color: "var(--rd-text-muted)" }}>{c.cpfCnpj || "—"}</span>
+                <div className="flex flex-col min-w-0" style={{ gap: 2 }}>
+                  <span className="truncate" style={{ fontSize: 12.5, color: "var(--rd-text-muted)" }}>{c.telefone || "—"}</span>
+                  <span className="truncate" style={{ fontSize: 11.5, color: "var(--rd-text-dim)" }}>{c.email || ""}</span>
+                </div>
+                {motoVinculada ? (
+                  <div className="flex items-center" style={{ gap: 8 }}>
+                    <span
+                      style={{
+                        fontFamily: "ui-monospace, monospace",
+                        fontSize: 11.5,
+                        fontWeight: 700,
+                        color: "var(--rd-brand-light)",
+                        background: "var(--rd-brand)",
+                        borderRadius: 999,
+                        padding: "3px 9px",
+                      }}
+                    >
+                      {formatPlaca(motoVinculada.placa)}
+                    </span>
+                    <span style={{ fontSize: 11.5, color: "var(--rd-text-dim)" }}>{formatCurrency(motoVinculada.contratoAtual.valorMensal)}</span>
                   </div>
-                  <div className="flex flex-col gap-1.5 min-w-0">
-                    <div style={{ fontFamily: HEAD_FONT, fontSize: 17, color: theme.text }}>{c.nome || "Sem nome"}</div>
-                    {motoVinculada ? (
-                      <Badge color={theme.mint} icon={Bike} label={`Com a moto ${formatPlaca(motoVinculada.placa)}`} />
-                    ) : (
-                      <Badge color={theme.amber} icon={Clock} label="Sem moto no momento" />
-                    )}
+                ) : (
+                  <span style={{ fontSize: 12, fontWeight: 600, color: "var(--rd-attention-text)" }}>Sem moto no momento</span>
+                )}
+                <span style={{ fontSize: 12.5, fontWeight: 700, color: motoVinculada ? "var(--rd-brand-light)" : "var(--rd-attention)", justifySelf: "end" }}>
+                  {aberto ? "Fechar" : motoVinculada ? "Abrir" : "Vincular"}
+                </span>
+              </button>
+
+              <button
+                className="w-full mbr-mobile-only flex items-center justify-between text-left"
+                onClick={() => setExpandido(aberto ? null : c.id)}
+                style={{ gap: 12, padding: "14px 16px" }}
+              >
+                <div className="flex items-center min-w-0" style={{ gap: 12 }}>
+                  <div className="flex items-center justify-center flex-shrink-0" style={{ width: 32, height: 32, borderRadius: 9, background: "var(--rd-surface-2)" }}>
+                    <Users size={16} color={motoVinculada ? "var(--rd-brand-light)" : "var(--rd-attention)"} />
+                  </div>
+                  <div className="flex flex-col min-w-0" style={{ gap: 3 }}>
+                    <span className="truncate" style={{ fontSize: 13.5, fontWeight: 600, color: "var(--rd-text)" }}>{c.nome || "Sem nome"}</span>
+                    <span className="truncate" style={{ fontSize: 11.5, color: "var(--rd-text-dim)" }}>
+                      {motoVinculada ? `Com a moto ${formatPlaca(motoVinculada.placa)}` : "Sem moto no momento"}
+                    </span>
                   </div>
                 </div>
-                {aberto ? <ChevronUp size={18} color={theme.textMuted} /> : <ChevronDown size={18} color={theme.textMuted} />}
+                <span style={{ fontSize: 12, fontWeight: 700, color: motoVinculada ? "var(--rd-brand-light)" : "var(--rd-attention)", flex: "none" }}>
+                  {aberto ? "Fechar" : motoVinculada ? "Abrir" : "Vincular"}
+                </span>
               </button>
 
               <Collapse open={aberto}>
@@ -1666,8 +1735,10 @@ function ClientesView({ clientes, persistClientes, motos, persistMotos }) {
               </Collapse>
             </div>
           );
-        })}
-      </div>
+            })}
+          </div>
+        </>
+      )}
 
       {(modal?.mode === "novo" || modal?.mode === "editar") && (
         <ClienteFormModal
