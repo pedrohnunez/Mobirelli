@@ -3717,30 +3717,26 @@ const FuturosView = forwardRef(function FuturosView({ futuros, persist, motos, c
     <div
       key={f.id}
       onClick={() => permissoes.podeEditar && setModal(f)}
-      className={`flex items-center justify-between px-4 py-3 rounded-2xl${permissoes.podeEditar ? " cursor-pointer" : ""}`}
-      style={{ background: theme.card, border: `1px solid ${theme.cardBorder}`, opacity: jaConfirmadoEsteMes ? 0.55 : 1 }}
+      className={`flex items-center justify-between rounded-2xl${permissoes.podeEditar ? " cursor-pointer" : ""}`}
+      style={{ padding: "13px 18px", background: "var(--rd-surface)", border: "1px solid var(--rd-border)", opacity: jaConfirmadoEsteMes ? 0.55 : 1 }}
     >
-      <div className="flex items-center gap-3 min-w-0">
-        <div
-          className="flex items-center justify-center flex-shrink-0"
-          style={{ width: 28, height: 28, borderRadius: 8, background: theme.card2 }}
-        >
-          {f.tipo === "entrada" ? <TrendingUp size={16} color={theme.mint} /> : <TrendingDown size={16} color={theme.coral} />}
+      <div className="flex items-center min-w-0" style={{ gap: 12 }}>
+        <div className="flex items-center justify-center flex-shrink-0" style={{ width: 30, height: 30, borderRadius: 9, background: "var(--rd-surface-2)" }}>
+          {f.tipo === "entrada" ? <TrendingUp size={15} color="var(--rd-positive)" /> : <TrendingDown size={15} color="var(--rd-negative)" />}
         </div>
         <div className="min-w-0">
-          <div style={{ color: theme.text, fontFamily: BODY_FONT, fontWeight: 600 }}>
-            {f.descricao || "Sem descrição"}
-          </div>
-          <div style={{ color: theme.textMuted, fontFamily: BODY_FONT, fontSize: 12 }}>
+          <div className="truncate" style={{ color: "var(--rd-text)", fontWeight: 600, fontSize: 13.5 }}>{f.descricao || "Sem descrição"}</div>
+          <div style={{ color: "var(--rd-text-dim)", fontSize: 11.5 }}>
             {f.recorrente ? `Recorrente · todo dia ${diaDoMes}` : `Vence em ${formatDate(f.vencimento)}`}
             {jaConfirmadoEsteMes && " · mês atual já lançado"}
             {motoLigada && ` · ${formatPlaca(motoLigada.placa)}`}
           </div>
         </div>
       </div>
-      <div className="flex items-center gap-3 flex-shrink-0">
-        <span style={{ color: f.tipo === "entrada" ? theme.mint : theme.coral, fontFamily: HEAD_FONT, fontSize: 16 }}>
-          {f.tipo === "entrada" ? "+" : "-"} {formatCurrency(f.valor)}
+      <div className="flex items-center flex-shrink-0" style={{ gap: 6 }}>
+        <span style={{ color: f.tipo === "entrada" ? "var(--rd-positive)" : "var(--rd-negative)", fontWeight: 700, fontSize: 15 }}>
+          {f.tipo === "entrada" ? "+ " : "− "}
+          {formatCurrency(f.valor)}
         </span>
         {permissoes.podeEditar && !jaConfirmadoEsteMes && onConfirmar && (
           <button
@@ -3750,7 +3746,7 @@ const FuturosView = forwardRef(function FuturosView({ futuros, persist, motos, c
             }}
             title={f.tipo === "entrada" ? "Confirmar recebimento" : "Confirmar pagamento"}
             className="mbr-hover-grow flex items-center justify-center"
-            style={{ color: theme.mint, width: 30, height: 30 }}
+            style={{ color: "var(--rd-brand-light)", width: 30, height: 30 }}
           >
             <CheckCircle2 size={16} />
           </button>
@@ -3762,7 +3758,7 @@ const FuturosView = forwardRef(function FuturosView({ futuros, persist, motos, c
               excluir(f.id);
             }}
             className="mbr-hover-grow flex items-center justify-center"
-            style={{ color: theme.textMuted, width: 30, height: 30, marginRight: -6 }}
+            style={{ color: "var(--rd-text-dim)", width: 30, height: 30, marginRight: -6 }}
           >
             <Trash2 size={14} />
           </button>
@@ -3773,62 +3769,56 @@ const FuturosView = forwardRef(function FuturosView({ futuros, persist, motos, c
   };
 
   return (
-    <div>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
-        <div className="rounded-2xl p-4" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
-          <div className="text-xs uppercase tracking-wide mb-1" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+    <div className="flex flex-col" style={{ gap: 16 }}>
+      <div className="grid grid-cols-1 sm:grid-cols-3" style={{ gap: 12 }}>
+        <div className="rounded-2xl" style={{ background: "var(--rd-surface)", border: "1px solid var(--rd-border)", padding: "16px 18px" }}>
+          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--rd-text-dim)", marginBottom: 4 }}>
             A receber (12 meses)
           </div>
-          <div style={{ fontFamily: HEAD_FONT, fontSize: 20, color: theme.mint }}>{formatCurrency(previstoEntrada12Meses)}</div>
-          <div className="text-xs mt-0.5" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+          <div style={{ fontSize: 20, fontWeight: 700, color: "var(--rd-positive)" }}>{formatCurrency(previstoEntrada12Meses)}</div>
+          <div style={{ fontSize: 11.5, color: "var(--rd-text-dim)", marginTop: 2 }}>
             fixo/mês: {formatCurrency(fixoMensalEntrada)} · avulso: {formatCurrency(avulsosPendentesEntrada)}
           </div>
         </div>
-        <div className="rounded-2xl p-4" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
-          <div className="text-xs uppercase tracking-wide mb-1" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+        <div className="rounded-2xl" style={{ background: "var(--rd-surface)", border: "1px solid var(--rd-border)", padding: "16px 18px" }}>
+          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--rd-text-dim)", marginBottom: 4 }}>
             A pagar (12 meses)
           </div>
-          <div style={{ fontFamily: HEAD_FONT, fontSize: 20, color: theme.coral }}>{formatCurrency(previstoSaida12Meses)}</div>
-          <div className="text-xs mt-0.5" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+          <div style={{ fontSize: 20, fontWeight: 700, color: "var(--rd-negative)" }}>{formatCurrency(previstoSaida12Meses)}</div>
+          <div style={{ fontSize: 11.5, color: "var(--rd-text-dim)", marginTop: 2 }}>
             fixo/mês: {formatCurrency(fixoMensalSaida)} · avulso: {formatCurrency(avulsosPendentesSaida)}
           </div>
         </div>
-        <div className="rounded-2xl p-4" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
-          <div className="text-xs uppercase tracking-wide mb-1" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+        <div className="rounded-2xl" style={{ background: "var(--rd-surface)", border: "1px solid var(--rd-border)", padding: "16px 18px" }}>
+          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--rd-text-dim)", marginBottom: 4 }}>
             Saldo previsto (12 meses)
           </div>
-          <div style={{ fontFamily: HEAD_FONT, fontSize: 20, color: saldoPrevisto12Meses >= 0 ? theme.mint : theme.coral }}>
+          <div style={{ fontSize: 20, fontWeight: 700, color: saldoPrevisto12Meses >= 0 ? "var(--rd-positive)" : "var(--rd-negative)" }}>
             {formatCurrency(saldoPrevisto12Meses)}
           </div>
         </div>
       </div>
 
       {cobrancasPorDia.length > 0 && (
-        <div className="rounded-2xl p-4 mb-4" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
-          <h3 style={{ fontFamily: HEAD_FONT, fontSize: 16, color: theme.text }} className="mb-3">
-            Agenda de cobranças
-          </h3>
+        <div className="rounded-2xl" style={{ background: "var(--rd-surface)", border: "1px solid var(--rd-border)", padding: "20px 22px" }}>
+          <span style={{ ...RD_LABEL, display: "block", marginBottom: 12 }}>Agenda de cobranças</span>
           <div className="flex flex-col">
             {(verTodasCobrancas ? cobrancasPorDia : cobrancasPorDia.slice(0, 4)).map(([dia, itens], i) => (
-              <div
-                key={dia}
-                className="flex items-start gap-3 py-2.5"
-                style={{ borderTop: i === 0 ? "none" : `1px solid ${theme.divider}` }}
-              >
+              <div key={dia} className="flex items-start" style={{ gap: 12, padding: "10px 0", borderTop: i === 0 ? "none" : "1px solid var(--rd-row-border)" }}>
                 <div
-                  className="flex-shrink-0 flex items-center justify-center rounded-lg"
-                  style={{ width: 38, height: 38, background: theme.card2, color: theme.text, fontFamily: HEAD_FONT, fontWeight: 700, fontSize: 13 }}
+                  className="flex-shrink-0 flex items-center justify-center"
+                  style={{ width: 38, height: 38, borderRadius: 10, background: "var(--rd-surface-2)", color: "var(--rd-text)", fontWeight: 700, fontSize: 13 }}
                 >
                   {String(dia).padStart(2, "0")}
                 </div>
-                <div className="flex-1 flex flex-col gap-1 min-w-0">
+                <div className="flex-1 flex flex-col min-w-0" style={{ gap: 4 }}>
                   {itens.map((it) => (
-                    <div key={it.id} className="flex items-center justify-between gap-2 text-xs" style={{ fontFamily: BODY_FONT }}>
-                      <span className="truncate" style={{ color: theme.text }}>
+                    <div key={it.id} className="flex items-center justify-between" style={{ gap: 8, fontSize: 12 }}>
+                      <span className="truncate" style={{ color: "var(--rd-text)" }}>
                         {it.label}
                         {it.sub ? ` · ${it.sub}` : ""}
                       </span>
-                      <span style={{ color: theme.mint, fontWeight: 700, flexShrink: 0 }}>{formatCurrency(it.valor)}</span>
+                      <span style={{ color: "var(--rd-positive)", fontWeight: 700, flexShrink: 0 }}>{formatCurrency(it.valor)}</span>
                     </div>
                   ))}
                 </div>
@@ -3838,8 +3828,7 @@ const FuturosView = forwardRef(function FuturosView({ futuros, persist, motos, c
           {cobrancasPorDia.length > 4 && (
             <button
               onClick={() => setVerTodasCobrancas((v) => !v)}
-              className="text-xs font-semibold mt-2"
-              style={{ color: theme.mint, fontFamily: BODY_FONT, minHeight: 32 }}
+              style={{ color: "var(--rd-brand-light)", fontSize: 12.5, fontWeight: 700, marginTop: 8, minHeight: 32, background: "none" }}
             >
               {verTodasCobrancas ? "Ver menos" : `Ver mais (${cobrancasPorDia.length - 4})`}
             </button>
@@ -3847,38 +3836,34 @@ const FuturosView = forwardRef(function FuturosView({ futuros, persist, motos, c
         </div>
       )}
 
-      <div className="rounded-2xl p-4 mb-4" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
-        <h3 style={{ fontFamily: HEAD_FONT, fontSize: 16, color: theme.text }} className="mb-3">
-          Previsão por mês
-        </h3>
+      <div className="rounded-2xl" style={{ background: "var(--rd-surface)", border: "1px solid var(--rd-border)", padding: "20px 22px" }}>
+        <span style={{ ...RD_LABEL, display: "block", marginBottom: 12 }}>Previsão por mês</span>
         {futuros.length === 0 ? (
-          <div className="text-xs" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
-            Cadastre uma conta futura pra ver a previsão aqui.
-          </div>
+          <div style={{ fontSize: 12.5, color: "var(--rd-text-dim)" }}>Cadastre uma conta futura pra ver a previsão aqui.</div>
         ) : (
           <div style={{ width: "100%", height: 280 }}>
             <ResponsiveContainer>
               <ComposedChart data={projecao} margin={{ left: -12 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke={theme.cardBorder} vertical={false} />
-                <XAxis dataKey="mes" stroke={theme.textMuted} fontSize={11} axisLine={false} tickLine={false} />
-                <YAxis stroke={theme.textMuted} fontSize={11} tickFormatter={formatCompact} width={56} axisLine={false} tickLine={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--rd-border)" vertical={false} />
+                <XAxis dataKey="mes" stroke="var(--rd-text-dim)" fontSize={11} axisLine={false} tickLine={false} />
+                <YAxis stroke="var(--rd-text-dim)" fontSize={11} tickFormatter={formatCompact} width={56} axisLine={false} tickLine={false} />
                 <Tooltip content={<TooltipSemDuplicata formatter={(value, name) => [formatCurrency(value), name]} />} />
                 <Legend />
-                <Bar dataKey="entrada" name="A receber" fill={theme.mint} radius={[4, 4, 0, 0]} />
-                <Bar dataKey="saida" name="A pagar" fill={theme.coral} radius={[4, 4, 0, 0]} />
+                <Bar dataKey="entrada" name="A receber" fill="var(--rd-positive)" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="saida" name="A pagar" fill="var(--rd-negative)" radius={[4, 4, 0, 0]} />
                 <Line
                   type="monotone"
                   dataKey="saldo"
                   name="Saldo"
-                  stroke={theme.amber}
+                  stroke="var(--rd-attention)"
                   strokeWidth={2.5}
-                  dot={{ r: 3, fill: theme.amber, strokeWidth: 0 }}
+                  dot={{ r: 3, fill: "#C68A3A", strokeWidth: 0 }}
                   activeDot={{ r: 5 }}
                 />
                 <Line
                   type="monotone"
                   dataKey="saldo"
-                  stroke={mixColors(theme.amber, "#FFFFFF", 0.65)}
+                  stroke="#E0B87A"
                   strokeOpacity={0.55}
                   strokeWidth={2}
                   dot={false}
@@ -3893,11 +3878,9 @@ const FuturosView = forwardRef(function FuturosView({ futuros, persist, motos, c
       </div>
 
       {recorrentes.length > 0 && (
-        <div className="mb-4">
-          <div className="text-xs uppercase tracking-wide mb-2" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
-            Fixos mensais
-          </div>
-          <div className="flex flex-col gap-2">
+        <div className="flex flex-col" style={{ gap: 10 }}>
+          <span style={RD_LABEL}>Fixos mensais</span>
+          <div className="flex flex-col" style={{ gap: 8 }}>
             {(verTodosFixos ? recorrentes : recorrentes.slice(0, 4)).map((f) => (
               <FuturoRow key={f.id} f={f} />
             ))}
@@ -3905,8 +3888,7 @@ const FuturosView = forwardRef(function FuturosView({ futuros, persist, motos, c
           {recorrentes.length > 4 && (
             <button
               onClick={() => setVerTodosFixos((v) => !v)}
-              className="text-xs font-semibold mt-2"
-              style={{ color: theme.mint, fontFamily: BODY_FONT, minHeight: 32 }}
+              style={{ color: "var(--rd-brand-light)", fontSize: 12.5, fontWeight: 700, minHeight: 32, background: "none", alignSelf: "flex-start" }}
             >
               {verTodosFixos ? "Ver menos" : `Ver mais (${recorrentes.length - 4})`}
             </button>
@@ -3914,17 +3896,15 @@ const FuturosView = forwardRef(function FuturosView({ futuros, persist, motos, c
         </div>
       )}
 
-      <div>
-        <div className="text-xs uppercase tracking-wide mb-2" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
-          Avulsos
-        </div>
+      <div className="flex flex-col" style={{ gap: 10 }}>
+        <span style={RD_LABEL}>Avulsos</span>
         {avulsos.length === 0 ? (
-          <div className="rounded-2xl p-6 text-center" style={{ background: theme.card, color: theme.textMuted, fontFamily: BODY_FONT, border: `1px solid ${theme.cardBorder}` }}>
+          <div className="rounded-2xl p-6 text-center" style={{ background: "var(--rd-surface)", color: "var(--rd-text-dim)", border: "1px solid var(--rd-border)" }}>
             Nenhuma conta avulsa cadastrada.
           </div>
         ) : (
           <>
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col" style={{ gap: 8 }}>
               {(verTodosAvulsos ? avulsos : avulsos.slice(0, 4)).map((f) => (
                 <FuturoRow key={f.id} f={f} />
               ))}
@@ -3932,8 +3912,7 @@ const FuturosView = forwardRef(function FuturosView({ futuros, persist, motos, c
             {avulsos.length > 4 && (
               <button
                 onClick={() => setVerTodosAvulsos((v) => !v)}
-                className="text-xs font-semibold mt-2"
-                style={{ color: theme.mint, fontFamily: BODY_FONT, minHeight: 32 }}
+                style={{ color: "var(--rd-brand-light)", fontSize: 12.5, fontWeight: 700, minHeight: 32, background: "none", alignSelf: "flex-start" }}
               >
                 {verTodosAvulsos ? "Ver menos" : `Ver mais (${avulsos.length - 4})`}
               </button>
@@ -4125,20 +4104,25 @@ function FluxoCaixaView({ lancamentos, persist, motos, clientes, futuros, persis
   }, [view]);
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
-        <h2 style={{ fontFamily: HEAD_FONT, fontSize: 22, fontWeight: 700, color: theme.mint }}>Fluxo de caixa</h2>
-        <div className="flex items-center gap-2">
-          <div ref={viewToggleRef} className="relative flex rounded-xl p-1" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
+    <div className="flex flex-col" style={{ gap: 18, fontFamily: "var(--rd-font)" }}>
+      <div className="flex items-center flex-wrap" style={{ gap: 16 }}>
+        <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, letterSpacing: "-0.02em", color: "var(--rd-text)" }}>Caixa</h1>
+        <div className="flex items-center" style={{ gap: 10, marginLeft: "auto" }}>
+          <div
+            ref={viewToggleRef}
+            className="relative flex"
+            style={{ background: "var(--rd-surface-2)", border: "1px solid var(--rd-border)", borderRadius: 999, padding: 3 }}
+          >
             {viewPillRect && (
               <span
-                className="absolute rounded-lg"
+                className="absolute"
                 style={{
                   left: 0,
                   top: viewPillRect.top,
                   width: viewPillRect.width,
                   height: viewPillRect.height,
-                  background: theme.mint,
+                  background: "var(--rd-brand)",
+                  borderRadius: 999,
                   willChange: "transform",
                   transform: `translateX(${viewPillRect.left}px)`,
                   transition: "transform 0.28s cubic-bezier(0.32, 0.72, 0, 1)",
@@ -4153,11 +4137,15 @@ function FluxoCaixaView({ lancamentos, persist, motos, clientes, futuros, persis
                 key={v.id}
                 ref={(el) => (viewSlotRefs.current[v.id] = el)}
                 onClick={() => setView(v.id)}
-                className="relative rounded-lg px-3 py-1.5 text-sm font-semibold"
+                className="relative"
                 style={{
-                  color: view === v.id ? theme.mintText : theme.textMuted,
+                  padding: "6px 14px",
+                  fontSize: 12.5,
+                  fontWeight: view === v.id ? 700 : 600,
+                  color: view === v.id ? "#F0F5EE" : "var(--rd-text-dim)",
                   transition: "color 0.15s ease",
                   zIndex: 1,
+                  background: "none",
                 }}
               >
                 {v.label}
@@ -4171,16 +4159,21 @@ function FluxoCaixaView({ lancamentos, persist, motos, clientes, futuros, persis
           {permissoes.podeEditar && (
             <button
               onClick={() => (view === "lancado" ? setModal(emptyLancamento()) : futurosViewRef.current?.abrirNovo())}
-              className="flex items-center gap-1 rounded-xl px-3 py-2 text-sm font-semibold overflow-hidden"
+              className="flex items-center overflow-hidden"
               style={{
-                background: theme.mint,
-                color: theme.mintText,
+                gap: 6,
+                background: "var(--rd-brand-soft)",
+                color: "var(--rd-shell)",
+                borderRadius: 999,
+                padding: "10px 16px",
+                fontSize: 13.5,
+                fontWeight: 700,
                 whiteSpace: "nowrap",
-                width: view === "lancado" ? 96 : 140,
+                width: view === "lancado" ? 100 : 150,
                 transition: "width 0.32s cubic-bezier(0.22, 1, 0.36, 1)",
               }}
             >
-              <Plus size={16} style={{ flexShrink: 0 }} />
+              <Plus size={15} strokeWidth={3} style={{ flexShrink: 0 }} />
               <span key={view} className="mbr-rotulo-troca" style={{ display: "inline-block" }}>
                 {view === "lancado" ? "Novo" : "Nova conta"}
               </span>
@@ -4202,47 +4195,37 @@ function FluxoCaixaView({ lancamentos, persist, motos, clientes, futuros, persis
       ) : (
         <>
       {mesesOrdenados.length === 0 && (
-        <div className="rounded-2xl p-6 text-center" style={{ background: theme.card, color: theme.textMuted, fontFamily: BODY_FONT, border: `1px solid ${theme.cardBorder}` }}>
+        <div className="rounded-2xl p-6 text-center" style={{ background: "var(--rd-surface)", color: "var(--rd-text-dim)", border: "1px solid var(--rd-border)" }}>
           Nenhum lançamento ainda.
         </div>
       )}
 
       {ordenados.length > 0 && (
-        <div
-          className="rounded-2xl p-4 mb-3"
-          style={{ background: `linear-gradient(150deg, ${theme.card} 0%, ${theme.card2} 130%)`, border: `1px solid ${theme.cardBorder}` }}
-        >
-          <SectionTitle className="mb-3">Resumo mensal</SectionTitle>
-          <div className="flex flex-col gap-2">
+        <div className="rounded-2xl" style={{ background: "var(--rd-surface)", border: "1px solid var(--rd-border)", padding: "20px 22px" }}>
+          <span style={{ ...RD_LABEL, display: "block", marginBottom: 12 }}>Resumo mensal</span>
+          <div className="flex flex-col" style={{ gap: 8 }}>
             {(verTodosResumo ? mesesComLancamentos : mesesComLancamentos.slice(0, 1)).map((mesKey) => {
               const itensResumo = porMes[mesKey];
               const entradaResumo = itensResumo.filter((l) => l.tipo === "entrada").reduce((s, l) => s + Number(l.valor), 0);
               const saidaResumo = itensResumo.filter((l) => l.tipo === "saida").reduce((s, l) => s + Number(l.valor), 0);
               const saldoResumo = entradaResumo - saidaResumo;
               return (
-                <div
-                  key={mesKey}
-                  className="rounded-xl px-3 py-2.5"
-                  style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}
-                >
-                  <div className="flex items-center justify-between gap-2 mb-1.5">
-                    <span style={{ color: theme.text, fontWeight: 700, fontFamily: HEAD_FONT, fontSize: 14 }}>
+                <div key={mesKey} className="rounded-xl" style={{ background: "var(--rd-surface-2)", border: "1px solid var(--rd-border)", padding: "10px 14px" }}>
+                  <div className="flex items-center justify-between flex-wrap" style={{ gap: 8, marginBottom: 6 }}>
+                    <span style={{ color: "var(--rd-text)", fontWeight: 700, fontSize: 14 }}>
                       {mesKey === "sem-data" ? "Sem data" : monthLabel(mesKey)}
                     </span>
-                    <span
-                      style={{
-                        color: saldoResumo >= 0 ? theme.mint : theme.coral,
-                        fontWeight: 700,
-                        fontFamily: BODY_FONT,
-                        fontSize: 14,
-                      }}
-                    >
+                    <span style={{ color: saldoResumo >= 0 ? "var(--rd-positive)" : "var(--rd-negative)", fontWeight: 700, fontSize: 14 }}>
                       Saldo: {formatCurrency(saldoResumo)}
                     </span>
                   </div>
-                  <div className="flex items-center gap-4 flex-wrap text-xs" style={{ fontFamily: BODY_FONT, color: theme.textMuted }}>
-                    <span>Entradas <b style={{ color: theme.mint }}>{formatCurrency(entradaResumo)}</b></span>
-                    <span>Saídas <b style={{ color: theme.coral }}>{formatCurrency(saidaResumo)}</b></span>
+                  <div className="flex items-center flex-wrap" style={{ gap: 16, fontSize: 12, color: "var(--rd-text-dim)" }}>
+                    <span>
+                      Entradas <b style={{ color: "var(--rd-positive)" }}>{formatCurrency(entradaResumo)}</b>
+                    </span>
+                    <span>
+                      Saídas <b style={{ color: "var(--rd-negative)" }}>{formatCurrency(saidaResumo)}</b>
+                    </span>
                   </div>
                 </div>
               );
@@ -4251,8 +4234,7 @@ function FluxoCaixaView({ lancamentos, persist, motos, clientes, futuros, persis
           {mesesComLancamentos.length > 1 && (
             <button
               onClick={() => setVerTodosResumo((v) => !v)}
-              className="text-xs font-semibold mt-2"
-              style={{ color: theme.mint, fontFamily: BODY_FONT, minHeight: 32 }}
+              style={{ color: "var(--rd-brand-light)", fontSize: 12.5, fontWeight: 700, marginTop: 10, minHeight: 32, background: "none" }}
             >
               {verTodosResumo ? "Ver menos" : `Ver mais (${mesesComLancamentos.length - 1})`}
             </button>
@@ -4260,7 +4242,7 @@ function FluxoCaixaView({ lancamentos, persist, motos, clientes, futuros, persis
         </div>
       )}
 
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col" style={{ gap: 10 }}>
         {mesesOrdenados.map((mesKey) => {
           const itensReais = porMes[mesKey] || [];
           const pendentesDoMes = pendenciasPorMes[mesKey] || [];
@@ -4270,96 +4252,86 @@ function FluxoCaixaView({ lancamentos, persist, motos, clientes, futuros, persis
           const saldo = totalEntrada - totalSaida;
           const aberto = expandido === mesKey;
           return (
-            <div key={mesKey} className="rounded-2xl overflow-hidden" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
-              <button
-                className="w-full flex items-center justify-between px-4 py-3 text-left"
-                onClick={() => setExpandido(aberto ? null : mesKey)}
-              >
+            <div key={mesKey} className="rounded-2xl overflow-hidden" style={{ background: "var(--rd-surface)", border: "1px solid var(--rd-border)" }}>
+              <button className="w-full flex items-center justify-between text-left" onClick={() => setExpandido(aberto ? null : mesKey)} style={{ padding: "16px 18px" }}>
                 <div>
-                  <div style={{ fontFamily: HEAD_FONT, fontSize: 16, color: theme.text }}>
-                    {mesKey === "sem-data" ? "Sem data" : monthLabel(mesKey)}
-                  </div>
-                  <div className="text-xs" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+                  <div style={{ fontSize: 14.5, fontWeight: 700, color: "var(--rd-text)" }}>{mesKey === "sem-data" ? "Sem data" : monthLabel(mesKey)}</div>
+                  <div style={{ fontSize: 11.5, color: "var(--rd-text-dim)" }}>
                     {itensReais.length} lançamento{itensReais.length === 1 ? "" : "s"}
                     {pendentesDoMes.length > 0 && (
-                      <span style={{ color: theme.amber }}> · {pendentesDoMes.length} previsto{pendentesDoMes.length === 1 ? "" : "s"}</span>
+                      <span style={{ color: "var(--rd-attention)" }}>
+                        {" "}
+                        · {pendentesDoMes.length} previsto{pendentesDoMes.length === 1 ? "" : "s"}
+                      </span>
                     )}
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <span style={{ color: saldo >= 0 ? theme.mint : theme.coral, fontFamily: HEAD_FONT, fontSize: 15 }}>
-                    {formatCurrency(saldo)}
-                  </span>
-                  {aberto ? <ChevronUp size={18} color={theme.textMuted} /> : <ChevronDown size={18} color={theme.textMuted} />}
+                <div className="flex items-center" style={{ gap: 10 }}>
+                  <span style={{ color: saldo >= 0 ? "var(--rd-positive)" : "var(--rd-negative)", fontWeight: 700, fontSize: 15 }}>{formatCurrency(saldo)}</span>
+                  {aberto ? <ChevronUp size={18} color="var(--rd-text-dim)" /> : <ChevronDown size={18} color="var(--rd-text-dim)" />}
                 </div>
               </button>
 
               <Collapse open={aberto}>
-                <div style={{ borderTop: `1px solid ${theme.divider}` }}>
+                <div style={{ borderTop: "1px solid var(--rd-border-soft)" }}>
                   {itens.map((l, i) => {
                     const motoLigada = motos?.find((m) => m.id === l.motoId);
                     const detalheEsteAberto = detalheAberto === l.id;
                     const temDetalhe = !!(l.natureza || l.forma || l.descricao);
                     const pendente = !!l._pendente;
-                    const corItem = pendente ? theme.amber : l.tipo === "entrada" ? theme.mint : theme.coral;
+                    const corItem = pendente ? "var(--rd-attention)" : l.tipo === "entrada" ? "var(--rd-positive)" : "var(--rd-negative)";
                     return (
                       <div
                         key={l.id}
                         style={{
-                          background: pendente ? `${theme.amber}14` : theme.card2,
-                          borderBottom: i < itens.length - 1 ? `1px solid ${theme.divider}` : "none",
+                          background: pendente ? "var(--rd-attention-bg)" : "var(--rd-surface-2)",
+                          borderBottom: i < itens.length - 1 ? "1px solid var(--rd-row-border)" : "none",
                         }}
                       >
-                        <div
-                          onClick={() => setDetalheAberto(detalheEsteAberto ? null : l.id)}
-                          className="flex items-center justify-between px-4 py-3 cursor-pointer"
-                        >
-                          <div className="flex items-center gap-3 min-w-0">
+                        <div onClick={() => setDetalheAberto(detalheEsteAberto ? null : l.id)} className="flex items-center justify-between cursor-pointer" style={{ padding: "13px 18px" }}>
+                          <div className="flex items-center min-w-0" style={{ gap: 12 }}>
                             <div
                               className="flex items-center justify-center flex-shrink-0"
-                              style={{ width: 28, height: 28, borderRadius: 8, background: theme.card2 }}
+                              style={{ width: 30, height: 30, borderRadius: 9, background: pendente ? "#2A2115" : "var(--rd-surface)" }}
                             >
                               {pendente ? (
-                                <Clock size={16} color={theme.amber} />
+                                <Clock size={15} color="var(--rd-attention)" />
                               ) : l.tipo === "entrada" ? (
-                                <TrendingUp size={16} color={theme.mint} />
+                                <TrendingUp size={15} color="var(--rd-positive)" />
                               ) : (
-                                <TrendingDown size={16} color={theme.coral} />
+                                <TrendingDown size={15} color="var(--rd-negative)" />
                               )}
                             </div>
                             <div className="min-w-0">
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                <span style={{ color: theme.text, fontFamily: BODY_FONT, fontWeight: 600 }}>{l.categoria || "Sem categoria"}</span>
+                              <div className="flex items-center flex-wrap" style={{ gap: 6 }}>
+                                <span className="truncate" style={{ color: "var(--rd-text)", fontWeight: 600, fontSize: 13.5 }}>
+                                  {l.categoria || "Sem categoria"}
+                                </span>
                                 {l.parcelasTotal > 1 && (
-                                  <span
-                                    className="text-xs font-semibold rounded-full px-2"
-                                    style={{ background: theme.card, color: theme.textMuted, fontFamily: BODY_FONT }}
-                                  >
+                                  <span style={{ fontSize: 10.5, fontWeight: 700, borderRadius: 999, padding: "1px 8px", background: "var(--rd-surface)", color: "var(--rd-text-dim)" }}>
                                     Parcela {l.parcelaAtual || 1}/{l.parcelasTotal}
                                   </span>
                                 )}
                                 {pendente && (
-                                  <span
-                                    className="text-xs font-semibold rounded-full px-2"
-                                    style={{ background: `${theme.amber}26`, color: theme.amber, fontFamily: BODY_FONT }}
-                                  >
+                                  <span style={{ fontSize: 10.5, fontWeight: 700, borderRadius: 999, padding: "1px 8px", background: "#2A2115", color: "var(--rd-attention)" }}>
                                     Previsto
                                   </span>
                                 )}
                               </div>
-                              <div style={{ color: theme.textFaint, fontFamily: BODY_FONT, fontSize: 12 }}>
+                              <div style={{ color: "var(--rd-text-dim)", fontSize: 11.5 }}>
                                 {formatDate(l.data)}
                                 {motoLigada && ` · ${formatPlaca(motoLigada.placa)}`}
                                 {pendente && l.recorrente && " · fixo mensal"}
                               </div>
                             </div>
                           </div>
-                          <div className="flex items-center gap-1 flex-shrink-0">
-                            <span style={{ color: corItem, fontFamily: HEAD_FONT, fontWeight: 700, fontSize: 16 }}>
-                              {l.tipo === "entrada" ? "+" : "-"} {formatCurrency(l.valor)}
+                          <div className="flex items-center flex-shrink-0" style={{ gap: 2 }}>
+                            <span style={{ color: corItem, fontWeight: 700, fontSize: 15 }}>
+                              {l.tipo === "entrada" ? "+ " : "− "}
+                              {formatCurrency(l.valor)}
                             </span>
                             {(temDetalhe || pendente || permissoes.podeEditar) &&
-                              (detalheEsteAberto ? <ChevronUp size={16} color={theme.textMuted} /> : <ChevronDown size={16} color={theme.textMuted} />)}
+                              (detalheEsteAberto ? <ChevronUp size={16} color="var(--rd-text-dim)" /> : <ChevronDown size={16} color="var(--rd-text-dim)" />)}
                             {!pendente && permissoes.podeEditar && (
                               <button
                                 onClick={(e) => {
@@ -4367,7 +4339,7 @@ function FluxoCaixaView({ lancamentos, persist, motos, clientes, futuros, persis
                                   excluir(l.id);
                                 }}
                                 className="mbr-hover-grow flex items-center justify-center"
-                                style={{ color: theme.textMuted, width: 36, height: 36, marginRight: -8 }}
+                                style={{ color: "var(--rd-text-dim)", width: 34, height: 34, marginRight: -8 }}
                               >
                                 <Trash2 size={14} />
                               </button>
@@ -4376,10 +4348,9 @@ function FluxoCaixaView({ lancamentos, persist, motos, clientes, futuros, persis
                         </div>
                         {pendente ? (
                           <Collapse open={detalheEsteAberto}>
-                            <div className="px-4 pb-3 flex flex-col gap-2" style={{ borderTop: `1px solid ${theme.divider}`, paddingTop: 10 }}>
-                              <div className="text-xs" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
-                                Ainda não {l.tipo === "entrada" ? "recebido" : "pago"} — essa conta está cadastrada em
-                                "Futuros" e ainda não virou um lançamento real.
+                            <div className="flex flex-col" style={{ gap: 10, padding: "10px 18px 14px", borderTop: "1px solid var(--rd-row-border)" }}>
+                              <div style={{ fontSize: 12, color: "var(--rd-text-dim)" }}>
+                                Ainda não {l.tipo === "entrada" ? "recebido" : "pago"} — essa conta está cadastrada em "Futuros" e ainda não virou um lançamento real.
                               </div>
                               {permissoes.podeEditar && (
                                 <button
@@ -4387,8 +4358,8 @@ function FluxoCaixaView({ lancamentos, persist, motos, clientes, futuros, persis
                                     e.stopPropagation();
                                     confirmarFuturo(l);
                                   }}
-                                  className="flex items-center justify-center gap-1.5 rounded-xl py-2 font-semibold text-sm"
-                                  style={{ background: theme.mint, color: theme.mintText }}
+                                  className="flex items-center justify-center"
+                                  style={{ gap: 7, borderRadius: 12, padding: "9px 0", fontWeight: 700, fontSize: 13, background: "var(--rd-brand-soft)", color: "var(--rd-shell)" }}
                                 >
                                   <CheckCircle2 size={14} /> Confirmar {l.tipo === "entrada" ? "recebimento" : "pagamento"}
                                 </button>
@@ -4396,40 +4367,40 @@ function FluxoCaixaView({ lancamentos, persist, motos, clientes, futuros, persis
                             </div>
                           </Collapse>
                         ) : (
-                        <Collapse open={detalheEsteAberto}>
-                          <div className="px-4 pb-3 flex flex-col gap-1.5" style={{ borderTop: `1px solid ${theme.divider}`, paddingTop: 10 }}>
-                            {l.natureza && (
-                              <div className="flex items-center justify-between text-xs" style={{ fontFamily: BODY_FONT }}>
-                                <span style={{ color: theme.textFaint }}>Natureza</span>
-                                <span style={{ color: theme.textMuted }}>{l.natureza}</span>
-                              </div>
-                            )}
-                            {l.forma && (
-                              <div className="flex items-center justify-between text-xs" style={{ fontFamily: BODY_FONT }}>
-                                <span style={{ color: theme.textFaint }}>Forma de pagamento</span>
-                                <span style={{ color: theme.textMuted }}>{l.forma}</span>
-                              </div>
-                            )}
-                            {l.descricao && (
-                              <div className="flex items-center justify-between gap-3 text-xs" style={{ fontFamily: BODY_FONT }}>
-                                <span style={{ color: theme.textFaint, flexShrink: 0 }}>Detalhe</span>
-                                <span style={{ color: theme.textMuted, textAlign: "right" }}>{l.descricao}</span>
-                              </div>
-                            )}
-                            {permissoes.podeEditar && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setModal(l);
-                                }}
-                                className="text-xs font-semibold flex items-center gap-1 mt-1"
-                                style={{ color: theme.mint, fontFamily: BODY_FONT, minHeight: 32 }}
-                              >
-                                <Pencil size={12} /> Editar
-                              </button>
-                            )}
-                          </div>
-                        </Collapse>
+                          <Collapse open={detalheEsteAberto}>
+                            <div className="flex flex-col" style={{ gap: 7, padding: "10px 18px 14px", borderTop: "1px solid var(--rd-row-border)" }}>
+                              {l.natureza && (
+                                <div className="flex items-center justify-between" style={{ fontSize: 12 }}>
+                                  <span style={{ color: "var(--rd-text-faint)" }}>Natureza</span>
+                                  <span style={{ color: "var(--rd-text-muted)" }}>{l.natureza}</span>
+                                </div>
+                              )}
+                              {l.forma && (
+                                <div className="flex items-center justify-between" style={{ fontSize: 12 }}>
+                                  <span style={{ color: "var(--rd-text-faint)" }}>Forma de pagamento</span>
+                                  <span style={{ color: "var(--rd-text-muted)" }}>{l.forma}</span>
+                                </div>
+                              )}
+                              {l.descricao && (
+                                <div className="flex items-center justify-between" style={{ gap: 12, fontSize: 12 }}>
+                                  <span style={{ color: "var(--rd-text-faint)", flexShrink: 0 }}>Detalhe</span>
+                                  <span style={{ color: "var(--rd-text-muted)", textAlign: "right" }}>{l.descricao}</span>
+                                </div>
+                              )}
+                              {permissoes.podeEditar && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setModal(l);
+                                  }}
+                                  className="flex items-center"
+                                  style={{ gap: 5, color: "var(--rd-brand-light)", fontSize: 12, fontWeight: 700, minHeight: 32, marginTop: 2, background: "none" }}
+                                >
+                                  <Pencil size={12} /> Editar
+                                </button>
+                              )}
+                            </div>
+                          </Collapse>
                         )}
                       </div>
                     );
