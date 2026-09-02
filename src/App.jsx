@@ -6177,8 +6177,9 @@ function TelaCentralizada({ children }) {
       style={{ background: theme.bg, overflow: "hidden" }}
     >
       <div className="w-full" style={{ maxWidth: 340 }}>
-        <div className="flex justify-center mb-8">
-          <Wordmark logoSize={64} />
+        <div className="flex flex-col items-center gap-3 mb-8">
+          <img src="/login-icon.png" alt="" style={{ height: 56, width: "auto", objectFit: "contain" }} />
+          <img src="/login-logo.png" alt="Mobirelli" style={{ height: 64, width: "auto", objectFit: "contain" }} />
         </div>
         {children}
       </div>
