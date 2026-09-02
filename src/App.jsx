@@ -1158,10 +1158,10 @@ function ValorComDetalhe({ children, itens, fmt }) {
                 <div
                   key={i}
                   className="flex items-center justify-between gap-3 text-xs py-1"
-                  style={{ color: theme.text, fontFamily: BODY_FONT, borderBottom: i < itens.length - 1 ? `1px solid ${theme.divider}` : "none" }}
+                  style={{ color: theme.textMuted, fontFamily: BODY_FONT, borderBottom: i < itens.length - 1 ? `1px solid ${theme.divider}` : "none" }}
                 >
                   <span className="truncate">{it.label}</span>
-                  <span style={{ fontWeight: 700, flexShrink: 0 }}>{fmt(it.total)}</span>
+                  <span style={{ fontWeight: 700, flexShrink: 0, color: it.cor || theme.text }}>{fmt(it.total)}</span>
                 </div>
               ))}
             </div>
@@ -3014,7 +3014,7 @@ function MotosView({ motos, persist, clientes, persistClientes, config, lancamen
             <span>Cliente</span>
             <span>Mensalidade</span>
             <span>Vencimento</span>
-            <span className="mbr-col-extra">Payback</span>
+            <span>Payback</span>
             <span className="mbr-col-extra">Onde está</span>
             <span></span>
           </div>
@@ -3086,7 +3086,7 @@ function MotosView({ motos, persist, clientes, persistClientes, config, lancamen
                 ) : (
                   <span style={{ fontSize: 13, color: "var(--rd-text-dim)" }}>—</span>
                 )}
-                <div className="flex items-center mbr-col-extra" style={{ gap: 10 }}>
+                <div className="flex items-center" style={{ gap: 10, minWidth: 0 }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <BarraComCometa pct={payback} color={payback >= 50 ? "var(--rd-positive)" : payback >= 15 ? "var(--rd-attention)" : "var(--rd-negative)"} />
                   </div>
@@ -4907,22 +4907,22 @@ function RadialStat({ label, percent, color, sublabel, bare }) {
 =========================================================== */
 const RD_LABEL = { fontSize: 11.5, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--rd-brand-soft)" };
 
-function LegendaPonto({ cor, label, valor }) {
+// "itens", quando vem, faz o valor abrir o detalhamento (o que compõe aquele número)
+// ao toque/hover — é o que devolve o "clico e vejo quais foram os gastos"
+function LegendaPonto({ cor, label, valor, itens, fmt }) {
+  const numero = <span style={{ fontSize: 14, fontWeight: 700, color: "var(--rd-text)" }}>{valor}</span>;
   return (
     <div className="flex items-center" style={{ gap: 9 }}>
       <span style={{ width: 8, height: 8, borderRadius: 999, background: cor, flex: "none" }} />
       <span style={{ fontSize: 12.5, color: "var(--rd-text-dim)", width: 64 }}>{label}</span>
-      <span style={{ fontSize: 14, fontWeight: 700, color: "var(--rd-text)" }}>{valor}</span>
+      {itens && itens.length > 0 ? (
+        <ValorComDetalhe itens={itens} fmt={fmt}>
+          {numero}
+        </ValorComDetalhe>
+      ) : (
+        numero
+      )}
     </div>
-  );
-}
-
-function LegendaLinha({ cor, label }) {
-  return (
-    <span className="flex items-center" style={{ gap: 7, fontSize: 12, color: "var(--rd-text-dim)" }}>
-      <span style={{ width: 14, height: 2.5, background: cor, borderRadius: 2, flex: "none" }} />
-      {label}
-    </span>
   );
 }
 
@@ -4938,10 +4938,17 @@ function ValorPequeno({ label, valor, cor = "var(--rd-text)" }) {
 // gráfico de entradas/saídas/lucro em segmentos retos (sem depender de biblioteca de
 // gráfico) — a mesma ideia visual do mockup (área embaixo das entradas, linha tracejada
 // pro lucro), só que sempre correto pro número de meses que o período selecionado tiver
-function GraficoCaixa({ data }) {
+// Gráfico do caixa mês a mês. Três linhas (o que entrou, o que saiu e a sobra) sobre a
+// mesma escala, pra dar de bater o olho e ver se o mês fechou pra cima ou pra baixo.
+// Ele é TOCÁVEL: passar o mouse (ou arrastar o dedo) escolhe um mês, e os números desse
+// mês aparecem escritos acima do desenho — antes o gráfico não dizia nada ao ser clicado
+// e não tinha nem o nome dos meses embaixo, então não dava pra saber o que estava vendo.
+function GraficoCaixa({ data, fmt }) {
   const w = 640;
   const h = 150;
+  const [iAtivo, setIAtivo] = useState(null);
   if (!data.length) return <div style={{ height: h }} />;
+
   const vals = data.flatMap((d) => [d.Entradas, d.Saídas, d.Lucro]);
   const maxVal = Math.max(1, ...vals);
   const minVal = Math.min(0, ...vals);
@@ -4950,14 +4957,87 @@ function GraficoCaixa({ data }) {
   const x = (i) => (data.length > 1 ? (i * w) / (data.length - 1) : w / 2);
   const pathFor = (key) => data.map((d, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)} ${y(d[key]).toFixed(1)}`).join(" ");
   const areaEntradas = `${pathFor("Entradas")} L${x(data.length - 1).toFixed(1)} ${h} L${x(0).toFixed(1)} ${h} Z`;
+
+  // sem nada escolhido, mostra o mês mais recente — o gráfico nunca fica "mudo"
+  const iMostrado = iAtivo ?? data.length - 1;
+  const doMes = data[iMostrado];
+
+  const escolherPorPosicao = (clientX, alvo) => {
+    const r = alvo.getBoundingClientRect();
+    if (!r.width) return;
+    const frac = Math.min(1, Math.max(0, (clientX - r.left) / r.width));
+    setIAtivo(Math.round(frac * (data.length - 1)));
+  };
+
+  const linhas = [
+    { key: "Entradas", rotulo: "Entrou", cor: "var(--rd-positive)" },
+    { key: "Saídas", rotulo: "Saiu", cor: "var(--rd-negative)" },
+    { key: "Lucro", rotulo: "Sobrou", cor: "var(--rd-attention)" },
+  ];
+
   return (
-    <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" style={{ width: "100%", height: h, display: "block" }}>
-      <line x1="0" y1={y(0)} x2={w} y2={y(0)} stroke="var(--rd-border)" strokeWidth="1" />
-      <path d={areaEntradas} fill="var(--rd-positive)" opacity="0.07" />
-      <path d={pathFor("Entradas")} fill="none" stroke="var(--rd-positive)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-      <path d={pathFor("Saídas")} fill="none" stroke="var(--rd-negative)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" opacity="0.85" />
-      <path d={pathFor("Lucro")} fill="none" stroke="var(--rd-attention)" strokeWidth="2" strokeDasharray="4 4" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
+    <div className="flex flex-col" style={{ gap: 10 }}>
+      {/* leitura do mês escolhido — é isso que faz o gráfico "responder" ao toque */}
+      <div className="flex items-center flex-wrap" style={{ gap: 14, minHeight: 20 }}>
+        <span style={{ fontSize: 12.5, fontWeight: 700, color: "var(--rd-text)" }}>{doMes.mes}</span>
+        {linhas.map((l) => (
+          <span key={l.key} className="flex items-center" style={{ gap: 6, fontSize: 12 }}>
+            <span style={{ width: 8, height: 8, borderRadius: 999, background: l.cor, flex: "none" }} />
+            <span style={{ color: "var(--rd-text-dim)" }}>{l.rotulo}</span>
+            <span style={{ fontWeight: 700, color: "var(--rd-text)" }}>{fmt ? fmt(doMes[l.key]) : doMes[l.key]}</span>
+          </span>
+        ))}
+      </div>
+
+      <div
+        style={{ position: "relative", cursor: "crosshair", touchAction: "pan-y" }}
+        onMouseMove={(e) => escolherPorPosicao(e.clientX, e.currentTarget)}
+        onMouseLeave={() => setIAtivo(null)}
+        onTouchStart={(e) => escolherPorPosicao(e.touches[0].clientX, e.currentTarget)}
+        onTouchMove={(e) => escolherPorPosicao(e.touches[0].clientX, e.currentTarget)}
+      >
+        <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" style={{ width: "100%", height: h, display: "block" }}>
+          <line x1="0" y1={y(0)} x2={w} y2={y(0)} stroke="var(--rd-border)" strokeWidth="1" />
+          <path d={areaEntradas} fill="var(--rd-positive)" opacity="0.07" />
+          <path d={pathFor("Entradas")} fill="none" stroke="var(--rd-positive)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+          <path d={pathFor("Saídas")} fill="none" stroke="var(--rd-negative)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" opacity="0.85" />
+          <path d={pathFor("Lucro")} fill="none" stroke="var(--rd-attention)" strokeWidth="2" strokeDasharray="4 4" strokeLinecap="round" strokeLinejoin="round" />
+          {/* guia vertical + bolinhas no mês escolhido. vectorEffect impede que o
+              preserveAspectRatio="none" estique a espessura do traço e da bolinha */}
+          <line x1={x(iMostrado)} y1="0" x2={x(iMostrado)} y2={h} stroke="var(--rd-text-faint)" strokeWidth="1" strokeDasharray="3 3" vectorEffect="non-scaling-stroke" />
+          {linhas.map((l) => (
+            <circle
+              key={l.key}
+              cx={x(iMostrado)}
+              cy={y(doMes[l.key])}
+              r="3.5"
+              fill="var(--rd-surface)"
+              stroke={l.cor}
+              strokeWidth="2"
+              vectorEffect="non-scaling-stroke"
+            />
+          ))}
+        </svg>
+      </div>
+
+      {/* nome dos meses embaixo — em HTML, não dentro do SVG, senão o
+          preserveAspectRatio="none" distorceria as letras horizontalmente */}
+      <div className="flex" style={{ justifyContent: "space-between", fontSize: 10.5, color: "var(--rd-text-faint)" }}>
+        {data.map((d, i) => (
+          <span
+            key={d.mes}
+            style={{
+              flex: "1 1 0",
+              textAlign: i === 0 ? "left" : i === data.length - 1 ? "right" : "center",
+              fontWeight: i === iMostrado ? 700 : 500,
+              color: i === iMostrado ? "var(--rd-text-muted)" : "var(--rd-text-faint)",
+            }}
+          >
+            {d.mes}
+          </span>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -4997,13 +5077,38 @@ function DashboardView({ motos, lancamentos, clientes, futuros, config, onIrPara
   const mesesComDados = new Set(
     [...lancamentos.map((l) => l.data?.slice(0, 7)), ...todasManutencoes.map((m) => m.data?.slice(0, 7))].filter(Boolean)
   );
-  // usa o mês atual se ele já tiver algum lançamento; senão, cai pro mês mais recente com dados
-  // (evita mostrar "Lucro do mês" zerado só porque ainda não lançou nada no mês corrente) —
-  // mas o usuário pode escolher outro mês pra olhar pelo seletor no topo da tela
-  // sempre o mês corrente (ou o mais recente com dados, se ainda não lançou nada nesse
-  // mês) — o painel novo é focado em "agora", sem navegação manual entre meses; olhar
-  // meses passados continua dando pra fazer na aba Caixa
-  const mesRef = mesesComDados.has(mesCalendario) ? mesCalendario : [...mesesComDados].sort().pop() || mesCalendario;
+  // usa o mês atual se ele já tiver algum lançamento; senão, cai pro mês mais recente com
+  // dados (evita mostrar o mês zerado só porque ainda não lançou nada no mês corrente) —
+  // mas dá pra andar pra trás/frente no seletor do cartão de Caixa
+  const mesAutoDetectado = mesesComDados.has(mesCalendario) ? mesCalendario : [...mesesComDados].sort().pop() || mesCalendario;
+  const [mesEscolhido, setMesEscolhido] = useState(null);
+  const mesRef = mesEscolhido || mesAutoDetectado;
+  // o botão "Atual" encolhe de volta ao ser clicado em vez de sumir na hora — por isso
+  // continua montado mais um instante, até a animação de saída terminar
+  const [botaoAtualMontado, setBotaoAtualMontado] = useState(!!mesEscolhido);
+  useEffect(() => {
+    if (mesEscolhido) {
+      setBotaoAtualMontado(true);
+      return;
+    }
+    const t = setTimeout(() => setBotaoAtualMontado(false), 280);
+    return () => clearTimeout(t);
+  }, [mesEscolhido]);
+  const podeAvancarMes = mesRef < mesCalendario;
+  const [direcaoMes, setDirecaoMes] = useState(0); // -1 = voltou, 1 = avançou
+  const irParaMesAnterior = () => {
+    setDirecaoMes(-1);
+    const [ano, mesN] = mesRef.split("-").map(Number);
+    const d = new Date(ano, mesN - 2, 1);
+    setMesEscolhido(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+  };
+  const irParaProximoMes = () => {
+    if (!podeAvancarMes) return;
+    setDirecaoMes(1);
+    const [ano, mesN] = mesRef.split("-").map(Number);
+    const d = new Date(ano, mesN, 1);
+    setMesEscolhido(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+  };
   const noMes = (data) => data?.slice(0, 7) === mesRef;
   const rotuloMes = monthLabel(mesRef);
 
@@ -5016,6 +5121,39 @@ function DashboardView({ motos, lancamentos, clientes, futuros, config, onIrPara
   const lucroMes = entradasMes - saidasMes;
   const margemLucro = entradasMes > 0 ? (lucroMes / entradasMes) * 100 : 0;
   const investimentosMes = lancamentos.filter((l) => l.tipo === "saida" && l.natureza === "Expansão" && noMes(l.data)).reduce((s, l) => s + Number(l.valor), 0);
+
+  // detalhamento que abre ao tocar/passar o mouse nos valores do cartão de Caixa —
+  // agrupa por categoria (entradas) e por natureza (saídas) em vez de listar lançamento
+  // por lançamento, senão um mês movimentado viraria uma lista sem fim
+  const agruparPorChave = (lista, chaveFn, valorFn) => {
+    const porChave = new Map();
+    lista.forEach((item) => {
+      const chave = chaveFn(item) || "Sem categoria";
+      porChave.set(chave, (porChave.get(chave) || 0) + Number(valorFn(item)));
+    });
+    return [...porChave.entries()].sort((a, b) => b[1] - a[1]);
+  };
+  const detalhesEntradas = agruparPorChave(
+    lancamentos.filter((l) => l.tipo === "entrada" && noMes(l.data)),
+    (l) => l.categoria,
+    (l) => l.valor
+  ).map(([label, total]) => ({ label, total, cor: "var(--rd-positive)" }));
+  const detalhesSaidas = (() => {
+    const itens = agruparPorChave(
+      lancamentos.filter((l) => l.tipo === "saida" && l.natureza !== "Expansão" && noMes(l.data)),
+      (l) => l.natureza,
+      (l) => l.valor
+    ).map(([label, total]) => ({ label, total, cor: "var(--rd-negative)" }));
+    if (manutencaoMes > 0) itens.push({ label: "Manutenção", total: manutencaoMes, cor: "var(--rd-negative)" });
+    if (investimentosMes > 0) itens.push({ label: "Expansão/investimento", total: investimentosMes, cor: "var(--rd-attention)" });
+    return itens;
+  })();
+  // composição do resultado: o que entrou, cada grupo do que saiu, e a sobra no fim
+  const detalhesResultado = [
+    { label: "Entrou", total: entradasMes, cor: "var(--rd-positive)" },
+    ...detalhesSaidas.filter((d) => d.label !== "Expansão/investimento").map((d) => ({ ...d, total: -d.total })),
+    { label: lucroMes >= 0 ? "Sobrou" : "Faltou", total: lucroMes, cor: lucroMes >= 0 ? "var(--rd-positive)" : "var(--rd-negative)" },
+  ];
 
   const [refAno, refMesNum] = mesRef.split("-").map(Number);
 
@@ -5270,7 +5408,73 @@ function DashboardView({ motos, lancamentos, clientes, futuros, config, onIrPara
           style={{ flex: "1.35 1 380px", minWidth: 0, background: "var(--rd-surface)", border: "1px solid var(--rd-border)", borderRadius: 16, padding: "22px 24px", gap: 20 }}
         >
           <div className="flex items-center flex-wrap" style={{ gap: 10 }}>
-            <span style={RD_LABEL}>Caixa de {rotuloMes}</span>
+            <span style={RD_LABEL}>Caixa de</span>
+            {/* seletor de mês — dá pra voltar pra agosto, julho etc. e a tela inteira
+                (valores, detalhamento e gráfico) acompanha o mês escolhido */}
+            <div
+              className="flex items-center"
+              style={{ gap: 2, background: "var(--rd-surface-2)", border: "1px solid var(--rd-border)", borderRadius: 999, padding: "3px 5px" }}
+            >
+              <button
+                onClick={irParaMesAnterior}
+                aria-label="Mês anterior"
+                className="flex items-center justify-center"
+                style={{ width: 24, height: 24, borderRadius: 999, color: "var(--rd-text-muted)", background: "none" }}
+              >
+                <ChevronLeft size={15} strokeWidth={2.75} />
+              </button>
+              <span className="relative inline-block overflow-hidden text-center" style={{ minWidth: 62, height: 16 }}>
+                {/* um span só, remontado a cada mês (via key) — nunca dois rótulos
+                    sobrepostos misturando as letras de dois meses */}
+                <span
+                  key={rotuloMes}
+                  className="absolute inset-0"
+                  style={{
+                    fontSize: 12.5,
+                    fontWeight: 700,
+                    color: "var(--rd-text)",
+                    animation: `${direcaoMes >= 0 ? "mbrMesEntraDireita" : "mbrMesEntraEsquerda"} 0.26s cubic-bezier(0.32, 0.72, 0, 1) both`,
+                  }}
+                >
+                  {rotuloMes}
+                </span>
+              </span>
+              <button
+                onClick={irParaProximoMes}
+                disabled={!podeAvancarMes}
+                aria-label="Próximo mês"
+                className="flex items-center justify-center"
+                style={{
+                  width: 24,
+                  height: 24,
+                  borderRadius: 999,
+                  background: "none",
+                  color: "var(--rd-text-muted)",
+                  opacity: podeAvancarMes ? 1 : 0.35,
+                  cursor: podeAvancarMes ? "pointer" : "default",
+                }}
+              >
+                <ChevronRight size={15} strokeWidth={2.75} />
+              </button>
+            </div>
+            {botaoAtualMontado && (
+              <button
+                onClick={() => setMesEscolhido(null)}
+                className={mesEscolhido ? "mbr-botao-atual-entra" : "mbr-botao-atual-sai"}
+                style={{
+                  fontSize: 11.5,
+                  fontWeight: 700,
+                  borderRadius: 999,
+                  padding: "4px 11px",
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  background: "var(--rd-brand)",
+                  color: "var(--rd-brand-light)",
+                }}
+              >
+                Atual
+              </button>
+            )}
             <button
               onClick={() => setValoresOcultos((v) => !v)}
               title={valoresOcultos ? "Mostrar valores" : "Ocultar valores"}
@@ -5327,15 +5531,19 @@ function DashboardView({ motos, lancamentos, clientes, futuros, config, onIrPara
           <div className="flex items-end flex-wrap" style={{ gap: 28 }}>
             <div className="flex flex-col" style={{ gap: 6 }}>
               <span style={{ fontSize: 12.5, color: "var(--rd-text-dim)" }}>Resultado do mês</span>
-              <span style={{ fontSize: 42, fontWeight: 700, letterSpacing: "-0.035em", lineHeight: 1, color: lucroMes >= 0 ? "var(--rd-positive)" : "var(--rd-negative)" }}>
-                {lucroMes < 0 ? "− " : ""}
-                {fmt(Math.abs(lucroMes))}
-              </span>
+              <ValorComDetalhe itens={detalhesResultado} fmt={fmt}>
+                <span style={{ fontSize: 42, fontWeight: 700, letterSpacing: "-0.035em", lineHeight: 1, color: lucroMes >= 0 ? "var(--rd-positive)" : "var(--rd-negative)" }}>
+                  {lucroMes < 0 ? "− " : ""}
+                  {fmt(Math.abs(lucroMes))}
+                </span>
+              </ValorComDetalhe>
             </div>
             <div className="flex flex-wrap" style={{ gap: 26, paddingBottom: 6, borderLeft: "1px solid var(--rd-border)", paddingLeft: 26 }}>
               <div className="flex flex-col" style={{ gap: 5 }}>
                 <span style={{ fontSize: 12.5, color: "var(--rd-text-dim)" }}>Faturamento</span>
-                <span style={{ fontSize: 24, fontWeight: 700, letterSpacing: "-0.03em", lineHeight: 1, color: "var(--rd-text)" }}>{fmt(entradasMes)}</span>
+                <ValorComDetalhe itens={detalhesEntradas} fmt={fmt}>
+                  <span style={{ fontSize: 24, fontWeight: 700, letterSpacing: "-0.03em", lineHeight: 1, color: "var(--rd-text)" }}>{fmt(entradasMes)}</span>
+                </ValorComDetalhe>
                 {deltaFaturamento != null && (
                   <span style={{ fontSize: 12, fontWeight: 600, color: deltaFaturamento >= 0 ? "var(--rd-positive)" : "var(--rd-negative)" }}>
                     {deltaFaturamento >= 0 ? "↗" : "↘"} {Math.abs(deltaFaturamento).toFixed(0)}% vs {rotuloMesAnterior}
@@ -5349,18 +5557,18 @@ function DashboardView({ motos, lancamentos, clientes, futuros, config, onIrPara
               </div>
             </div>
             <div className="flex flex-col" style={{ gap: 10, paddingBottom: 4 }}>
-              <LegendaPonto cor="var(--rd-positive)" label="Entrou" valor={fmt(entradasMes)} />
-              <LegendaPonto cor="var(--rd-negative)" label="Saiu" valor={fmt(saidasMes)} />
+              <LegendaPonto cor="var(--rd-positive)" label="Entrou" valor={fmt(entradasMes)} itens={detalhesEntradas} fmt={fmt} />
+              <LegendaPonto cor="var(--rd-negative)" label="Saiu" valor={fmt(saidasMes)} itens={detalhesSaidas} fmt={fmt} />
               <LegendaPonto cor="var(--rd-attention)" label="A receber" valor={fmt(aReceberMes)} />
             </div>
           </div>
 
-          <GraficoCaixa data={chartData} />
+          {/* o próprio gráfico já nomeia e mostra os valores das três linhas do mês
+              escolhido, então não repetimos uma legenda solta aqui embaixo */}
+          <GraficoCaixa data={chartData} fmt={fmt} />
 
           <div className="flex items-center flex-wrap" style={{ gap: 20 }}>
-            <LegendaLinha cor="var(--rd-positive)" label="Entradas" />
-            <LegendaLinha cor="var(--rd-negative)" label="Saídas" />
-            <LegendaLinha cor="var(--rd-attention)" label="Lucro" />
+            <span style={{ fontSize: 12, color: "var(--rd-text-faint)" }}>toque no gráfico pra ver mês a mês</span>
             <span style={{ marginLeft: "auto", fontSize: 12.5, color: "var(--rd-text-dim)" }}>
               Saldo previsto 12m <strong style={{ color: "var(--rd-brand-light)" }}>{fmt(saldoPrevisto12Meses)}</strong>
             </span>
@@ -6371,15 +6579,15 @@ function AppAutenticado({ perfil, onSignOut }) {
           align-items: center;
         }
 
-        /* colunas secundárias — só entram quando existe largura de sobra
-           pra elas respirarem (>=1280px). Abaixo disso a tabela mostra
-           menos coluna e cada uma fica larga, em vez de espremer sete */
+        /* "Onde está" é a única coluna que sai quando a tela aperta (<1280px) —
+           é a informação mais dispensável da linha. Payback fica SEMPRE visível:
+           é número de acompanhamento diário, não pode sumir no tablet */
         .mbr-col-extra { display: none !important; }
         @media (min-width: 1280px) {
           .mbr-col-extra { display: flex !important; }
         }
 
-        .mbr-grid-frota { grid-template-columns: 116px minmax(0, 1fr) 124px 112px 80px; }
+        .mbr-grid-frota { grid-template-columns: 116px minmax(0, 1.4fr) 124px 112px minmax(0, 1fr) 80px; }
         @media (min-width: 1280px) {
           .mbr-grid-frota { grid-template-columns: 116px minmax(0, 1.5fr) 124px 112px minmax(0, 0.9fr) 132px 80px; }
         }
