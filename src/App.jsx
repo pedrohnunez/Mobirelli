@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useLayoutEffect, useCallback, useRef, useId, forwardRef, useImperativeHandle } from "react";
+import React, { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef, useId, forwardRef, useImperativeHandle } from "react";
 import { createPortal } from "react-dom";
 import * as maplibregl from "maplibre-gl";
 import mapStyle from "./mapStyle.json";
@@ -671,6 +671,78 @@ function WordmarkFallback({ compact }) {
           </span>
         </div>
       )}
+    </div>
+  );
+}
+
+/* ===========================================================
+   REDESIGN — marca compacta do shell novo (Etapa 2). Ícone das "duas rodas"
+   copiado à risca do mockup exportado do Claude Design; não é o mesmo
+   componente de logo configurável (Wordmark) — essa marca não muda por
+   conta própria/config, só pelo tema do redesign.
+=========================================================== */
+function MarcaMobirelli({ size = 38, raio = 11 }) {
+  return (
+    <div
+      style={{
+        width: size,
+        height: size,
+        borderRadius: raio,
+        background: "var(--rd-brand)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        flex: "none",
+      }}
+    >
+      <svg width={size * 0.66} viewBox="0 0 60 34" fill="none">
+        <circle cx="12" cy="22" r="8" stroke="#F4F2EA" strokeWidth="4.5" />
+        <circle cx="48" cy="22" r="8" stroke="#F4F2EA" strokeWidth="4.5" />
+        <path d="M12 22 L26 9 H38 L48 22" stroke="#8AA981" strokeWidth="4.5" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    </div>
+  );
+}
+
+function LinhaMarca() {
+  return (
+    <span className="flex items-center" style={{ width: 64 }}>
+      <span style={{ height: 2.5, background: "var(--rd-brand-soft)", borderRadius: 2, flex: 1 }} />
+      <span
+        style={{
+          width: 6,
+          height: 6,
+          borderRadius: 999,
+          border: "1.6px solid var(--rd-brand-soft)",
+          background: "var(--rd-sidebar)",
+          boxSizing: "border-box",
+          flex: "none",
+          marginLeft: -1.6,
+        }}
+      />
+    </span>
+  );
+}
+
+function AvatarIniciais({ username }) {
+  const iniciais = (username || "").trim().slice(0, 2).toUpperCase() || "??";
+  return (
+    <div
+      style={{
+        width: 30,
+        height: 30,
+        borderRadius: 999,
+        background: "#2A3A2F",
+        color: "var(--rd-brand-light)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontSize: 12,
+        fontWeight: 700,
+        flex: "none",
+      }}
+    >
+      {iniciais}
     </div>
   );
 }
@@ -6308,8 +6380,6 @@ function AppAutenticado({ perfil, onSignOut }) {
   }, [tab]);
   const headerRef = useRef(null);
   const navRef = useRef(null);
-  const tabSlotRefs = useRef({});
-  const [pilulaRect, setPilulaRect] = useState(null);
   // altura real da barra de cima/baixo — usado no Rastreio pra empurrar os controles
   // do mapa pra fora da faixa que fica por baixo delas (que agora é semitransparente)
   const [chromeHeights, setChromeHeights] = useState({ header: 64, nav: 76 });
@@ -6369,156 +6439,261 @@ function AppAutenticado({ perfil, onSignOut }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fluxoState.loading]);
 
+  // "Frota" é a única aba com contador de pendência por enquanto — motos disponíveis
+  // (paradas) são a mesma condição que a Etapa 3 (Visão geral) vai usar na faixa
+  // "Precisa de você"
+  const motosParadas = motosState.items.filter((m) => m.status === "disponivel").length;
+
   const tabs = [
-    { id: "dashboard", label: "Início", icon: LayoutDashboard },
-    { id: "motos", label: "Motos", icon: Bike },
-    { id: "clientes", label: "Clientes", icon: Users },
-    { id: "fluxo", label: "Caixa", icon: Wallet },
-    { id: "rastreio", label: "Rastreio", icon: Navigation },
-    { id: "config", label: "Ajustes", icon: Settings },
+    { id: "dashboard", label: "Visão geral", labelMobile: "Painel", icon: LayoutDashboard },
+    { id: "motos", label: "Frota", labelMobile: "Frota", icon: Bike, pendente: motosParadas > 0 ? motosParadas : null },
+    { id: "clientes", label: "Clientes", labelMobile: "Clientes", icon: Users },
+    { id: "fluxo", label: "Caixa", labelMobile: "Caixa", icon: Wallet },
+    { id: "rastreio", label: "Rastreamento", labelMobile: "Mapa", icon: Navigation },
   ];
-
-  // mede a posição do ícone da aba ativa pra "pílula" verde deslizar até ali (em vez de
-  // simplesmente aparecer/desaparecer em cada aba) — precisa medir de novo sempre que a
-  // aba muda ou a tela redimensiona, já que os botões são distribuídos com flex
-  useEffect(() => {
-    const medir = () => {
-      const slot = tabSlotRefs.current[tab];
-      const navEl = navRef.current;
-      if (!slot || !navEl) return;
-      const slotRect = slot.getBoundingClientRect();
-      const navRect = navEl.getBoundingClientRect();
-      setPilulaRect({ left: slotRect.left - navRect.left, top: slotRect.top - navRect.top, width: slotRect.width, height: slotRect.height });
-    };
-    medir();
-    window.addEventListener("resize", medir);
-    return () => window.removeEventListener("resize", medir);
-  }, [tab]);
-
-  // arrastar a pílula pro lado troca de aba também, igual num seletor de segmentos do
-  // iOS — guarda o centro de cada aba (medido só uma vez, no início do arrasto) pra achar
-  // qual fica mais perto do dedo quando soltar
-  const dragInfoRef = useRef(null);
-  const dragLeftRef = useRef(null);
-  const [arrastando, setArrastando] = useState(false);
-  const [dragLeft, setDragLeft] = useState(null);
-
-  const iniciarArrasto = (e) => {
-    const navEl = navRef.current;
-    if (!navEl || !pilulaRect) return;
-    const navRect = navEl.getBoundingClientRect();
-    const centros = tabs.map((t) => {
-      const el = tabSlotRefs.current[t.id];
-      const r = el.getBoundingClientRect();
-      return { id: t.id, center: r.left - navRect.left + r.width / 2 };
-    });
-    dragInfoRef.current = { startClientX: e.clientX, startLeft: pilulaRect.left, centros, maxLeft: navRect.width - pilulaRect.width };
-    dragLeftRef.current = pilulaRect.left;
-    setArrastando(true);
-    setDragLeft(pilulaRect.left);
-    e.currentTarget.setPointerCapture(e.pointerId);
-  };
-
-  const moverArrasto = (e) => {
-    const info = dragInfoRef.current;
-    if (!info) return;
-    const delta = e.clientX - info.startClientX;
-    const novo = Math.max(0, Math.min(info.maxLeft, info.startLeft + delta));
-    dragLeftRef.current = novo;
-    setDragLeft(novo);
-  };
-
-  const soltarArrasto = () => {
-    const info = dragInfoRef.current;
-    if (!info) return;
-    const centroAtual = (dragLeftRef.current ?? info.startLeft) + pilulaRect.width / 2;
-    let maisProximo = info.centros[0];
-    let menorDist = Infinity;
-    info.centros.forEach((c) => {
-      const d = Math.abs(c.center - centroAtual);
-      if (d < menorDist) {
-        menorDist = d;
-        maisProximo = c;
-      }
-    });
-    dragInfoRef.current = null;
-    dragLeftRef.current = null;
-    setDragLeft(null);
-    setArrastando(false);
-    if (maisProximo.id !== tab) setTab(maisProximo.id);
-  };
+  const abaAtual = tabs.find((t) => t.id === tab);
+  const tituloTela = abaAtual ? abaAtual.label : "Ajustes";
+  const dataCabecalho = useMemo(() => {
+    const texto = new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" });
+    return texto.charAt(0).toUpperCase() + texto.slice(1);
+  }, []);
 
   return (
     <div
       style={{
-        backgroundColor: theme.bg,
-        backgroundImage: `radial-gradient(circle at 12% -8%, ${theme.mint}12 0%, transparent 38%), radial-gradient(circle at 50% 115%, ${theme.amber}0A 0%, transparent 36%)`,
-        backgroundAttachment: "fixed",
+        background: "var(--rd-shell)",
         minHeight: "100vh",
-        fontFamily: BODY_FONT,
+        fontFamily: "var(--rd-font)",
       }}
     >
       <style>{`
         ${fontImport}
         * { -webkit-tap-highlight-color: transparent; }
-        button { transition: opacity 0.15s ease, transform 0.16s ease, filter 0.15s ease; cursor: pointer; }
+        button { transition: opacity 0.15s ease, transform 0.16s ease, filter 0.15s ease; cursor: pointer; border: none; }
         button:active { transform: scale(0.97); opacity: 0.85; }
         .mbr-hover-grow { transform-origin: center; }
         .mbr-tab-icon { transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1); }
         .mbr-card-lift { transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.28s ease; will-change: transform; }
+        .mbr-nav-item { transition: background 0.15s ease, color 0.15s ease; }
         @media (hover: hover) and (pointer: fine) {
           button:hover { filter: brightness(1.22); }
-          nav button:hover { filter: none; transform: translateY(-2px); }
-          nav button:hover span:first-child { background: ${hexToRgba(theme.mint, 0.1)}; }
-          nav button:hover .mbr-tab-icon { transform: scale(1.2) rotate(-6deg); }
+          .mbr-nav-item:hover { filter: none; background: var(--rd-surface); }
+          .mbr-nav-item[data-active="true"]:hover { filter: none; background: var(--rd-brand); }
           .mbr-hover-grow:hover { transform: scale(1.16); filter: brightness(1.28); }
           .mbr-card-lift:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(0,0,0,0.24); }
         }
-        input, select, textarea, button { font-family: ${BODY_FONT}; }
+        input, select, textarea, button { font-family: var(--rd-font); }
         input:focus, select:focus, textarea:focus, button:focus-visible {
-          outline: 2px solid ${theme.mint}; outline-offset: 1px;
+          outline: 2px solid var(--rd-brand-soft); outline-offset: 2px;
         }
         @media (prefers-reduced-motion: reduce) {
           * { transition: none !important; animation: none !important; }
         }
         @keyframes mbrPulse { 0%, 100% { opacity: 0.45; } 50% { opacity: 0.9; } }
-        .mbr-skel { animation: mbrPulse 1.3s ease-in-out infinite; border-radius: 10px; background: ${theme.card}; }
+        .mbr-skel { animation: mbrPulse 1.3s ease-in-out infinite; border-radius: 10px; background: var(--rd-surface); }
         @keyframes mbrFadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
         .mbr-fade-in { animation: mbrFadeIn 0.24s ease both; }
         @keyframes mbrRotuloTroca { from { opacity: 0; } to { opacity: 1; } }
         .mbr-rotulo-troca { animation: mbrRotuloTroca 0.22s ease both; animation-delay: 0.08s; }
+
+        /* shell — sidebar fixa ≥1024px, tab bar embaixo <1024px (mobirelli-redesign-spec.md, seção 2) */
+        .mbr-desktop-only { display: none; }
+        .mbr-mobile-only { display: flex; }
+        .mbr-main-pad-bottom { padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
+        @media (min-width: 1024px) {
+          .mbr-desktop-only { display: flex; }
+          .mbr-mobile-only { display: none; }
+          .mbr-main-pad-bottom { padding-bottom: 32px; }
+        }
       `}</style>
 
-      <header
-        ref={headerRef}
-        className="px-4 sm:px-8 py-3 grid items-center sticky top-0 z-40"
-        style={{
-          gridTemplateColumns: "1fr auto 1fr",
-          paddingTop: "calc(0.75rem + env(safe-area-inset-top, 0px))",
-          background:
-            tab === "rastreio"
-              ? `linear-gradient(to bottom, ${hexToRgba(theme.panel, 0.9)} 0%, ${hexToRgba(theme.panel, 0.9)} 50%, ${hexToRgba(theme.panel, 0)} 100%)`
-              : hexToRgba(theme.panel, 0.82),
-          borderBottom: tab === "rastreio" ? "none" : `1px solid ${theme.divider}`,
-          backdropFilter: tab === "rastreio" ? "none" : "saturate(1.6) blur(16px)",
-          WebkitBackdropFilter: tab === "rastreio" ? "none" : "saturate(1.6) blur(16px)",
-        }}
-      >
-        {tab === "rastreio" && <BorraProgressiva lado="topo" />}
-        <div />
-        <div className="flex justify-center">
-          <Wordmark logoDataUrl={configState.value.logoDataUrl} logoSize={configState.value.logoSize} />
-        </div>
-        <div className="flex justify-end">
-          {anyError && (
-            <span className="text-xs" style={{ color: theme.coral, fontFamily: BODY_FONT }}>
-              {anyError}
-            </span>
-          )}
-        </div>
-      </header>
+      <div style={{ display: "flex", alignItems: "flex-start" }}>
+        {/* SIDEBAR — desktop ≥1024px */}
+        <nav
+          className="mbr-desktop-only"
+          style={{
+            flexDirection: "column",
+            gap: 26,
+            width: 232,
+            flex: "none",
+            position: "sticky",
+            top: 0,
+            height: "100vh",
+            background: "var(--rd-sidebar)",
+            borderRight: "1px solid var(--rd-border-soft)",
+            padding: "22px 16px",
+          }}
+        >
+          <div className="flex items-center" style={{ gap: 11, padding: "0 8px" }}>
+            <MarcaMobirelli size={38} raio={11} />
+            <div className="flex flex-col" style={{ gap: 3 }}>
+              <span style={{ fontSize: 17, fontWeight: 700, letterSpacing: "-0.03em", lineHeight: 1, color: "var(--rd-text)" }}>mobirelli</span>
+              <LinhaMarca />
+            </div>
+          </div>
 
-      {versaoNovaDisponivel && (
+          <div className="flex flex-col" style={{ gap: 3 }}>
+            <span
+              style={{
+                fontSize: 10.5,
+                fontWeight: 700,
+                letterSpacing: "0.16em",
+                textTransform: "uppercase",
+                color: "var(--rd-text-faint)",
+                padding: "0 10px 8px",
+              }}
+            >
+              Operação
+            </span>
+            {tabs.map((t) => {
+              const Icon = t.icon;
+              const active = tab === t.id;
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => setTab(t.id)}
+                  data-active={active}
+                  className="mbr-nav-item flex items-center"
+                  style={{
+                    gap: 11,
+                    padding: 10,
+                    borderRadius: 11,
+                    background: active ? "var(--rd-brand)" : "transparent",
+                    color: active ? "#F0F5EE" : "var(--rd-text-muted)",
+                    fontWeight: active ? 600 : 500,
+                    textAlign: "left",
+                  }}
+                >
+                  <Icon size={17} strokeWidth={2.75} />
+                  <span style={{ fontSize: 14 }}>{t.label}</span>
+                  {t.pendente ? (
+                    <span
+                      style={{
+                        marginLeft: "auto",
+                        fontSize: 11.5,
+                        fontWeight: 700,
+                        color: "var(--rd-attention)",
+                        background: "#2A2115",
+                        borderRadius: 999,
+                        padding: "2px 8px",
+                      }}
+                    >
+                      {t.pendente}
+                    </span>
+                  ) : null}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="flex flex-col" style={{ gap: 3, marginTop: "auto" }}>
+            <button
+              onClick={() => setTab("config")}
+              data-active={tab === "config"}
+              className="mbr-nav-item flex items-center"
+              style={{
+                gap: 11,
+                padding: 10,
+                borderRadius: 11,
+                background: tab === "config" ? "var(--rd-brand)" : "transparent",
+                color: tab === "config" ? "#F0F5EE" : "#8A9A8C",
+                textAlign: "left",
+              }}
+            >
+              <Settings size={17} strokeWidth={2.75} />
+              <span style={{ fontSize: 14, fontWeight: tab === "config" ? 600 : 500 }}>Ajustes</span>
+            </button>
+            <div className="flex items-center" style={{ gap: 10, padding: 10, borderTop: "1px solid var(--rd-border-soft)", marginTop: 8, minWidth: 0 }}>
+              <AvatarIniciais username={perfil?.username} />
+              <span className="truncate" style={{ fontSize: 13, fontWeight: 500, color: "var(--rd-text-muted)" }}>
+                {perfil?.username}
+              </span>
+            </div>
+          </div>
+        </nav>
+
+        {/* COLUNA DE CONTEÚDO */}
+        <div
+          style={{
+            flex: 1,
+            minWidth: 0,
+            display: "flex",
+            flexDirection: "column",
+            ...(tab === "rastreio" ? { height: "100vh", overflow: "hidden" } : {}),
+          }}
+        >
+          <div ref={headerRef} style={{ position: "sticky", top: 0, zIndex: 40 }}>
+            {/* header de conteúdo — desktop */}
+            <header
+              className="mbr-desktop-only"
+              style={{
+                alignItems: "center",
+                gap: 16,
+                padding: "20px 28px",
+                position: "relative",
+                background:
+                  tab === "rastreio" ? `linear-gradient(to bottom, ${hexToRgba("#0E1512", 0.92)} 0%, ${hexToRgba("#0E1512", 0.92)} 55%, ${hexToRgba("#0E1512", 0)} 100%)` : "var(--rd-shell)",
+                borderBottom: tab === "rastreio" ? "none" : "1px solid var(--rd-border-soft)",
+              }}
+            >
+              {tab === "rastreio" && <BorraProgressiva lado="topo" />}
+              <div className="flex flex-col" style={{ gap: 3 }}>
+                <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, letterSpacing: "-0.02em", color: "var(--rd-text)" }}>{tituloTela}</h1>
+                <span style={{ fontSize: 12.5, color: "var(--rd-text-dim)" }}>{dataCabecalho}</span>
+              </div>
+              {anyError && (
+                <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--rd-negative)" }}>{anyError}</span>
+              )}
+            </header>
+
+            {/* header compacto — mobile/tablet (<1024px) */}
+            <header
+              className="mbr-mobile-only"
+              style={{
+                alignItems: "center",
+                gap: 12,
+                padding: "16px 20px",
+                position: "relative",
+                paddingTop: "calc(16px + env(safe-area-inset-top, 0px))",
+                background:
+                  tab === "rastreio" ? `linear-gradient(to bottom, ${hexToRgba("#0E1512", 0.92)} 0%, ${hexToRgba("#0E1512", 0.92)} 55%, ${hexToRgba("#0E1512", 0)} 100%)` : "var(--rd-shell)",
+                borderBottom: tab === "rastreio" ? "none" : "1px solid var(--rd-border-soft)",
+              }}
+            >
+              {tab === "rastreio" && <BorraProgressiva lado="topo" />}
+              <MarcaMobirelli size={32} raio={9} />
+              <div className="flex flex-col" style={{ gap: 1, minWidth: 0 }}>
+                <span className="truncate" style={{ fontSize: 15, fontWeight: 700, letterSpacing: "-0.02em", color: "var(--rd-text)" }}>
+                  {tituloTela}
+                </span>
+                <span className="truncate" style={{ fontSize: 11.5, color: "var(--rd-text-dim)" }}>
+                  {dataCabecalho}
+                </span>
+              </div>
+              <button
+                onClick={() => setTab("config")}
+                aria-label="Ajustes"
+                title="Ajustes"
+                style={{
+                  marginLeft: "auto",
+                  width: 34,
+                  height: 34,
+                  borderRadius: 999,
+                  background: "var(--rd-surface-2)",
+                  border: "1px solid var(--rd-border)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "var(--rd-text-muted)",
+                  flex: "none",
+                }}
+              >
+                <Settings size={16} strokeWidth={2.75} />
+              </button>
+            </header>
+          </div>
+
+          {versaoNovaDisponivel && (
         // a centralização (translateX) fica num wrapper parado — a classe mbr-fade-in
         // anima "transform" (translateY) no elemento visível de dentro; se as duas
         // ficassem no mesmo elemento, a animação substituiria o translateX inteiro,
@@ -6551,14 +6726,10 @@ function AppAutenticado({ perfil, onSignOut }) {
         </div>
       )}
 
-      <main
-        className={tab === "rastreio" ? "" : "px-4 sm:px-8 pt-5 max-w-5xl mx-auto lg:max-w-7xl"}
-        style={
-          tab === "rastreio"
-            ? { position: "fixed", inset: 0, overflow: "hidden", zIndex: 0 }
-            : { paddingBottom: "calc(84px + env(safe-area-inset-bottom, 0px))" }
-        }
-      >
+          <main
+            className={tab === "rastreio" ? "" : "mbr-main-pad-bottom px-4 sm:px-8 pt-5 max-w-5xl mx-auto lg:max-w-7xl"}
+            style={tab === "rastreio" ? { flex: 1, minHeight: 0, position: "relative" } : undefined}
+          >
         {loading ? (
           <div className="flex flex-col gap-3">
             <div className="mbr-skel" style={{ height: 90 }} />
@@ -6611,79 +6782,54 @@ function AppAutenticado({ perfil, onSignOut }) {
             )}
           </div>
         )}
-      </main>
+          </main>
+        </div>
 
-      <nav
-        ref={navRef}
-        className="fixed bottom-0 left-0 right-0 z-40 flex items-stretch justify-around px-2 py-1.5"
-        style={{
-          background:
-            tab === "rastreio"
-              ? `linear-gradient(to bottom, ${hexToRgba(theme.panel, 0)} 0%, ${hexToRgba(theme.panel, 0.9)} 50%, ${hexToRgba(theme.panel, 0.9)} 100%)`
-              : hexToRgba(theme.panel, 0.82),
-          borderTop: tab === "rastreio" ? "none" : `1px solid ${theme.divider}`,
-          paddingBottom: "calc(6px + env(safe-area-inset-bottom, 0px))",
-          backdropFilter: tab === "rastreio" ? "none" : "saturate(1.6) blur(16px)",
-          WebkitBackdropFilter: tab === "rastreio" ? "none" : "saturate(1.6) blur(16px)",
-        }}
-      >
-        {tab === "rastreio" && <BorraProgressiva lado="base" />}
-        {pilulaRect && (
-          <span
-            onPointerDown={iniciarArrasto}
-            onPointerMove={moverArrasto}
-            onPointerUp={soltarArrasto}
-            onPointerCancel={soltarArrasto}
-            className="absolute rounded-full"
-            style={{
-              left: 0,
-              top: pilulaRect.top,
-              width: pilulaRect.width,
-              height: pilulaRect.height,
-              background: hexToRgba(theme.mint, 0.16),
-              zIndex: -1,
-              cursor: "grab",
-              touchAction: "none",
-              willChange: "transform",
-              // transform em vez de "left" — anima só na composição da GPU, sem
-              // recalcular layout a cada quadro, então fica fluido em qualquer taxa de
-              // atualização da tela (inclusive 120Hz), em vez de travar feito antes
-              transform: `translateX(${(arrastando ? dragLeft : pilulaRect.left) ?? 0}px)`,
-              transition: arrastando ? "none" : "transform 0.28s cubic-bezier(0.32, 0.72, 0, 1)",
-            }}
-          />
-        )}
-        {tabs.map((t) => {
-          const Icon = t.icon;
-          const active = tab === t.id;
-          return (
-            <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
-              aria-label={t.label}
-              title={t.label}
-              className="flex-1 flex items-center justify-center py-1.5"
-              style={{
-                color: active ? theme.mint : theme.textGhost,
-                background: "none",
-                transition: "color 0.15s ease, transform 0.18s ease",
-                // na aba ativa, o botão "cede o lugar" pra pílula (que fica embaixo dele
-                // nessa mesma área) poder receber o toque/arrasto — clicar nela de
-                // qualquer jeito não faria nada, já que é a aba em que já se está
-                pointerEvents: active ? "none" : "auto",
-              }}
-            >
-              <span
-                ref={(el) => (tabSlotRefs.current[t.id] = el)}
-                className="relative rounded-full flex items-center justify-center"
-                style={{ width: 44, height: 44, zIndex: 1 }}
+        {/* TAB BAR — mobile/tablet (<1024px) */}
+        <nav
+          ref={navRef}
+          className="mbr-mobile-only fixed bottom-0 left-0 right-0 z-40 items-center justify-around"
+          style={{
+            padding: "12px 16px",
+            paddingBottom: "calc(12px + env(safe-area-inset-bottom, 0px))",
+            background:
+              tab === "rastreio" ? `linear-gradient(to bottom, ${hexToRgba("#0B110E", 0)} 0%, ${hexToRgba("#0B110E", 0.94)} 45%, ${hexToRgba("#0B110E", 0.94)} 100%)` : "var(--rd-sidebar)",
+            borderTop: tab === "rastreio" ? "none" : "1px solid var(--rd-border-soft)",
+          }}
+        >
+          {tab === "rastreio" && <BorraProgressiva lado="base" />}
+          {tabs.map((t) => {
+            const Icon = t.icon;
+            const active = tab === t.id;
+            return (
+              <button
+                key={t.id}
+                onClick={() => setTab(t.id)}
+                aria-label={t.labelMobile}
+                title={t.labelMobile}
+                className="flex flex-col items-center"
+                style={{ gap: 5, background: "none", position: "relative", color: active ? "var(--rd-brand-light)" : "var(--rd-text-faint)" }}
               >
-                <Icon size={24} strokeWidth={active ? 2.4 : 2} className="mbr-tab-icon" />
-              </span>
-            </button>
-          );
-        })}
-      </nav>
+                <Icon size={21} strokeWidth={2.75} className="mbr-tab-icon" />
+                <span style={{ fontSize: 10, fontWeight: active ? 700 : 600 }}>{t.labelMobile}</span>
+                {t.pendente ? (
+                  <span
+                    style={{
+                      position: "absolute",
+                      top: -3,
+                      right: 2,
+                      width: 7,
+                      height: 7,
+                      borderRadius: 999,
+                      background: "var(--rd-attention)",
+                    }}
+                  />
+                ) : null}
+              </button>
+            );
+          })}
+        </nav>
+      </div>
     </div>
   );
 }
