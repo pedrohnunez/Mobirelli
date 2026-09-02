@@ -1587,7 +1587,9 @@ function ClientesView({ clientes, persistClientes, motos, persistMotos }) {
                   <span className="truncate" style={{ fontSize: 13.5, fontWeight: 600, color: "var(--rd-text)" }}>{c.nome || "Sem nome"}</span>
                   <span className="truncate" style={{ fontSize: 11.5, color: "var(--rd-text-dim)" }}>{[c.cidade, c.estado].filter(Boolean).join("/") || "—"}</span>
                 </div>
-                <span style={{ fontFamily: "ui-monospace, monospace", fontSize: 12.5, color: "var(--rd-text-muted)" }}>{c.cpfCnpj || "—"}</span>
+                <span className="truncate" style={{ minWidth: 0, fontFamily: "ui-monospace, monospace", fontSize: 12.5, color: "var(--rd-text-muted)" }}>
+                  {c.cpfCnpj || "—"}
+                </span>
                 <div className="flex flex-col min-w-0" style={{ gap: 2 }}>
                   <span className="truncate" style={{ fontSize: 12.5, color: "var(--rd-text-muted)" }}>{c.telefone || "—"}</span>
                   <span className="truncate" style={{ fontSize: 11.5, color: "var(--rd-text-dim)" }}>{c.email || ""}</span>
@@ -2853,11 +2855,11 @@ function MotosView({ motos, persist, clientes, persistClientes, config, lancamen
     return bateBusca && bateStatus;
   });
 
-  // paradas primeiro (o prejuízo salta na varredura), depois por vencimento mais próximo
+  // alugadas primeiro (por vencimento mais próximo), paradas/manutenção por último
   const linhas = [...filtradas].sort((a, b) => {
-    const paradaA = a.status !== "alugada" ? 0 : 1;
-    const paradaB = b.status !== "alugada" ? 0 : 1;
-    if (paradaA !== paradaB) return paradaA - paradaB;
+    const alugadaA = a.status === "alugada" ? 0 : 1;
+    const alugadaB = b.status === "alugada" ? 0 : 1;
+    if (alugadaA !== alugadaB) return alugadaA - alugadaB;
     const diaA = diaVencimentoDoContrato(a.contratoAtual) ?? 99;
     const diaB = diaVencimentoDoContrato(b.contratoAtual) ?? 99;
     return diaA - diaB;
@@ -5180,6 +5182,7 @@ function DashboardView({ motos, lancamentos, clientes, futuros, config, onIrPara
                 key={c.key}
                 style={{
                   flex: 1,
+                  minWidth: 0,
                   background: c.atencao ? "var(--rd-attention-bg)" : "var(--rd-surface)",
                   border: `1px solid ${c.atencao ? "var(--rd-attention-border)" : "var(--rd-border)"}`,
                   borderRadius: 14,
@@ -5238,7 +5241,7 @@ function DashboardView({ motos, lancamentos, clientes, futuros, config, onIrPara
       <div className="flex flex-col lg:flex-row" style={{ gap: 18 }}>
         <div
           className="flex flex-col"
-          style={{ flex: "1.35 1 380px", background: "var(--rd-surface)", border: "1px solid var(--rd-border)", borderRadius: 16, padding: "22px 24px", gap: 20 }}
+          style={{ flex: "1.35 1 380px", minWidth: 0, background: "var(--rd-surface)", border: "1px solid var(--rd-border)", borderRadius: 16, padding: "22px 24px", gap: 20 }}
         >
           <div className="flex items-center flex-wrap" style={{ gap: 10 }}>
             <span style={RD_LABEL}>Caixa de {rotuloMes}</span>
@@ -5340,7 +5343,7 @@ function DashboardView({ motos, lancamentos, clientes, futuros, config, onIrPara
 
         <div
           className="flex flex-col"
-          style={{ flex: "1 1 280px", background: "var(--rd-surface)", border: "1px solid var(--rd-border)", borderRadius: 16, padding: "22px 24px", gap: 18 }}
+          style={{ flex: "1 1 280px", minWidth: 0, background: "var(--rd-surface)", border: "1px solid var(--rd-border)", borderRadius: 16, padding: "22px 24px", gap: 18 }}
         >
           <div className="flex items-center">
             <span style={RD_LABEL}>Frota agora</span>
@@ -5352,8 +5355,10 @@ function DashboardView({ motos, lancamentos, clientes, futuros, config, onIrPara
           {motos.length === 0 ? (
             <span style={{ fontSize: 12.5, color: "var(--rd-text-dim)" }}>Nenhuma moto cadastrada ainda.</span>
           ) : (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
-              {motos.map((m) => {
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 8 }}>
+              {[...motos]
+                .sort((a, b) => (a.status === "alugada" ? 0 : 1) - (b.status === "alugada" ? 0 : 1))
+                .map((m) => {
                 const alugada = m.status === "alugada";
                 const dias = !alugada ? diasParadaDaMoto(m) : null;
                 const rotuloValor = alugada
@@ -5375,12 +5380,13 @@ function DashboardView({ motos, lancamentos, clientes, futuros, config, onIrPara
                       flexDirection: "column",
                       alignItems: "center",
                       gap: 5,
+                      minWidth: 0,
                     }}
                   >
-                    <span style={{ fontFamily: "ui-monospace, monospace", fontSize: 11.5, fontWeight: 600, color: alugada ? "var(--rd-text)" : "var(--rd-attention)" }}>
+                    <span className="truncate" style={{ maxWidth: "100%", fontFamily: "ui-monospace, monospace", fontSize: 11.5, fontWeight: 600, color: alugada ? "var(--rd-text)" : "var(--rd-attention)" }}>
                       {formatPlaca(m.placa)}
                     </span>
-                    <span style={{ fontSize: 10, color: alugada ? "var(--rd-brand-light)" : "var(--rd-text-dim)" }}>{rotuloValor}</span>
+                    <span className="truncate" style={{ maxWidth: "100%", fontSize: 10, color: alugada ? "var(--rd-brand-light)" : "var(--rd-text-dim)" }}>{rotuloValor}</span>
                   </div>
                 );
               })}
@@ -5421,7 +5427,7 @@ function DashboardView({ motos, lancamentos, clientes, futuros, config, onIrPara
       <div className="flex flex-col lg:flex-row" style={{ gap: 18 }}>
         <div
           className="flex flex-col"
-          style={{ flex: "1 1 260px", background: "var(--rd-surface)", border: "1px solid var(--rd-border)", borderRadius: 16, padding: "20px 22px", gap: 14 }}
+          style={{ flex: "1 1 260px", minWidth: 0, background: "var(--rd-surface)", border: "1px solid var(--rd-border)", borderRadius: 16, padding: "20px 22px", gap: 14 }}
         >
           <span style={RD_LABEL}>Próximos 7 dias</span>
           {itens7d.length === 0 ? (
@@ -5448,6 +5454,7 @@ function DashboardView({ motos, lancamentos, clientes, futuros, config, onIrPara
           className="flex flex-col"
           style={{
             flex: "1 1 260px",
+            minWidth: 0,
             background: "var(--rd-surface)",
             border: "1px solid var(--rd-border)",
             borderRadius: 16,
@@ -5487,7 +5494,7 @@ function DashboardView({ motos, lancamentos, clientes, futuros, config, onIrPara
 
         <div
           className="flex flex-col"
-          style={{ flex: "0.8 1 220px", background: "var(--rd-surface)", border: "1px solid var(--rd-border)", borderRadius: 16, padding: "20px 22px", gap: 16 }}
+          style={{ flex: "0.8 1 220px", minWidth: 0, background: "var(--rd-surface)", border: "1px solid var(--rd-border)", borderRadius: 16, padding: "20px 22px", gap: 16 }}
         >
           <span style={RD_LABEL}>Do começo</span>
           <div className="flex flex-col" style={{ gap: 13 }}>
@@ -6428,10 +6435,15 @@ function AppAutenticado({ perfil, onSignOut }) {
             minWidth: 0,
             display: "flex",
             flexDirection: "column",
-            ...(tab === "rastreio" ? { height: "100vh", overflow: "hidden" } : {}),
+            ...(tab === "rastreio" ? { height: "100vh", overflow: "hidden", position: "relative" } : {}),
           }}
         >
-          <div ref={headerRef} style={{ position: "sticky", top: 0, zIndex: 40 }}>
+          {/* no Rastreamento o header flutua ABSOLUTO por cima do mapa (que ocupa a
+              coluna inteira, de ponta a ponta) — é isso que faz o degradê do header
+              realmente se misturar com o mapa por trás, em vez de só desenhar um
+              header sólido em cima de uma faixa vazia. Nas outras abas ele continua
+              sticky, empurrando o conteúdo normalmente */}
+          <div ref={headerRef} style={tab === "rastreio" ? { position: "absolute", top: 0, left: 0, right: 0, zIndex: 40 } : { position: "sticky", top: 0, zIndex: 40 }}>
             {/* header de conteúdo — desktop */}
             <header
               className="mbr-desktop-only"
@@ -6537,7 +6549,7 @@ function AppAutenticado({ perfil, onSignOut }) {
 
           <main
             className={tab === "rastreio" ? "" : "mbr-main-pad-bottom px-4 sm:px-8 pt-5 max-w-5xl mx-auto lg:max-w-7xl"}
-            style={tab === "rastreio" ? { flex: 1, minHeight: 0, position: "relative" } : undefined}
+            style={tab === "rastreio" ? { position: "absolute", inset: 0 } : undefined}
           >
         {loading ? (
           <div className="flex flex-col gap-3">
