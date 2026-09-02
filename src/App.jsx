@@ -5706,14 +5706,13 @@ function RedefinirSenhaModal({ usuario, onClose, onSaved }) {
 // leitura, sem senha nenhuma nela) e se dispara as ações
 // um único visual pra qualquer badge de cargo/status — fundo sólido igual pra todos,
 // só a cor do texto/ícone muda por tipo (nunca contorno, nunca fundo diferente)
-function CargoBadge({ icon: Icon, children, color }) {
+function RdBadge({ cor, children }) {
   return (
     <span
-      className="text-xs font-semibold rounded-full px-2 py-0.5 flex items-center gap-1 flex-shrink-0"
-      style={{ background: theme.card2, color, lineHeight: 1 }}
+      className="flex-shrink-0"
+      style={{ fontSize: 11, fontWeight: 700, color: cor, background: "var(--rd-surface)", border: `1px solid ${cor}`, borderRadius: 999, padding: "2px 8px", lineHeight: 1.4 }}
     >
-      {Icon && <Icon size={11} style={{ display: "block", flexShrink: 0 }} />}
-      <span>{children}</span>
+      {children}
     </span>
   );
 }
@@ -5759,20 +5758,20 @@ function UsuariosSection({ meuId }) {
   };
 
   return (
-    <div className="rounded-2xl p-4 mb-4" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
-      <div className="flex items-center justify-between mb-3">
-        <FieldLabel>Usuários com acesso</FieldLabel>
+    <div className="rounded-2xl" style={{ background: "var(--rd-surface)", border: "1px solid var(--rd-border)", padding: "22px 24px" }}>
+      <div className="flex items-center justify-between" style={{ marginBottom: 14 }}>
+        <span style={RD_LABEL}>Usuários com acesso</span>
         <button
           onClick={() => setModal({ type: "novo" })}
-          className="text-xs font-semibold rounded-xl px-3 py-1.5 flex items-center gap-1"
-          style={{ background: theme.mint, color: theme.text, fontWeight: 600 }}
+          className="flex items-center"
+          style={{ gap: 6, background: "var(--rd-brand-soft)", color: "var(--rd-shell)", borderRadius: 999, padding: "7px 14px", fontSize: 12.5, fontWeight: 700 }}
         >
-          <Plus size={14} /> Novo usuário
+          <Plus size={14} strokeWidth={3} /> Novo usuário
         </button>
       </div>
 
       {erro && (
-        <div className="text-xs mb-3 flex items-center gap-1" style={{ color: theme.coral, fontFamily: BODY_FONT }}>
+        <div className="flex items-center" style={{ gap: 6, fontSize: 12.5, color: "var(--rd-negative)", marginBottom: 12 }}>
           <AlertTriangle size={13} /> {erro}
         </div>
       )}
@@ -5780,30 +5779,32 @@ function UsuariosSection({ meuId }) {
       {usuarios === null ? (
         <div className="mbr-skel" style={{ height: 60 }} />
       ) : usuarios.length === 0 ? (
-        <div style={{ color: theme.textMuted, fontSize: 12 }}>Nenhum usuário cadastrado.</div>
+        <div style={{ color: "var(--rd-text-dim)", fontSize: 12.5 }}>Nenhum usuário cadastrado.</div>
       ) : (
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col" style={{ gap: 8 }}>
           {usuarios.map((u) => (
-            <div key={u.id} className="flex items-center justify-between gap-2 rounded-xl px-3 py-2" style={{ background: theme.card2 }}>
-              <div className="flex items-center gap-2 min-w-0">
-                <div style={{ color: theme.text, fontFamily: BODY_FONT, fontWeight: 600 }} className="truncate">
+            <div
+              key={u.id}
+              className="flex items-center justify-between flex-wrap"
+              style={{ gap: 8, background: "var(--rd-surface-2)", border: "1px solid var(--rd-border)", borderRadius: 12, padding: "9px 12px" }}
+            >
+              <div className="flex items-center min-w-0" style={{ gap: 8 }}>
+                <span className="truncate" style={{ color: "var(--rd-text)", fontWeight: 600, fontSize: 13.5 }}>
                   {u.username}
-                </div>
+                </span>
                 {u.role === "admin" ? (
-                  <CargoBadge icon={ShieldCheck} color={theme.amber}>Admin</CargoBadge>
+                  <RdBadge cor="var(--rd-attention)">Admin</RdBadge>
                 ) : (
-                  <CargoBadge icon={u.role === "editor" ? Pencil : Eye} color={u.role === "editor" ? theme.mint : theme.textMuted}>
-                    {u.role === "editor" ? "Editor" : "Visualizador"}
-                  </CargoBadge>
+                  <RdBadge cor={u.role === "editor" ? "var(--rd-brand-light)" : "var(--rd-text-dim)"}>{u.role === "editor" ? "Editor" : "Visualizador"}</RdBadge>
                 )}
-                {!u.ativo && <CargoBadge color={theme.coral}>Desativado</CargoBadge>}
+                {!u.ativo && <RdBadge cor="var(--rd-negative)">Desativado</RdBadge>}
               </div>
-              <div className="flex items-center flex-shrink-0" style={{ marginRight: -10 }}>
+              <div className="flex items-center flex-shrink-0" style={{ marginRight: -8 }}>
                 {u.role !== "admin" && (
                   <button
                     onClick={() => alternarRole(u)}
                     className="flex items-center justify-center mbr-hover-grow"
-                    style={{ color: theme.textMuted, width: 40, height: 40 }}
+                    style={{ color: "var(--rd-text-muted)", width: 36, height: 36 }}
                     title={u.role === "editor" ? "Trocar pra Visualizador" : "Trocar pra Editor"}
                   >
                     {u.role === "editor" ? <Eye size={15} /> : <Pencil size={15} />}
@@ -5812,7 +5813,7 @@ function UsuariosSection({ meuId }) {
                 <button
                   onClick={() => setModal({ type: "senha", usuario: u })}
                   className="flex items-center justify-center mbr-hover-grow"
-                  style={{ color: theme.textMuted, width: 40, height: 40 }}
+                  style={{ color: "var(--rd-text-muted)", width: 36, height: 36 }}
                   title="Redefinir senha"
                 >
                   <KeyRound size={15} />
@@ -5821,7 +5822,7 @@ function UsuariosSection({ meuId }) {
                   <button
                     onClick={() => excluirUsuario(u)}
                     className="flex items-center justify-center mbr-hover-grow"
-                    style={{ color: theme.textMuted, width: 40, height: 40, marginRight: -8 }}
+                    style={{ color: "var(--rd-text-muted)", width: 36, height: 36 }}
                     title="Excluir usuário"
                   >
                     <Trash2 size={15} />
@@ -5867,23 +5868,24 @@ function ConfiguracoesView({ config, persist, perfil, onSignOut }) {
   };
 
   return (
-    <div>
-      <h2 style={{ fontFamily: HEAD_FONT, fontSize: 22, fontWeight: 700, color: theme.mint }} className="mb-4">
-        Configurações
-      </h2>
+    <div className="flex flex-col" style={{ gap: 14, fontFamily: "var(--rd-font)" }}>
+      <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, letterSpacing: "-0.02em", color: "var(--rd-text)" }}>Ajustes</h1>
 
-      <div className="rounded-2xl p-4 mb-4 flex items-center justify-between gap-3" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
+      <div
+        className="rounded-2xl flex items-center justify-between flex-wrap"
+        style={{ gap: 12, background: "var(--rd-surface)", border: "1px solid var(--rd-border)", padding: "16px 20px" }}
+      >
         <div className="min-w-0">
-          <div style={{ color: theme.textMuted, fontFamily: BODY_FONT, fontSize: 12 }}>Logado como</div>
-          <div className="flex items-center gap-1.5 truncate" style={{ color: theme.text, fontFamily: BODY_FONT, fontWeight: 600 }}>
+          <div style={{ color: "var(--rd-text-dim)", fontSize: 12 }}>Logado como</div>
+          <div className="flex items-center truncate" style={{ gap: 6, color: "var(--rd-text)", fontWeight: 600, fontSize: 14.5 }}>
             {perfil?.username}
-            {perfil?.role === "admin" && <ShieldCheck size={14} color={theme.amber} />}
+            {perfil?.role === "admin" && <ShieldCheck size={14} color="var(--rd-attention)" />}
           </div>
         </div>
         <button
           onClick={onSignOut}
-          className="text-xs font-semibold rounded-xl px-3 py-2 flex items-center gap-1.5 flex-shrink-0"
-          style={{ background: theme.card2, color: theme.coral }}
+          className="flex items-center flex-shrink-0"
+          style={{ gap: 7, background: "var(--rd-surface-2)", border: "1px solid var(--rd-border)", color: "var(--rd-negative)", borderRadius: 999, padding: "9px 16px", fontSize: 12.5, fontWeight: 700 }}
         >
           <LogOut size={14} /> Sair
         </button>
@@ -5892,31 +5894,43 @@ function ConfiguracoesView({ config, persist, perfil, onSignOut }) {
       {perfil?.role === "admin" && <UsuariosSection meuId={perfil.id} />}
 
       {permissoes.podeEditar && (
-      <>
-      <div className="rounded-2xl p-4 mb-4" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
-        <FieldLabel>Link de rastreio (aba Rastreio)</FieldLabel>
-        <input
-          style={inputStyle}
-          value={local.linkRastreioGeral || ""}
-          onChange={(e) => setLocal((l) => ({ ...l, linkRastreioGeral: e.target.value }))}
-          onBlur={() => salvarAgora(local)}
-          placeholder="https://web.melocaliza.com.br/sharing/..."
-        />
-        <div className="text-xs -mt-2" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
-          Na Melocaliza: Compartilhar localização → Novo → selecione todas as motos → validade "Nenhum" → copie o link.
+        <div className="rounded-2xl" style={{ background: "var(--rd-surface)", border: "1px solid var(--rd-border)", padding: "22px 24px" }}>
+          <span style={RD_LABEL}>Link de rastreio (aba Rastreamento)</span>
+          <input
+            style={{
+              width: "100%",
+              background: "var(--rd-surface-2)",
+              border: "1px solid var(--rd-border)",
+              borderRadius: 10,
+              padding: "10px 14px",
+              color: "var(--rd-text)",
+              fontSize: 13.5,
+              fontFamily: "var(--rd-font)",
+              marginTop: 10,
+              marginBottom: 8,
+            }}
+            value={local.linkRastreioGeral || ""}
+            onChange={(e) => setLocal((l) => ({ ...l, linkRastreioGeral: e.target.value }))}
+            onBlur={() => salvarAgora(local)}
+            placeholder="https://web.melocaliza.com.br/sharing/..."
+          />
+          <div style={{ fontSize: 12, color: "var(--rd-text-dim)" }}>
+            Na Melocaliza: Compartilhar localização → Novo → selecione todas as motos → validade "Nenhum" → copie o link.
+          </div>
         </div>
-      </div>
-
-      </>
       )}
 
       {status.text && (
         <div
-          className="text-xs font-semibold rounded-xl px-3 py-2 inline-block"
+          className="inline-block"
           style={{
-            color: status.kind === "erro" ? theme.coral : theme.mint,
-            background: status.kind === "erro" ? `${theme.coral}1F` : `${theme.mint}1F`,
-            fontFamily: BODY_FONT,
+            fontSize: 12.5,
+            fontWeight: 700,
+            borderRadius: 999,
+            padding: "7px 14px",
+            alignSelf: "flex-start",
+            color: status.kind === "erro" ? "var(--rd-negative)" : "var(--rd-positive)",
+            background: status.kind === "erro" ? "var(--rd-attention-bg)" : "#132018",
           }}
         >
           {status.text}
