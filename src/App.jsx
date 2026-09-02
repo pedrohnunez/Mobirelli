@@ -2764,80 +2764,272 @@ function MotosView({ motos, persist, clientes, persistClientes, config, lancamen
     }
   };
 
+  const [filtroStatus, setFiltroStatus] = useState("todas"); // "todas" | "alugada" | "disponivel" | "manutencao"
+  const contagemStatus = {
+    alugada: motos.filter((m) => m.status === "alugada").length,
+    disponivel: motos.filter((m) => m.status === "disponivel").length,
+    manutencao: motos.filter((m) => m.status === "manutencao").length,
+  };
+
   const filtradas = motos.filter((m) => {
     const q = busca.toLowerCase();
     const qLimpo = placaLimpa(busca).toLowerCase();
-    return (
+    const bateBusca =
       !q ||
       [m.placa, m.chassi, m.renavam, m.modelo].some((f) => f?.toLowerCase().includes(q)) ||
-      (qLimpo && m.placa?.toLowerCase().includes(qLimpo))
-    );
+      (qLimpo && m.placa?.toLowerCase().includes(qLimpo));
+    const bateStatus = filtroStatus === "todas" || m.status === filtroStatus;
+    return bateBusca && bateStatus;
   });
 
+  // paradas primeiro (o prejuízo salta na varredura), depois por vencimento mais próximo
+  const linhas = [...filtradas].sort((a, b) => {
+    const paradaA = a.status !== "alugada" ? 0 : 1;
+    const paradaB = b.status !== "alugada" ? 0 : 1;
+    if (paradaA !== paradaB) return paradaA - paradaB;
+    const diaA = diaVencimentoDoContrato(a.contratoAtual) ?? 99;
+    const diaB = diaVencimentoDoContrato(b.contratoAtual) ?? 99;
+    return diaA - diaB;
+  });
+
+  const mesesDesde = (dataISO) => {
+    if (!dataISO) return null;
+    const d = new Date(`${dataISO}T00:00:00`);
+    const hoje = new Date();
+    return Math.max(0, (hoje.getFullYear() - d.getFullYear()) * 12 + (hoje.getMonth() - d.getMonth()));
+  };
+
+  const paybackDaMoto = (m) => {
+    const custosExtrasTotal = custosDaMoto(m, lancamentos).reduce((s, c) => s + Number(c.valorGasto || 0), 0);
+    const manutencaoTotal = (m.manutencoes || []).reduce((s, x) => s + Number(x.valorGasto || 0), 0);
+    const investimentoTotal = Number(m.valorCompra || 0) + custosExtrasTotal + manutencaoTotal;
+    const recebidoReal = pagamentosDaMoto(m, lancamentos).reduce((s, p) => s + Number(p.valor), 0);
+    return investimentoTotal > 0 ? Math.min(100, (recebidoReal / investimentoTotal) * 100) : 0;
+  };
+
+  const diasParadaDaMoto = (m) => {
+    const historico = [...(m.historicoContratos || [])].sort((a, b) => (a.encerradoEm > b.encerradoEm ? -1 : 1));
+    const desde = historico[0]?.encerradoEm || m.dataCompra;
+    if (!desde) return null;
+    const inicio = new Date(`${desde}T00:00:00`);
+    return Math.max(0, Math.floor((new Date() - inicio) / (1000 * 60 * 60 * 24)));
+  };
+
+  const clientesSemContrato = clientes.filter((c) => !motos.some((mm) => mm.contratoAtual?.clienteId === c.id));
+
+  const filtros = [
+    { id: "todas", label: "Todas" },
+    { id: "alugada", label: "Alugadas" },
+    { id: "disponivel", label: `Paradas${contagemStatus.disponivel ? ` ${contagemStatus.disponivel}` : ""}` },
+    { id: "manutencao", label: "Manutenção" },
+  ];
+
   return (
-    <div>
-      <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
-        <h2 style={{ fontFamily: HEAD_FONT, fontSize: 22, fontWeight: 700, color: theme.mint }}>Motos</h2>
-        <div className="flex items-center gap-2">
+    <div className="flex flex-col" style={{ gap: 18 }}>
+      <div className="flex items-center flex-wrap" style={{ gap: 16 }}>
+        <div className="flex flex-col" style={{ gap: 3 }}>
+          <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, letterSpacing: "-0.02em", color: "var(--rd-text)", fontFamily: "var(--rd-font)" }}>Frota</h1>
+          <span style={{ fontSize: 12.5, color: "var(--rd-text-dim)" }}>
+            {motos.length} moto{motos.length === 1 ? "" : "s"} · {contagemStatus.alugada} alugada{contagemStatus.alugada === 1 ? "" : "s"} ·{" "}
+            {contagemStatus.disponivel} parada{contagemStatus.disponivel === 1 ? "" : "s"}
+          </span>
+        </div>
+        <div style={{ display: "flex", gap: 2, background: "var(--rd-surface-2)", border: "1px solid var(--rd-border)", borderRadius: 999, padding: 4 }}>
+          {filtros.map((f) => (
+            <button
+              key={f.id}
+              onClick={() => setFiltroStatus(f.id)}
+              style={{
+                padding: "6px 14px",
+                borderRadius: 999,
+                fontSize: 12.5,
+                fontWeight: filtroStatus === f.id ? 700 : 600,
+                background: filtroStatus === f.id ? "var(--rd-brand)" : "transparent",
+                color: filtroStatus === f.id ? "#F0F5EE" : f.id === "disponivel" ? "var(--rd-attention)" : "var(--rd-text-dim)",
+              }}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center" style={{ gap: 8, marginLeft: "auto" }}>
           <button
             onClick={() => setModal({ type: "consulta" })}
-            className="flex items-center gap-1 rounded-xl px-3 py-2 text-sm font-semibold"
-            style={{ border: `1px solid ${theme.outline}`, color: theme.outlineText }}
+            className="flex items-center"
+            style={{
+              gap: 8,
+              background: "var(--rd-surface-2)",
+              border: "1px solid var(--rd-border)",
+              color: "var(--rd-text-muted)",
+              borderRadius: 999,
+              padding: "9px 16px",
+              fontSize: 13,
+              fontWeight: 600,
+            }}
           >
-            <Search size={15} /> Consultar placa
+            <Search size={14} strokeWidth={2.75} /> Consultar placa
           </button>
           {permissoes.podeEditar && (
             <button
               onClick={() => setModal({ type: "moto", mode: "novo", moto: emptyMoto() })}
-              className="flex items-center gap-1 rounded-xl px-3 py-2 text-sm font-semibold"
-              style={{ background: theme.mint, color: theme.text, fontWeight: 600 }}
+              className="flex items-center"
+              style={{ gap: 8, background: "var(--rd-brand-soft)", color: "var(--rd-shell)", borderRadius: 999, padding: "10px 18px", fontSize: 13.5, fontWeight: 700 }}
             >
-              <Plus size={16} /> Nova moto
+              <Plus size={15} strokeWidth={3} /> Nova moto
             </button>
           )}
         </div>
       </div>
 
-      <div className="relative mb-4">
-        <Search size={15} style={{ position: "absolute", left: 10, top: 10, color: theme.textMuted }} />
+      <div className="relative">
+        <Search size={15} strokeWidth={2.75} style={{ position: "absolute", left: 14, top: 12, color: "var(--rd-text-dim)" }} />
         <input
-          style={{ ...inputStyle, paddingLeft: 32, marginBottom: 0 }}
+          style={{
+            width: "100%",
+            background: "var(--rd-surface-2)",
+            border: "1px solid var(--rd-border)",
+            borderRadius: 12,
+            padding: "10px 14px 10px 38px",
+            color: "var(--rd-text)",
+            fontSize: 13.5,
+            fontFamily: "var(--rd-font)",
+          }}
           placeholder="Buscar por placa, chassi, renavam ou modelo"
           value={busca}
           onChange={(e) => setBusca(e.target.value)}
         />
       </div>
 
-      {filtradas.length === 0 && (
-        <div className="rounded-2xl p-6 text-center" style={{ background: theme.card, color: theme.textMuted, fontFamily: BODY_FONT }}>
+      {linhas.length === 0 ? (
+        <div className="rounded-2xl p-6 text-center" style={{ background: "var(--rd-surface)", border: "1px solid var(--rd-border)", color: "var(--rd-text-dim)", fontFamily: "var(--rd-font)" }}>
           Nenhuma moto encontrada.
         </div>
-      )}
+      ) : (
+        <>
+          {/* cabeçalho da tabela — só desktop/tablet (>=1024px); no celular vira cartão por moto */}
+          <div
+            className="mbr-desktop-grid"
+            style={{
+              gridTemplateColumns: "132px 1fr 116px 116px 1fr 130px 84px",
+              padding: "0 4px 10px",
+              borderBottom: "1px solid var(--rd-border-soft)",
+              fontSize: 11,
+              fontWeight: 700,
+              letterSpacing: "0.14em",
+              textTransform: "uppercase",
+              color: "var(--rd-text-faint)",
+            }}
+          >
+            <span>Placa</span>
+            <span>Cliente</span>
+            <span>Mensalidade</span>
+            <span>Vencimento</span>
+            <span>Payback</span>
+            <span>Onde está</span>
+            <span></span>
+          </div>
 
-      <div className="flex flex-col gap-2">
-        {filtradas.map((moto) => {
+          <div className="flex flex-col" style={{ gap: 10 }}>
+            {linhas.map((moto) => {
           const pagamentos = pagamentosDaMoto(moto, lancamentos);
           const vencido = moto.status === "alugada" && isContratoVencido(moto.contratoAtual, pagamentos);
           const cliente = clientes.find((c) => c.id === moto.contratoAtual?.clienteId);
           const aberto = expandido === moto.id;
+          const diaVenc = diaVencimentoDoContrato(moto.contratoAtual);
+          const payback = paybackDaMoto(moto);
+          const parada = moto.status !== "alugada";
+          const dias = parada ? diasParadaDaMoto(moto) : null;
           return (
-            <div key={moto.id} className="rounded-2xl overflow-hidden" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
-              <button className="w-full flex items-center gap-3 justify-between px-4 py-3 text-left" onClick={() => setExpandido(aberto ? null : moto.id)}>
-                <div className="flex items-center gap-3 min-w-0">
-                  <div
-                    className="flex items-center justify-center flex-shrink-0"
-                    style={{ width: 28, height: 28, borderRadius: 8, background: theme.card2 }}
+            <div key={moto.id} className="rounded-2xl overflow-hidden" style={{ background: parada && moto.status === "disponivel" ? "#15120C" : "var(--rd-surface)", border: "1px solid var(--rd-border)" }}>
+              <button
+                className="w-full text-left mbr-desktop-grid"
+                onClick={() => setExpandido(aberto ? null : moto.id)}
+                style={{ gridTemplateColumns: "132px 1fr 116px 116px 1fr 130px 84px", alignItems: "center", padding: "16px 18px" }}
+              >
+                <div className="flex flex-col" style={{ gap: 5 }}>
+                  <span style={{ fontFamily: "ui-monospace, monospace", fontSize: 13.5, fontWeight: 600, color: "var(--rd-text)" }}>{formatPlaca(moto.placa)}</span>
+                  <span
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 700,
+                      alignSelf: "flex-start",
+                      borderRadius: 999,
+                      padding: "2px 9px",
+                      color: parada ? "var(--rd-attention)" : "var(--rd-brand-light)",
+                      background: parada ? "#2A2115" : "var(--rd-brand)",
+                    }}
                   >
-                    <Bike size={16} color={vencido ? theme.coral : moto.status === "alugada" ? theme.mint : theme.textGhost} />
+                    {parada ? `${MOTO_STATUS[moto.status]?.label || "Parada"}${dias != null ? ` ${dias}d` : ""}` : "Alugada"}
+                  </span>
+                </div>
+                <div className="flex flex-col min-w-0" style={{ gap: 3, paddingRight: 16 }}>
+                  {cliente ? (
+                    <>
+                      <span className="truncate" style={{ fontSize: 13.5, fontWeight: 600, color: "var(--rd-text)" }}>{cliente.nome}</span>
+                      {moto.contratoAtual?.dataInicio ? (
+                        <span style={{ fontSize: 11.5, color: "var(--rd-text-dim)" }}>
+                          desde {formatDate(moto.contratoAtual.dataInicio)} · {mesesDesde(moto.contratoAtual.dataInicio)} mes
+                          {mesesDesde(moto.contratoAtual.dataInicio) === 1 ? "" : "es"}
+                        </span>
+                      ) : (
+                        <span style={{ fontSize: 11.5, color: "var(--rd-text-dim)" }}>data de início não informada</span>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <span style={{ fontSize: 13.5, fontWeight: 600, color: "var(--rd-attention-text)" }}>Sem contrato</span>
+                      <span style={{ fontSize: 11.5, color: "var(--rd-attention-text)" }}>
+                        {clientesSemContrato.length > 0 ? `${clientesSemContrato.length} na fila de espera` : "nenhum cliente na fila"}
+                      </span>
+                    </>
+                  )}
+                </div>
+                <span style={{ fontSize: 13.5, fontWeight: 700, color: "var(--rd-text)" }}>
+                  {moto.contratoAtual ? formatCurrency(moto.contratoAtual.valorMensal) : "—"}
+                </span>
+                {moto.contratoAtual ? (
+                  <div className="flex flex-col" style={{ gap: 2 }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: vencido ? "var(--rd-negative)" : "var(--rd-text)" }}>
+                      {diaVenc ? `dia ${diaVenc}` : "—"}
+                    </span>
+                    <span style={{ fontSize: 11.5, color: vencido ? "var(--rd-negative)" : "var(--rd-text-dim)" }}>{vencido ? "atrasado" : "em dia"}</span>
                   </div>
-                  <div className="flex flex-col gap-3 min-w-0">
-                    <MotoPlate placa={moto.placa} />
-                    <StatusBadge status={moto.status} />
+                ) : (
+                  <span style={{ fontSize: 13, color: "var(--rd-text-dim)" }}>—</span>
+                )}
+                <div className="flex items-center" style={{ gap: 10, paddingRight: 24 }}>
+                  <div style={{ flex: 1 }}>
+                    <BarraComCometa pct={payback} color={payback >= 50 ? "var(--rd-positive)" : payback >= 15 ? "var(--rd-attention)" : "var(--rd-negative)"} />
+                  </div>
+                  <span style={{ fontSize: 11.5, color: "var(--rd-text-dim)", flex: "none" }}>{payback.toFixed(0)}%</span>
+                </div>
+                <div className="flex items-center" style={{ gap: 7 }}>
+                  <span style={{ width: 7, height: 7, borderRadius: 999, background: parada ? "var(--rd-attention)" : "var(--rd-positive)", flex: "none" }} />
+                  <span className="truncate" style={{ fontSize: 12.5, color: "var(--rd-text-muted)" }}>
+                    {parada ? "Pátio" : [cliente?.cidade, cliente?.estado].filter(Boolean).join("/") || "—"}
+                  </span>
+                </div>
+                <span style={{ fontSize: 12.5, fontWeight: 700, color: parada ? "var(--rd-attention)" : "var(--rd-brand-light)", justifySelf: "end" }}>
+                  {aberto ? "Fechar" : parada ? "Alugar" : "Abrir"}
+                </span>
+              </button>
+
+              {/* cartão — só celular/tablet (<1024px) */}
+              <button className="w-full mbr-mobile-only flex items-center justify-between text-left" onClick={() => setExpandido(aberto ? null : moto.id)} style={{ gap: 12, padding: "14px 16px" }}>
+                <div className="flex items-center min-w-0" style={{ gap: 12 }}>
+                  <div className="flex items-center justify-center flex-shrink-0" style={{ width: 32, height: 32, borderRadius: 9, background: "var(--rd-surface-2)" }}>
+                    <Bike size={16} color={vencido ? "var(--rd-negative)" : parada ? "var(--rd-attention)" : "var(--rd-brand-light)"} />
+                  </div>
+                  <div className="flex flex-col min-w-0" style={{ gap: 3 }}>
+                    <span style={{ fontFamily: "ui-monospace, monospace", fontSize: 13.5, fontWeight: 600, color: "var(--rd-text)" }}>{formatPlaca(moto.placa)}</span>
+                    <span className="truncate" style={{ fontSize: 11.5, color: "var(--rd-text-dim)" }}>{cliente?.nome || "Sem contrato"}</span>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  {vencido && <AlertTriangle size={14} color={theme.coral} />}
-                  {aberto ? <ChevronUp size={18} color={theme.textMuted} /> : <ChevronDown size={18} color={theme.textMuted} />}
+                <div className="flex items-center flex-shrink-0" style={{ gap: 8 }}>
+                  {vencido && <AlertTriangle size={14} color="var(--rd-negative)" />}
+                  <span style={{ fontSize: 12, fontWeight: 700, color: parada ? "var(--rd-attention)" : "var(--rd-brand-light)" }}>
+                    {aberto ? "Fechar" : parada ? "Alugar" : "Abrir"}
+                  </span>
                 </div>
               </button>
 
@@ -3107,8 +3299,10 @@ function MotosView({ motos, persist, clientes, persistClientes, config, lancamen
               </Collapse>
             </div>
           );
-        })}
-      </div>
+            })}
+          </div>
+        </>
+      )}
 
       {modal?.type === "moto" && (
         <MotoFormModal
@@ -6056,10 +6250,12 @@ function AppAutenticado({ perfil, onSignOut }) {
         /* shell — sidebar fixa ≥1024px, tab bar embaixo <1024px (mobirelli-redesign-spec.md, seção 2) */
         .mbr-desktop-only { display: none; }
         .mbr-mobile-only { display: flex; }
+        .mbr-desktop-grid { display: none; }
         .mbr-main-pad-bottom { padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
         @media (min-width: 1024px) {
           .mbr-desktop-only { display: flex; }
           .mbr-mobile-only { display: none; }
+          .mbr-desktop-grid { display: grid; }
           .mbr-main-pad-bottom { padding-bottom: 32px; }
         }
       `}</style>
