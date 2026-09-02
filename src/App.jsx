@@ -4638,14 +4638,78 @@ function RadialStat({ label, percent, color, sublabel, bare }) {
   );
 }
 
-function DashboardView({ motos, lancamentos, clientes, futuros }) {
+/* ===========================================================
+   REDESIGN — átomos da Visão geral nova (Etapa 3)
+=========================================================== */
+const RD_LABEL = { fontSize: 11.5, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--rd-brand-soft)" };
+
+function LegendaPonto({ cor, label, valor }) {
+  return (
+    <div className="flex items-center" style={{ gap: 9 }}>
+      <span style={{ width: 8, height: 8, borderRadius: 999, background: cor, flex: "none" }} />
+      <span style={{ fontSize: 12.5, color: "var(--rd-text-dim)", width: 64 }}>{label}</span>
+      <span style={{ fontSize: 14, fontWeight: 700, color: "var(--rd-text)" }}>{valor}</span>
+    </div>
+  );
+}
+
+function LegendaLinha({ cor, label }) {
+  return (
+    <span className="flex items-center" style={{ gap: 7, fontSize: 12, color: "var(--rd-text-dim)" }}>
+      <span style={{ width: 14, height: 2.5, background: cor, borderRadius: 2, flex: "none" }} />
+      {label}
+    </span>
+  );
+}
+
+function ValorPequeno({ label, valor, cor = "var(--rd-text)" }) {
+  return (
+    <div className="flex flex-col" style={{ gap: 2 }}>
+      <span style={{ fontSize: 12, color: "var(--rd-text-dim)" }}>{label}</span>
+      <span style={{ fontSize: 18, fontWeight: 700, letterSpacing: "-0.02em", color: cor }}>{valor}</span>
+    </div>
+  );
+}
+
+// gráfico de entradas/saídas/lucro em segmentos retos (sem depender de biblioteca de
+// gráfico) — a mesma ideia visual do mockup (área embaixo das entradas, linha tracejada
+// pro lucro), só que sempre correto pro número de meses que o período selecionado tiver
+function GraficoCaixa({ data }) {
+  const w = 640;
+  const h = 150;
+  if (!data.length) return <div style={{ height: h }} />;
+  const vals = data.flatMap((d) => [d.Entradas, d.Saídas, d.Lucro]);
+  const maxVal = Math.max(1, ...vals);
+  const minVal = Math.min(0, ...vals);
+  const range = Math.max(1, maxVal - minVal);
+  const y = (v) => h - 10 - ((v - minVal) / range) * (h - 20);
+  const x = (i) => (data.length > 1 ? (i * w) / (data.length - 1) : w / 2);
+  const pathFor = (key) => data.map((d, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)} ${y(d[key]).toFixed(1)}`).join(" ");
+  const areaEntradas = `${pathFor("Entradas")} L${x(data.length - 1).toFixed(1)} ${h} L${x(0).toFixed(1)} ${h} Z`;
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" style={{ width: "100%", height: h, display: "block" }}>
+      <line x1="0" y1={y(0)} x2={w} y2={y(0)} stroke="var(--rd-border)" strokeWidth="1" />
+      <path d={areaEntradas} fill="var(--rd-positive)" opacity="0.07" />
+      <path d={pathFor("Entradas")} fill="none" stroke="var(--rd-positive)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path d={pathFor("Saídas")} fill="none" stroke="var(--rd-negative)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" opacity="0.85" />
+      <path d={pathFor("Lucro")} fill="none" stroke="var(--rd-attention)" strokeWidth="2" strokeDasharray="4 4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function DashboardView({ motos, lancamentos, clientes, futuros, config, onIrPara }) {
   const alugadas = motos.filter((m) => m.status === "alugada").length;
   const disponiveis = motos.filter((m) => m.status === "disponivel").length;
   const motosVencidas = motos.filter((m) => m.status === "alugada" && isContratoVencido(m.contratoAtual, pagamentosDaMoto(m, lancamentos)));
   const vencidas = motosVencidas.length;
-  // um cliente com pagamento atrasado = uma moto alugada vencida (é 1 pra 1, pelo
-  // contratoAtual) — daí a taxa de inadimplência ser sobre o total de clientes
-  const taxaInadimplencia = clientes.length > 0 ? (vencidas / clientes.length) * 100 : 0;
+  const nomesClientesVencidos = motosVencidas
+    .map((m) => clientes.find((c) => c.id === m.contratoAtual?.clienteId)?.nome)
+    .filter(Boolean);
+
+  // clientes sem nenhuma moto com contrato ativo — a "fila de espera". Não existe campo
+  // de data de cadastro no modelo de cliente, então a ordem é a mesma em que já vêm na
+  // lista (não dá pra ordenar por "mais antigo" sem inventar um campo que não existe)
+  const clientesSemContrato = clientes.filter((c) => !motos.some((m) => m.contratoAtual?.clienteId === c.id));
 
   // motos disponíveis e há quanto tempo — usa o fim do último contrato encerrado como
   // "desde quando" está parada; se nunca teve contrato, usa a data de compra
@@ -4672,36 +4736,10 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
   // usa o mês atual se ele já tiver algum lançamento; senão, cai pro mês mais recente com dados
   // (evita mostrar "Lucro do mês" zerado só porque ainda não lançou nada no mês corrente) —
   // mas o usuário pode escolher outro mês pra olhar pelo seletor no topo da tela
-  const mesAutoDetectado = mesesComDados.has(mesCalendario) ? mesCalendario : [...mesesComDados].sort().pop() || mesCalendario;
-  const [mesEscolhido, setMesEscolhido] = useState(null);
-  const mesRef = mesEscolhido || mesAutoDetectado;
-  // o botão "Atual" precisa encolher de volta ao ser clicado, não só sumir na hora — por
-  // isso continua montado mais um instante enquanto a animação de saída (largura pra 0)
-  // termina, só desmonta de fato depois
-  const [botaoAtualMontado, setBotaoAtualMontado] = useState(!!mesEscolhido);
-  useEffect(() => {
-    if (mesEscolhido) {
-      setBotaoAtualMontado(true);
-      return;
-    }
-    const t = setTimeout(() => setBotaoAtualMontado(false), 280);
-    return () => clearTimeout(t);
-  }, [mesEscolhido]);
-  const podeAvancarMes = mesRef < mesCalendario;
-  const [direcaoMes, setDirecaoMes] = useState(0); // -1 = voltou, 1 = avançou
-  const irParaMesAnteriorRef = () => {
-    setDirecaoMes(-1);
-    const [ano, mesN] = mesRef.split("-").map(Number);
-    const d = new Date(ano, mesN - 2, 1);
-    setMesEscolhido(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
-  };
-  const irParaProximoMesRef = () => {
-    if (!podeAvancarMes) return;
-    setDirecaoMes(1);
-    const [ano, mesN] = mesRef.split("-").map(Number);
-    const d = new Date(ano, mesN, 1);
-    setMesEscolhido(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
-  };
+  // sempre o mês corrente (ou o mais recente com dados, se ainda não lançou nada nesse
+  // mês) — o painel novo é focado em "agora", sem navegação manual entre meses; olhar
+  // meses passados continua dando pra fazer na aba Caixa
+  const mesRef = mesesComDados.has(mesCalendario) ? mesCalendario : [...mesesComDados].sort().pop() || mesCalendario;
   const noMes = (data) => data?.slice(0, 7) === mesRef;
   const rotuloMes = monthLabel(mesRef);
 
@@ -4713,56 +4751,7 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
   const saidasMes = saidasOperacionaisMes + manutencaoMes;
   const lucroMes = entradasMes - saidasMes;
   const margemLucro = entradasMes > 0 ? (lucroMes / entradasMes) * 100 : 0;
-  // "Lucro operacional" ignora investimento/expansão de propósito (compra de moto nova,
-  // por exemplo) — é o quanto o negócio rendeu operando no mês. "Saldo de caixa" é o que
-  // de fato entrou e saiu da conta, incluindo esses investimentos — os dois às vezes
-  // dão número bem diferente no mesmo mês (comprou moto = saldo de caixa negativo, mas
-  // lucro operacional pode continuar positivo), por isso mostrar os dois lado a lado
   const investimentosMes = lancamentos.filter((l) => l.tipo === "saida" && l.natureza === "Expansão" && noMes(l.data)).reduce((s, l) => s + Number(l.valor), 0);
-  const saldoCaixaMes = lucroMes - investimentosMes;
-
-  // detalhamento pro cartão que abre no hover/toque do Faturamento e do Lucro — agrupa
-  // por categoria (entradas) / natureza (saídas) em vez de listar lançamento por
-  // lançamento, senão um mês com muitos lançamentos ficaria com uma lista enorme
-  const agruparPorChave = (lista, chaveFn, valorFn) => {
-    const porChave = new Map();
-    lista.forEach((item) => {
-      const chave = chaveFn(item) || "Sem categoria";
-      porChave.set(chave, (porChave.get(chave) || 0) + Number(valorFn(item)));
-    });
-    return [...porChave.entries()].sort((a, b) => b[1] - a[1]);
-  };
-  const detalhesFaturamento = agruparPorChave(
-    lancamentos.filter((l) => l.tipo === "entrada" && noMes(l.data)),
-    (l) => l.categoria,
-    (l) => l.valor
-  ).map(([label, valor]) => ({ label, valor, cor: theme.mint }));
-  const detalhesLucro = (() => {
-    const itens = [{ label: "Entradas", valor: entradasMes, cor: theme.mint }];
-    agruparPorChave(
-      lancamentos.filter((l) => l.tipo === "saida" && l.natureza !== "Expansão" && noMes(l.data)),
-      (l) => l.natureza,
-      (l) => l.valor
-    ).forEach(([natureza, valor]) => itens.push({ label: natureza, valor: -valor, cor: theme.coral }));
-    if (manutencaoMes > 0) itens.push({ label: "Manutenção", valor: -manutencaoMes, cor: theme.coral });
-    itens.push({ label: lucroMes >= 0 ? "Lucro" : "Prejuízo", valor: lucroMes, cor: lucroMes >= 0 ? theme.mint : theme.coral });
-    return itens;
-  })();
-  // mesmo detalhamento do Lucro, só que incluindo Expansão/investimento na conta (é
-  // exatamente essa diferença que faz Saldo de caixa e Lucro operacional às vezes darem
-  // números bem diferentes no mesmo mês)
-  const detalhesSaldo = (() => {
-    const itens = [{ label: "Entradas", valor: entradasMes, cor: theme.mint }];
-    agruparPorChave(
-      lancamentos.filter((l) => l.tipo === "saida" && l.natureza !== "Expansão" && noMes(l.data)),
-      (l) => l.natureza,
-      (l) => l.valor
-    ).forEach(([natureza, valor]) => itens.push({ label: natureza, valor: -valor, cor: theme.coral }));
-    if (manutencaoMes > 0) itens.push({ label: "Manutenção", valor: -manutencaoMes, cor: theme.coral });
-    if (investimentosMes > 0) itens.push({ label: "Expansão/investimento", valor: -investimentosMes, cor: theme.coral });
-    itens.push({ label: saldoCaixaMes >= 0 ? "Saldo de caixa" : "Déficit de caixa", valor: saldoCaixaMes, cor: saldoCaixaMes >= 0 ? theme.mint : theme.coral });
-    return itens;
-  })();
 
   const [refAno, refMesNum] = mesRef.split("-").map(Number);
 
@@ -4774,12 +4763,11 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
   const fimAbs = refAno * 12 + (refMesNum - 1);
   const mesesDisponiveis = fimAbs - inicioAbs + 1;
 
-  const [periodoGrafico, setPeriodoGrafico] = useState("tudo"); // "3m" | "6m" | "12m" | "tudo"
+  const [periodoGrafico, setPeriodoGrafico] = useState("3m"); // "3m" | "6m" | "12m"
   const periodoToggleRef = useRef(null);
   const periodoSlotRefs = useRef({});
   const [periodoPillRect, setPeriodoPillRect] = useState(null);
 
-  // mesma pílula deslizante do menu de baixo, agora no seletor 3m/6m/12m/Tudo do gráfico
   useEffect(() => {
     const medir = () => {
       const slot = periodoSlotRefs.current[periodoGrafico];
@@ -4794,28 +4782,10 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
     return () => window.removeEventListener("resize", medir);
   }, [periodoGrafico]);
 
-  const [mostrarInvestimentos, setMostrarInvestimentos] = useState(false);
-  // ao aparecer, deixa o próprio Recharts desenhar a linha se formando da esquerda pra
-  // direita (a animação padrão dele); ao esconder, como ele não anima a saída, continua
-  // montada mais um instante enquanto a opacidade cai suavemente até zero antes de tirar
-  const [investMontada, setInvestMontada] = useState(false);
-  const [investOpaca, setInvestOpaca] = useState(false);
-  useEffect(() => {
-    if (mostrarInvestimentos) {
-      setInvestMontada(true);
-      setInvestOpaca(true);
-      return;
-    }
-    setInvestOpaca(false);
-    const t = setTimeout(() => setInvestMontada(false), 300);
-    return () => clearTimeout(t);
-  }, [mostrarInvestimentos]);
-  const [verTodasRetorno, setVerTodasRetorno] = useState(false);
   const [valoresOcultos, setValoresOcultos] = useState(false);
   const fmt = valoresOcultos ? () => "R$ ••••••" : formatCurrency;
-  const fmtCompact = valoresOcultos ? () => "•••" : formatCompact;
 
-  const qtdMesesAlvo = { "3m": 3, "6m": 6, "12m": 12, tudo: mesesDisponiveis }[periodoGrafico] || mesesDisponiveis;
+  const qtdMesesAlvo = { "3m": 3, "6m": 6, "12m": 12 }[periodoGrafico] || 3;
   const qtdMeses = Math.max(1, Math.min(qtdMesesAlvo, mesesDisponiveis));
 
   const meses = [];
@@ -4830,730 +4800,467 @@ function DashboardView({ motos, lancamentos, clientes, futuros }) {
     const manut = todasManutencoes.filter((m) => m.data?.slice(0, 7) === key).reduce((s, m) => s + Number(m.valorGasto), 0);
     const entradasDoMes = doMesX.filter((l) => l.tipo === "entrada").reduce((s, l) => s + Number(l.valor), 0);
     const saidasDoMes = doMesX.filter((l) => l.tipo === "saida" && l.natureza !== "Expansão").reduce((s, l) => s + Number(l.valor), 0) + manut;
-    return {
-      mes: monthLabel(key),
-      Entradas: entradasDoMes,
-      Saídas: saidasDoMes,
-      Investimentos: doMesX.filter((l) => l.tipo === "saida" && l.natureza === "Expansão").reduce((s, l) => s + Number(l.valor), 0),
-      Lucro: entradasDoMes - saidasDoMes,
-    };
+    return { mes: monthLabel(key), Entradas: entradasDoMes, Saídas: saidasDoMes, Lucro: entradasDoMes - saidasDoMes };
   });
 
-  // mini-gráfico de tendência do faturamento — sempre os últimos meses com dados,
-  // independente do filtro (3m/6m/12m/tudo) escolhido pro gráfico principal
-  const sparkMeses = Math.min(6, mesesDisponiveis);
-  const sparkFaturamento = Array.from({ length: sparkMeses }, (_, i) => {
-    const abs = fimAbs - (sparkMeses - 1 - i);
+  // margem média dos últimos 12 meses — fixa, independente do período escolhido no
+  // seletor do gráfico. Soma entradas/lucro do período (em vez de fazer a média das
+  // porcentagens mês a mês), senão um mês fraco pesaria igual a um mês forte
+  const meses12 = Math.max(1, Math.min(12, mesesDisponiveis));
+  let entradas12m = 0;
+  let lucro12m = 0;
+  for (let i = 0; i < meses12; i++) {
+    const abs = fimAbs - i;
     const ano = Math.floor(abs / 12);
     const mesN = (abs % 12) + 1;
     const key = `${ano}-${String(mesN).padStart(2, "0")}`;
-    const v = lancamentos.filter((l) => l.tipo === "entrada" && l.data?.slice(0, 7) === key).reduce((s, l) => s + Number(l.valor), 0);
-    return { v };
-  });
+    const doMesX = lancamentos.filter((l) => l.data?.slice(0, 7) === key);
+    const manut = todasManutencoes.filter((m) => m.data?.slice(0, 7) === key).reduce((s, m) => s + Number(m.valorGasto), 0);
+    const e = doMesX.filter((l) => l.tipo === "entrada").reduce((s, l) => s + Number(l.valor), 0);
+    const s = doMesX.filter((l) => l.tipo === "saida" && l.natureza !== "Expansão").reduce((s2, l) => s2 + Number(l.valor), 0) + manut;
+    entradas12m += e;
+    lucro12m += e - s;
+  }
+  const margemMedia12m = entradas12m > 0 ? (lucro12m / entradas12m) * 100 : 0;
 
-  const porNatureza = NATUREZAS.map((n) => ({
-    natureza: n,
-    total: lancamentos.filter((l) => l.tipo === "saida" && l.natureza === n).reduce((s, l) => s + Number(l.valor), 0),
-  }));
-  const maxNatureza = Math.max(1, ...porNatureza.map((n) => n.total));
-
-  const taxaOcupacao = motos.length ? Math.round((alugadas / motos.length) * 100) : 0;
   const contratosAtivos = motos.filter((m) => m.contratoAtual);
   const faturamentoPrevisto = contratosAtivos.reduce((s, m) => s + Number(m.contratoAtual.valorMensal || 0), 0);
   const ticketMedio = contratosAtivos.length ? faturamentoPrevisto / contratosAtivos.length : 0;
   const investimentoFrota = motos.reduce((s, m) => s + Number(m.valorCompra || 0), 0);
 
-  // inclui tanto manutenção cadastrada na própria moto quanto lançada direto no Caixa
-  // (natureza "Manutenção") — só pra exibição do ranking, não entra de novo no lucro
-  const rankingManutencao = motos
-    .map((m) => ({ placa: m.placa, modelo: m.modelo, total: manutencoesDaMoto(m, lancamentos).reduce((s, x) => s + Number(x.valorGasto || 0), 0) }))
-    .filter((m) => m.total > 0)
-    .sort((a, b) => b.total - a.total)
-    .slice(0, 5);
-  const maxManutencao = Math.max(1, ...rankingManutencao.map((m) => m.total));
+  // dia de vencimento mais próximo entre os contratos em dia — usado no cartão de
+  // Cobrança quando não há nada em atraso ("próx. venc. em X dias")
+  const proximoVencimentoDias = (() => {
+    const hoje = new Date();
+    const hojeZero = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate());
+    const dias = contratosAtivos
+      .filter((m) => !motosVencidas.includes(m))
+      .map((m) => diaVencimentoDoContrato(m.contratoAtual))
+      .filter(Boolean)
+      .map((dia) => {
+        let venc = new Date(hoje.getFullYear(), hoje.getMonth(), dia);
+        if (venc < hojeZero) venc = new Date(hoje.getFullYear(), hoje.getMonth() + 1, dia);
+        return Math.round((venc - hojeZero) / (1000 * 60 * 60 * 24));
+      });
+    return dias.length ? Math.min(...dias) : null;
+  })();
 
-  const rankingFaturamento = motos
-    .filter((m) => m.contratoAtual)
-    .map((m) => ({ placa: m.placa, total: Number(m.contratoAtual.valorMensal || 0) }))
-    .sort((a, b) => b.total - a.total)
-    .slice(0, 5);
-  const maxFaturamentoMoto = Math.max(1, ...rankingFaturamento.map((m) => m.total));
-
-  // retorno do investimento por moto — quanto já foi "recuperado" (estimado a partir do
-  // valor mensal do contrato x meses decorridos) vs quanto custou (compra + custos extras + manutenção)
+  // retorno do investimento por moto — quanto já foi recebido de verdade (lançamentos de
+  // entrada que citam a placa) vs quanto ela custou (compra + custos extras + manutenção)
   const retornoPorMoto = motos
     .map((m) => {
       const custosExtrasTotal = custosDaMoto(m, lancamentos).reduce((s, c) => s + Number(c.valorGasto || 0), 0);
       const manutencaoTotal = (m.manutencoes || []).reduce((s, x) => s + Number(x.valorGasto || 0), 0);
       const investimentoTotal = Number(m.valorCompra || 0) + custosExtrasTotal + manutencaoTotal;
-      const receitaMensal = m.contratoAtual ? Number(m.contratoAtual.valorMensal || 0) : 0;
-
-      // recebido de verdade — soma os lançamentos de entrada que citam a placa dessa moto
-      // (é assim que o fluxo de caixa já é lançado, ex: "Mensalidade URB5I50")
       const recebidoReal = pagamentosDaMoto(m, lancamentos).reduce((s, p) => s + Number(p.valor), 0);
       const restante = Math.max(0, investimentoTotal - recebidoReal);
-      const mesesRestantes = receitaMensal > 0 ? Math.ceil(restante / receitaMensal) : null;
       const percentPago = investimentoTotal > 0 ? Math.min(100, (recebidoReal / investimentoTotal) * 100) : 0;
-
-      return { placa: m.placa, investimentoTotal, recebidoReal, receitaMensal, percentPago, mesesRestantes, jaPagou: restante <= 0 && investimentoTotal > 0 };
+      return { placa: m.placa, status: m.status, investimentoTotal, recebidoReal, restante, percentPago, jaPagou: restante <= 0 && investimentoTotal > 0 };
     })
-    .filter((r) => r.investimentoTotal > 0)
-    .sort((a, b) => b.percentPago - a.percentPago);
+    .filter((r) => r.investimentoTotal > 0);
 
-  // mesma base do retorno por moto, só que ordenada por tempo (quantos meses faltam),
-  // não por porcentagem — a mais perto de se pagar primeiro, sem contrato ativo por
-  // último (não dá pra estimar quando não tem mensalidade rodando)
-  const paybackPorMoto = [...retornoPorMoto].sort((a, b) => {
-    if (a.jaPagou !== b.jaPagou) return a.jaPagou ? -1 : 1;
-    if (a.mesesRestantes == null && b.mesesRestantes == null) return 0;
-    if (a.mesesRestantes == null) return 1;
-    if (b.mesesRestantes == null) return -1;
-    return a.mesesRestantes - b.mesesRestantes;
-  });
+  // mais perto de se pagar primeiro
+  const paybackPorMoto = [...retornoPorMoto].sort((a, b) => b.percentPago - a.percentPago);
 
-  // mês anterior ao mês de referência — usado só pra calcular a variação (%) dos KPIs principais
+  // mês anterior ao mês de referência — usado só pra calcular a variação (%) do faturamento
   const mesAnteriorKey = (() => {
     const d = new Date(refAno, refMesNum - 2, 1);
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
   })();
-  const noMesAnterior = (data) => data?.slice(0, 7) === mesAnteriorKey;
-  const entradasMesAnterior = lancamentos.filter((l) => l.tipo === "entrada" && noMesAnterior(l.data)).reduce((s, l) => s + Number(l.valor), 0);
-  const saidasOperacionaisMesAnterior = lancamentos
-    .filter((l) => l.tipo === "saida" && l.natureza !== "Expansão" && noMesAnterior(l.data))
+  const entradasMesAnterior = lancamentos
+    .filter((l) => l.tipo === "entrada" && l.data?.slice(0, 7) === mesAnteriorKey)
     .reduce((s, l) => s + Number(l.valor), 0);
-  const manutencaoMesAnterior = todasManutencoes.filter((m) => noMesAnterior(m.data)).reduce((s, m) => s + Number(m.valorGasto), 0);
-  const lucroMesAnterior = entradasMesAnterior - (saidasOperacionaisMesAnterior + manutencaoMesAnterior);
   const deltaFaturamento = entradasMesAnterior > 0 ? ((entradasMes - entradasMesAnterior) / entradasMesAnterior) * 100 : null;
-  const deltaLucro = lucroMesAnterior !== 0 ? ((lucroMes - lucroMesAnterior) / Math.abs(lucroMesAnterior)) * 100 : null;
   const rotuloMesAnterior = monthLabel(mesAnteriorKey);
 
-  const totalClientes = clientes?.length || 0;
   const faturamentoAcumulado = lancamentos.filter((l) => l.tipo === "entrada").reduce((s, l) => s + Number(l.valor), 0);
-  // essa KPI é só uma exibição do total gasto em manutenção (moto + Caixa) — não entra
-  // no cálculo de lucro, que usa "todasManutencoes" (só as cadastradas na própria moto)
-  // pra não contar duas vezes o que já é uma saída normal do Caixa
-  const manutencaoAcumulada = motos.reduce((s, m) => s + manutencoesDaMoto(m, lancamentos).reduce((s2, x) => s2 + Number(x.valorGasto || 0), 0), 0);
-  const contratosEncerrados = motos.reduce((s, m) => s + (m.historicoContratos?.length || 0), 0);
+
+  const { itensEntrada: itensEntrada7d, itensSaida: itensSaida7d } = futurosProximosDias(futuros, motos, 7);
+  const { saldoPrevisto12Meses } = totaisFuturos(futuros, motos);
+  const itens7d = [...itensEntrada7d.map((i) => ({ ...i, sinal: 1 })), ...itensSaida7d.map((i) => ({ ...i, sinal: -1 }))]
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 6);
+  // "a receber esse mês" = o que os contratos ativos ainda vão gerar no mês vs o que já entrou
+  const aReceberMes = Math.max(0, faturamentoPrevisto - entradasMes);
+
+  // faixa "PRECISA DE VOCÊ" — ordenado por severidade; Cobrança nunca some (serve de
+  // confirmação quando está tudo em dia)
+  const cardsPendencia = [];
+  if (motosParadas.length > 0) {
+    cardsPendencia.push({
+      key: "paradas",
+      atencao: true,
+      Icon: Clock,
+      titulo: `${motosParadas.length} moto${motosParadas.length === 1 ? "" : "s"} parada${motosParadas.length === 1 ? "" : "s"}`,
+      sub: motosParadas.slice(0, 3).map((m) => `${formatPlaca(m.placa)} há ${m.dias} dia${m.dias === 1 ? "" : "s"}`).join(" · "),
+      acao: "Alugar",
+      onClick: () => onIrPara?.("motos"),
+    });
+  }
+  if (clientesSemContrato.length > 0) {
+    cardsPendencia.push({
+      key: "fila",
+      atencao: false,
+      Icon: Users,
+      titulo: `${clientesSemContrato.length} cliente${clientesSemContrato.length === 1 ? "" : "s"} na espera`,
+      sub: clientesSemContrato.slice(0, 3).map((c) => c.nome).join(", "),
+      acao: "Ver fila",
+      onClick: () => onIrPara?.("clientes"),
+    });
+  }
+  cardsPendencia.push({
+    key: "cobranca",
+    atencao: vencidas > 0,
+    Icon: vencidas > 0 ? AlertTriangle : CheckCircle2,
+    titulo: vencidas > 0 ? `${vencidas} em atraso` : "Nada em atraso",
+    sub:
+      vencidas > 0
+        ? nomesClientesVencidos.slice(0, 3).join(", ")
+        : contratosAtivos.length > 0
+        ? `${contratosAtivos.length - vencidas} cliente${contratosAtivos.length - vencidas === 1 ? "" : "s"} em dia${
+            proximoVencimentoDias != null ? ` · próx. venc. em ${proximoVencimentoDias} dia${proximoVencimentoDias === 1 ? "" : "s"}` : ""
+          }`
+        : "Nenhum contrato ativo ainda.",
+    acao: vencidas > 0 ? "Cobrar" : null,
+    onClick: vencidas > 0 ? () => onIrPara?.("fluxo") : undefined,
+  });
+  const contagemPendencias = cardsPendencia.filter((c) => c.atencao).length;
 
   return (
-    <div>
-      <div className="flex items-center justify-between gap-2 mb-4 flex-wrap">
-        <h2 style={{ fontFamily: HEAD_FONT, fontSize: 22, fontWeight: 700, color: theme.mint }}>Visão geral</h2>
-        <div className="flex items-center gap-2 flex-wrap">
-          <button
-            onClick={() => setValoresOcultos((v) => !v)}
-            className="mbr-hover-grow flex items-center justify-center rounded-full"
-            title={valoresOcultos ? "Mostrar valores" : "Ocultar valores"}
-            style={{ width: 44, height: 44, background: theme.card, border: `1px solid ${theme.outline}`, color: theme.text, transition: "transform 0.18s ease" }}
-          >
-            {valoresOcultos ? <EyeOff size={16} /> : <Eye size={16} />}
-          </button>
-          <div className="flex items-center gap-1 rounded-full px-1.5 py-1" style={{ background: theme.card, border: `1px solid ${theme.cardBorder}` }}>
-            <button onClick={irParaMesAnteriorRef} className="mbr-hover-grow flex items-center justify-center rounded-full" style={{ width: 26, height: 26, color: theme.text }}>
-              <ChevronLeft size={16} />
-            </button>
-            <span className="relative inline-block overflow-hidden align-middle" style={{ minWidth: 74, height: 15 }}>
-              {/* um span só, remontado (via key) a cada mês — sem manter o texto antigo
-                  na tela junto com o novo, então nunca tem risco de um ficar sobreposto
-                  no outro, misturando as letras dos dois meses por um instante */}
-              <span
-                key={rotuloMes}
-                className="absolute inset-0 text-xs font-semibold text-center"
+    <div className="flex flex-col" style={{ gap: 22 }}>
+      {/* Faixa 1 — Precisa de você */}
+      <div className="flex flex-col" style={{ gap: 11 }}>
+        <div className="flex items-baseline" style={{ gap: 10 }}>
+          <span style={{ ...RD_LABEL, color: "var(--rd-attention)" }}>Precisa de você</span>
+          <span style={{ fontSize: 12.5, color: "var(--rd-text-dim)" }}>
+            {contagemPendencias} pendência{contagemPendencias === 1 ? "" : "s"}
+          </span>
+        </div>
+        <div className="flex flex-col lg:flex-row" style={{ gap: 12 }}>
+          {cardsPendencia.map((c) => {
+            const Icon = c.Icon;
+            return (
+              <div
+                key={c.key}
                 style={{
-                  color: theme.text,
-                  fontFamily: BODY_FONT,
-                  animation: `${direcaoMes >= 0 ? "mbrMesEntraDireita" : "mbrMesEntraEsquerda"} 0.26s cubic-bezier(0.32, 0.72, 0, 1) both`,
+                  flex: 1,
+                  background: c.atencao ? "var(--rd-attention-bg)" : "var(--rd-surface)",
+                  border: `1px solid ${c.atencao ? "var(--rd-attention-border)" : "var(--rd-border)"}`,
+                  borderRadius: 14,
+                  padding: "16px 18px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 14,
                 }}
               >
-                {rotuloMes}
-              </span>
-            </span>
-            <button
-              onClick={irParaProximoMesRef}
-              disabled={!podeAvancarMes}
-              className={podeAvancarMes ? "mbr-hover-grow flex items-center justify-center rounded-full" : "flex items-center justify-center rounded-full"}
-              style={{ width: 26, height: 26, color: podeAvancarMes ? theme.text : theme.textMuted, opacity: podeAvancarMes ? 1 : 0.4, cursor: podeAvancarMes ? "pointer" : "default" }}
-            >
-              <ChevronRight size={16} />
-            </button>
-            {botaoAtualMontado && (
-              <button
-                onClick={() => setMesEscolhido(null)}
-                className={`text-xs font-semibold rounded-full px-2 py-1 ml-1 ${mesEscolhido ? "mbr-botao-atual-entra" : "mbr-botao-atual-sai"}`}
-                style={{ background: hexToRgba(theme.mint, 0.16), color: theme.mint, fontFamily: BODY_FONT, whiteSpace: "nowrap", overflow: "hidden" }}
-              >
-                Atual
-              </button>
-            )}
-          </div>
+                <div
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 10,
+                    background: c.atencao ? "#2A2115" : "#1E2A22",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flex: "none",
+                    color: c.atencao ? "var(--rd-attention)" : "var(--rd-positive)",
+                  }}
+                >
+                  <Icon size={18} strokeWidth={2.75} />
+                </div>
+                <div className="flex flex-col" style={{ gap: 2, minWidth: 0 }}>
+                  <span style={{ fontSize: 14.5, fontWeight: 700, color: "var(--rd-text)" }}>{c.titulo}</span>
+                  <span className="truncate" style={{ fontSize: 12.5, color: c.atencao ? "var(--rd-attention-text)" : "var(--rd-text-dim)" }}>
+                    {c.sub}
+                  </span>
+                </div>
+                {c.acao && (
+                  <button
+                    onClick={c.onClick}
+                    style={{
+                      marginLeft: "auto",
+                      fontSize: 12.5,
+                      fontWeight: 700,
+                      color: c.atencao ? "var(--rd-attention)" : "var(--rd-brand-light)",
+                      border: `1px solid ${c.atencao ? "var(--rd-attention-border)" : "#2E4034"}`,
+                      borderRadius: 999,
+                      padding: "7px 14px",
+                      flex: "none",
+                      background: "transparent",
+                    }}
+                  >
+                    {c.acao}
+                  </button>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
 
-
-      {/* KPIs principais — Faturamento é o card alto com mini-gráfico. Lucro operacional
-          e Saldo de caixa ficam lado a lado embaixo: o primeiro ignora investimento/
-          expansão de propósito (comprar moto nova não é "prejuízo operacional"), o
-          segundo conta tudo que de fato entrou/saiu da conta — os dois às vezes dão
-          número bem diferente no mesmo mês, por isso mostrar os dois junto com legenda */}
-      <Reveal>
-        <HeroStat
-          label={`Faturamento (${rotuloMes})`}
-          value={entradasMes}
-          format={fmt}
-          icon={TrendingUp}
-          accent={theme.mint}
-          deltaPercent={deltaFaturamento}
-          deltaLabel={`vs ${rotuloMesAnterior}`}
-          sparkData={sparkFaturamento}
-          detalhes={detalhesFaturamento}
-        />
-      </Reveal>
-
-      {/* Lucro operacional + Déficit de caixa logo depois do Faturamento — par
-          pequeno/quadrado; Payback (grande) vem depois, e só então Inadimplência +
-          Motos paradas (outro par pequeno) */}
-      <Reveal delay={60}>
-        <div className="grid grid-cols-2 gap-3 mb-3 mt-3">
-          <HeroStat
-            label={`${lucroMes >= 0 ? "Lucro operacional" : "Prejuízo operacional"} (${rotuloMes})`}
-            caption="sem investimentos"
-            footnote={`margem: ${margemLucro.toFixed(1)}%`}
-            value={Math.abs(lucroMes)}
-            format={fmt}
-            icon={Wallet}
-            accent={lucroMes >= 0 ? theme.mint : theme.coral}
-            deltaPercent={deltaLucro}
-            deltaLabel={`vs ${rotuloMesAnterior}`}
-            detalhes={detalhesLucro}
-          />
-          <HeroStat
-            label={`${saldoCaixaMes >= 0 ? "Saldo de caixa" : "Déficit de caixa"} (${rotuloMes})`}
-            caption="com investimentos"
-            value={Math.abs(saldoCaixaMes)}
-            format={fmt}
-            icon={Landmark}
-            accent={saldoCaixaMes >= 0 ? theme.mint : theme.coral}
-            detalhes={detalhesSaldo}
-          />
-        </div>
-      </Reveal>
-
-      {paybackPorMoto.length > 0 && (
-        <Reveal delay={70}>
-          <div className="rounded-2xl p-4 mb-3 mbr-card-lift" style={{ background: `linear-gradient(150deg, ${theme.card} 0%, ${theme.card2} 130%)`, border: `1px solid ${theme.cardBorder}` }}>
-            <div className="flex items-center justify-between mb-1">
-              <SectionTitle color={theme.mint} className="">Payback por moto</SectionTitle>
-              {paybackPorMoto.length > 8 && (
-                <button
-                  onClick={() => setVerTodasRetorno((v) => !v)}
-                  className="text-xs font-semibold flex-shrink-0"
-                  style={{ color: theme.mint, fontFamily: BODY_FONT }}
-                >
-                  {verTodasRetorno ? "Ver menos" : `Ver mais (${paybackPorMoto.length - 8})`}
-                </button>
+      {/* Faixa 2 — Caixa do mês + Frota agora */}
+      <div className="flex flex-col lg:flex-row" style={{ gap: 18 }}>
+        <div
+          className="flex flex-col"
+          style={{ flex: "1.35 1 380px", background: "var(--rd-surface)", border: "1px solid var(--rd-border)", borderRadius: 16, padding: "22px 24px", gap: 20 }}
+        >
+          <div className="flex items-center flex-wrap" style={{ gap: 10 }}>
+            <span style={RD_LABEL}>Caixa de {rotuloMes}</span>
+            <button
+              onClick={() => setValoresOcultos((v) => !v)}
+              title={valoresOcultos ? "Mostrar valores" : "Ocultar valores"}
+              style={{
+                marginLeft: "auto",
+                width: 30,
+                height: 30,
+                borderRadius: 999,
+                background: "var(--rd-surface-2)",
+                border: "1px solid var(--rd-border)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "var(--rd-text-muted)",
+              }}
+            >
+              {valoresOcultos ? <EyeOff size={14} /> : <Eye size={14} />}
+            </button>
+            <div ref={periodoToggleRef} style={{ position: "relative", display: "flex", gap: 2, background: "var(--rd-surface-2)", border: "1px solid var(--rd-border)", borderRadius: 999, padding: 3 }}>
+              {periodoPillRect && (
+                <span
+                  style={{
+                    position: "absolute",
+                    left: periodoPillRect.left,
+                    top: periodoPillRect.top,
+                    width: periodoPillRect.width,
+                    height: periodoPillRect.height,
+                    background: "var(--rd-brand)",
+                    borderRadius: 999,
+                    transition: "left 0.25s cubic-bezier(0.32, 0.72, 0, 1)",
+                  }}
+                />
               )}
+              {["3m", "6m", "12m"].map((p) => (
+                <button
+                  key={p}
+                  ref={(el) => (periodoSlotRefs.current[p] = el)}
+                  onClick={() => setPeriodoGrafico(p)}
+                  style={{
+                    position: "relative",
+                    padding: "4px 11px",
+                    fontSize: 12,
+                    fontWeight: periodoGrafico === p ? 700 : 600,
+                    color: periodoGrafico === p ? "#F0F5EE" : "var(--rd-text-dim)",
+                    background: "none",
+                  }}
+                >
+                  {p}
+                </button>
+              ))}
             </div>
-            <div className="text-xs mb-3" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
-              Quanto falta pra cada moto se pagar (compra + custos + manutenção), da mais perto pra mais longe.
+          </div>
+
+          <div className="flex items-end flex-wrap" style={{ gap: 28 }}>
+            <div className="flex flex-col" style={{ gap: 6 }}>
+              <span style={{ fontSize: 12.5, color: "var(--rd-text-dim)" }}>Resultado do mês</span>
+              <span style={{ fontSize: 42, fontWeight: 700, letterSpacing: "-0.035em", lineHeight: 1, color: lucroMes >= 0 ? "var(--rd-positive)" : "var(--rd-negative)" }}>
+                {lucroMes < 0 ? "− " : ""}
+                {fmt(Math.abs(lucroMes))}
+              </span>
             </div>
-            <div className="flex flex-col gap-3">
-              {(verTodasRetorno ? paybackPorMoto : paybackPorMoto.slice(0, 8)).map((r) => {
-                const clamped = Math.max(0, Math.min(100, r.percentPago));
-                // cor comunica "quão perto está de bater o olho": verde até 6 meses,
-                // âmbar de 7 a 12, vermelho acima disso — sem contrato ativo fica neutro
-                // (não dá pra comparar prazo de algo que não está gerando receita agora)
-                const cor = r.jaPagou
-                  ? theme.mint
-                  : r.mesesRestantes == null
-                  ? theme.textFaint
-                  : r.mesesRestantes <= 6
-                  ? theme.mint
-                  : r.mesesRestantes <= 12
-                  ? theme.amber
-                  : theme.coral;
-                const legenda = r.jaPagou ? "Pago" : r.mesesRestantes != null ? `faltam ~${r.mesesRestantes} ${r.mesesRestantes === 1 ? "mês" : "meses"}` : "sem contrato ativo";
+            <div className="flex flex-wrap" style={{ gap: 26, paddingBottom: 6, borderLeft: "1px solid var(--rd-border)", paddingLeft: 26 }}>
+              <div className="flex flex-col" style={{ gap: 5 }}>
+                <span style={{ fontSize: 12.5, color: "var(--rd-text-dim)" }}>Faturamento</span>
+                <span style={{ fontSize: 24, fontWeight: 700, letterSpacing: "-0.03em", lineHeight: 1, color: "var(--rd-text)" }}>{fmt(entradasMes)}</span>
+                {deltaFaturamento != null && (
+                  <span style={{ fontSize: 12, fontWeight: 600, color: deltaFaturamento >= 0 ? "var(--rd-positive)" : "var(--rd-negative)" }}>
+                    {deltaFaturamento >= 0 ? "↗" : "↘"} {Math.abs(deltaFaturamento).toFixed(0)}% vs {rotuloMesAnterior}
+                  </span>
+                )}
+              </div>
+              <div className="flex flex-col" style={{ gap: 5 }}>
+                <span style={{ fontSize: 12.5, color: "var(--rd-text-dim)" }}>Margem de lucro</span>
+                <span style={{ fontSize: 24, fontWeight: 700, letterSpacing: "-0.03em", lineHeight: 1, color: "var(--rd-text)" }}>{margemLucro.toFixed(1)}%</span>
+                <span style={{ fontSize: 12, color: "var(--rd-text-dim)" }}>média 12m: {margemMedia12m.toFixed(1)}%</span>
+              </div>
+            </div>
+            <div className="flex flex-col" style={{ gap: 10, paddingBottom: 4 }}>
+              <LegendaPonto cor="var(--rd-positive)" label="Entrou" valor={fmt(entradasMes)} />
+              <LegendaPonto cor="var(--rd-negative)" label="Saiu" valor={fmt(saidasMes)} />
+              <LegendaPonto cor="var(--rd-attention)" label="A receber" valor={fmt(aReceberMes)} />
+            </div>
+          </div>
+
+          <GraficoCaixa data={chartData} />
+
+          <div className="flex items-center flex-wrap" style={{ gap: 20 }}>
+            <LegendaLinha cor="var(--rd-positive)" label="Entradas" />
+            <LegendaLinha cor="var(--rd-negative)" label="Saídas" />
+            <LegendaLinha cor="var(--rd-attention)" label="Lucro" />
+            <span style={{ marginLeft: "auto", fontSize: 12.5, color: "var(--rd-text-dim)" }}>
+              Saldo previsto 12m <strong style={{ color: "var(--rd-brand-light)" }}>{fmt(saldoPrevisto12Meses)}</strong>
+            </span>
+          </div>
+        </div>
+
+        <div
+          className="flex flex-col"
+          style={{ flex: "1 1 280px", background: "var(--rd-surface)", border: "1px solid var(--rd-border)", borderRadius: 16, padding: "22px 24px", gap: 18 }}
+        >
+          <div className="flex items-center">
+            <span style={RD_LABEL}>Frota agora</span>
+            <span style={{ marginLeft: "auto", fontSize: 12.5, color: "var(--rd-text-dim)" }}>
+              {alugadas} de {motos.length} rodando
+            </span>
+          </div>
+
+          {motos.length === 0 ? (
+            <span style={{ fontSize: 12.5, color: "var(--rd-text-dim)" }}>Nenhuma moto cadastrada ainda.</span>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
+              {motos.map((m) => {
+                const alugada = m.status === "alugada";
+                const dias = !alugada ? diasParadaDaMoto(m) : null;
+                const rotuloValor = alugada
+                  ? fmt(m.contratoAtual?.valorMensal || 0)
+                  : m.status === "manutencao"
+                  ? "oficina"
+                  : m.status === "preparacao"
+                  ? "preparo"
+                  : `${dias ?? 0} dia${dias === 1 ? "" : "s"}`;
                 return (
-                  <div key={r.placa} title={valoresOcultos ? undefined : `${formatCurrency(r.recebidoReal)} de ${formatCurrency(r.investimentoTotal)}`}>
-                    <div className="flex items-center justify-between text-xs mb-1">
-                      <span style={{ fontFamily: MONO_FONT, fontWeight: 500, color: theme.text }}>{formatPlaca(r.placa)}</span>
-                      <span style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>{legenda}</span>
-                    </div>
-                    <BarraComCometa pct={clamped} color={cor} />
+                  <div
+                    key={m.id}
+                    style={{
+                      background: alugada ? "var(--rd-brand)" : "var(--rd-attention-bg-2)",
+                      border: alugada ? "none" : "1px solid var(--rd-attention-border)",
+                      borderRadius: 10,
+                      padding: "11px 8px",
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      gap: 5,
+                    }}
+                  >
+                    <span style={{ fontFamily: "ui-monospace, monospace", fontSize: 11.5, fontWeight: 600, color: alugada ? "var(--rd-text)" : "var(--rd-attention)" }}>
+                      {formatPlaca(m.placa)}
+                    </span>
+                    <span style={{ fontSize: 10, color: alugada ? "var(--rd-brand-light)" : "var(--rd-text-dim)" }}>{rotuloValor}</span>
                   </div>
                 );
               })}
             </div>
-          </div>
-        </Reveal>
-      )}
-
-      <Reveal delay={80}>
-        <div className="grid grid-cols-2 gap-3 mb-3">
-          <div className="rounded-2xl p-4 mbr-card-lift" style={{ background: `linear-gradient(150deg, ${theme.card} 0%, ${theme.card2} 130%)`, border: `1px solid ${theme.cardBorder}` }}>
-            <div className="flex items-center gap-2 mb-2">
-              <div
-                className="rounded-full flex items-center justify-center flex-shrink-0"
-                style={{ width: 30, height: 30, background: theme.card2 }}
-              >
-                <AlertTriangle size={14} color={theme.coral} />
-              </div>
-              <span className="text-xs uppercase tracking-wide" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
-                Taxa de inadimplência
-              </span>
-            </div>
-            <div style={{ fontFamily: HEAD_FONT, fontSize: 24, fontWeight: 600, color: vencidas > 0 ? theme.coral : theme.text }}>
-              <CountUp value={taxaInadimplencia} format={(v) => `${v.toFixed(1)}%`} />
-            </div>
-            <div className="text-xs mt-0.5" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
-              {vencidas} de {clientes.length} cliente{clientes.length === 1 ? "" : "s"} com pagamento atrasado
-            </div>
-          </div>
-
-          <div className="rounded-2xl p-4 mbr-card-lift" style={{ background: `linear-gradient(150deg, ${theme.card} 0%, ${theme.card2} 130%)`, border: `1px solid ${theme.cardBorder}` }}>
-            <div className="flex items-center gap-2 mb-2">
-              <div
-                className="rounded-full flex items-center justify-center flex-shrink-0"
-                style={{ width: 30, height: 30, background: theme.card2 }}
-              >
-                <Timer size={14} color={theme.amber} />
-              </div>
-              <span className="text-xs uppercase tracking-wide" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
-                Motos paradas
-              </span>
-            </div>
-            {motosParadas.length === 0 ? (
-              <div className="text-xs" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
-                Nenhuma moto disponível parada agora.
-              </div>
-            ) : (
-              <div className="flex flex-col gap-1">
-                {motosParadas.slice(0, 3).map((m) => (
-                  <div key={m.placa} className="flex items-center justify-between text-xs">
-                    <span style={{ fontFamily: MONO_FONT, fontWeight: 500, color: theme.text }}>{formatPlaca(m.placa)}</span>
-                    <span style={{ color: m.dias > 30 ? theme.coral : theme.textMuted, fontFamily: BODY_FONT }}>
-                      há {m.dias} dia{m.dias === 1 ? "" : "s"}
-                    </span>
-                  </div>
-                ))}
-                {motosParadas.length > 3 && (
-                  <div className="text-xs mt-0.5" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
-                    +{motosParadas.length - 3} outra{motosParadas.length - 3 === 1 ? "" : "s"} parada{motosParadas.length - 3 === 1 ? "" : "s"}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-      </Reveal>
-      {!mesEscolhido && mesRef !== mesCalendario && (
-        <div className="text-xs mb-3" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
-          Ainda não há lançamentos em {monthLabel(mesCalendario)} — mostrando o último mês com movimento.
-        </div>
-      )}
-
-      {/* Indicadores secundários — grade fixa (2 colunas no celular), pra não quebrar torto */}
-      <Reveal delay={80}>
-        <div
-          className="rounded-2xl mb-3 p-3 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mbr-card-lift"
-          style={{ background: `linear-gradient(150deg, ${theme.card} 0%, ${theme.card2} 130%)`, border: `1px solid ${theme.cardBorder}` }}
-        >
-          {[
-            { icon: TrendingUp, label: "Faturamento previsto/mês", value: faturamentoPrevisto, format: fmt, accent: theme.mint },
-            { icon: TrendingDown, label: `Gastos operacionais (${rotuloMes})`, value: saidasMes, format: fmt, accent: theme.coral },
-            { icon: Wallet, label: "Ticket médio", value: ticketMedio, format: fmt, accent: theme.mint },
-            { icon: Users, label: "Total de clientes", value: totalClientes, accent: theme.textMuted },
-            { icon: TrendingUp, label: "Investido em frota", value: investimentoFrota, format: fmt, accent: theme.textMuted },
-            { icon: Wallet, label: "Faturamento acumulado", value: faturamentoAcumulado, format: fmt, accent: theme.mint },
-            { icon: Wrench, label: "Manutenção acumulada", value: manutencaoAcumulada, format: fmt, accent: theme.coral },
-            { icon: FileText, label: "Contratos encerrados", value: contratosEncerrados, accent: theme.textMuted },
-          ].map((s) => (
-            <div key={s.label} className="flex items-center gap-2 min-w-0">
-              <div
-                className="rounded-full flex items-center justify-center flex-shrink-0"
-                style={{ width: 30, height: 30, background: theme.card2 }}
-              >
-                <s.icon size={14} color={s.accent} />
-              </div>
-              <div className="flex flex-col min-w-0">
-                <span className="text-xs truncate" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
-                  {s.label}
-                </span>
-                <span style={{ fontFamily: HEAD_FONT, fontWeight: 700, fontSize: 14, color: theme.text }}>
-                  <CountUp value={s.value} format={s.format} />
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
-      </Reveal>
-
-      {/* Status da frota — anel + números, um card só */}
-      <Reveal delay={140}>
-        <div
-          className="rounded-2xl p-4 mb-4 flex items-center gap-5 flex-wrap mbr-card-lift"
-          style={{ background: `linear-gradient(150deg, ${theme.card} 0%, ${theme.card2} 130%)`, border: `1px solid ${theme.cardBorder}` }}
-        >
-          <RadialStat bare label="Taxa de ocupação" percent={taxaOcupacao} color={theme.amber} sublabel={`${alugadas} de ${motos.length} motos`} />
-          <div className="flex-1 grid grid-cols-4 gap-2 min-w-[220px]" style={{ borderLeft: `1px solid ${theme.divider}`, paddingLeft: 16 }}>
-            {[
-              { label: "Motos", value: motos.length, color: theme.text },
-              { label: "Alugadas", value: alugadas, color: theme.amber },
-              { label: "Disponíveis", value: disponiveis, color: theme.mint },
-              { label: "Atrasados", value: vencidas, color: vencidas > 0 ? theme.coral : theme.textMuted },
-            ].map((it) => (
-              <div key={it.label} className="min-w-0">
-                <div style={{ fontFamily: HEAD_FONT, fontSize: 19, fontWeight: 700, color: it.color }}>
-                  <CountUp value={it.value} />
-                </div>
-                <div className="text-xs truncate" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
-                  {it.label}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </Reveal>
-
-      <Reveal delay={0}>
-      <div className="rounded-2xl p-4 mb-4 mbr-card-lift" style={{ background: `linear-gradient(150deg, ${theme.card} 0%, ${theme.card2} 130%)`, border: `1px solid ${theme.cardBorder}` }}>
-        <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
-          <SectionTitle color={theme.mint} className="">Entradas, saídas e lucro</SectionTitle>
-          <div className="flex items-center gap-2 flex-wrap">
-            <div ref={periodoToggleRef} className="relative flex rounded-full overflow-hidden" style={{ border: `1px solid ${theme.cardBorder}` }}>
-              {periodoPillRect && (
-                <span
-                  className="absolute rounded-full"
-                  style={{
-                    left: 0,
-                    top: periodoPillRect.top,
-                    width: periodoPillRect.width,
-                    height: periodoPillRect.height,
-                    background: theme.mint,
-                    willChange: "transform",
-                    transform: `translateX(${periodoPillRect.left}px)`,
-                    transition: "transform 0.28s cubic-bezier(0.32, 0.72, 0, 1)",
-                  }}
-                />
-              )}
-              {[
-                { id: "3m", label: "3m" },
-                { id: "6m", label: "6m" },
-                { id: "12m", label: "12m" },
-                { id: "tudo", label: "Tudo" },
-              ].map((op) => (
-                <button
-                  key={op.id}
-                  ref={(el) => (periodoSlotRefs.current[op.id] = el)}
-                  onClick={() => setPeriodoGrafico(op.id)}
-                  className="relative text-xs font-semibold px-2.5 py-1"
-                  style={{
-                    color: periodoGrafico === op.id ? theme.mintText : theme.textMuted,
-                    transition: "color 0.15s ease",
-                    zIndex: 1,
-                  }}
-                >
-                  {op.label}
-                </button>
-              ))}
-            </div>
-            <button
-              onClick={() => setMostrarInvestimentos((v) => !v)}
-              className="text-xs font-semibold rounded-full px-2.5 py-1"
-              style={{
-                border: `1px solid ${theme.outline}`,
-                background: mostrarInvestimentos ? theme.card2 : "transparent",
-                color: mostrarInvestimentos ? theme.text : theme.textMuted,
-              }}
-            >
-              Investimentos
-            </button>
-          </div>
-        </div>
-        <div className="flex gap-4 mb-3 text-xs flex-wrap" style={{ fontFamily: BODY_FONT }}>
-          <span style={{ color: theme.mint }}>Entradas no período: {fmt(chartData.reduce((s, d) => s + d.Entradas, 0))}</span>
-          <span style={{ color: theme.coral }}>Saídas no período: {fmt(chartData.reduce((s, d) => s + d.Saídas, 0))}</span>
-          {investMontada && (
-            <span style={{ color: theme.textMuted, opacity: investOpaca ? 1 : 0, transition: "opacity 0.3s ease" }}>
-              Investido no período: {fmt(chartData.reduce((s, d) => s + d.Investimentos, 0))}
-            </span>
           )}
-        </div>
-        <div style={{ width: "100%", height: 260 }}>
-          <ResponsiveContainer>
-            <ComposedChart data={chartData}>
-              <defs>
-                <linearGradient id="mbrGradEntradas" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor={theme.mint} stopOpacity={0.45} />
-                  <stop offset="100%" stopColor={theme.mint} stopOpacity={0} />
-                </linearGradient>
-                <linearGradient id="mbrGradSaidas" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor={theme.coral} stopOpacity={0.4} />
-                  <stop offset="100%" stopColor={theme.coral} stopOpacity={0} />
-                </linearGradient>
-                <linearGradient id="mbrGradInvest" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor={theme.chartMuted} stopOpacity={0.35} />
-                  <stop offset="100%" stopColor={theme.chartMuted} stopOpacity={0} />
-                </linearGradient>
-                <linearGradient id="mbrGradLucro" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor={theme.amber} stopOpacity={0.4} />
-                  <stop offset="100%" stopColor={theme.amber} stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke={theme.cardBorder} vertical={false} />
-              <XAxis dataKey="mes" stroke={theme.textMuted} fontSize={12} axisLine={false} tickLine={false} />
-              <YAxis yAxisId="left" stroke={theme.textMuted} fontSize={11} tickFormatter={fmtCompact} width={56} axisLine={false} tickLine={false} />
-              <YAxis
-                yAxisId="right"
-                orientation="right"
-                stroke={theme.amber}
-                fontSize={11}
-                tickFormatter={fmtCompact}
-                width={56}
-                axisLine={false}
-                tickLine={false}
-              />
-              <Tooltip content={<TooltipSemDuplicata formatter={(value, name) => [fmt(value), name]} />} />
-              <Legend />
-              {/* Lucro vem PRIMEIRO (mais embaixo na pilha de desenho) porque usa uma escala
-                  (eixo direito) diferente da de Entradas/Saídas — o "zero" dele cai numa
-                  altura de tela diferente do de Entradas/Saídas, então o preenchimento dele
-                  podia acabar desenhado por cima da LINHA das outras duas (não só do fundo).
-                  Desenhando-o antes, Entradas e Saídas sempre ficam por cima, nunca tampadas. */}
-              <Area
-                yAxisId="right"
-                type="monotone"
-                dataKey="Lucro"
-                // sem isso, quando o lucro fica negativo o preenchimento "inverte" e
-                // aparece ACIMA da linha (a área é sempre calculada até o zero, então em
-                // valores negativos ela sobe em vez de descer) — com baseValue="dataMin"
-                // o preenchimento sempre vai da linha até o menor valor do gráfico,
-                // ficando sempre por baixo, nunca por cima
-                baseValue="dataMin"
-                stroke={theme.amber}
-                strokeWidth={2.5}
-                fill="url(#mbrGradLucro)"
-                dot={{ r: 3, fill: theme.amber, strokeWidth: 0 }}
-                activeDot={{ r: 5 }}
-              />
-              <Line
-                yAxisId="right"
-                type="monotone"
-                dataKey="Lucro"
-                stroke={mixColors(theme.amber, "#FFFFFF", 0.65)}
-                strokeOpacity={0.55}
-                strokeWidth={2}
-                dot={false}
-                isAnimationActive={false}
-                legendType="none"
-                className="mbr-linha-cometa"
-              />
-              <Area
-                yAxisId="left"
-                type="monotone"
-                dataKey="Entradas"
-                stroke={theme.mint}
-                strokeWidth={2.5}
-                fill="url(#mbrGradEntradas)"
-                dot={false}
-                activeDot={{ r: 4 }}
-              />
-              <Line
-                yAxisId="left"
-                type="monotone"
-                dataKey="Entradas"
-                stroke={mixColors(theme.mint, "#FFFFFF", 0.65)}
-                strokeOpacity={0.55}
-                strokeWidth={2}
-                dot={false}
-                isAnimationActive={false}
-                legendType="none"
-                className="mbr-linha-cometa"
-              />
-              <Area
-                yAxisId="left"
-                type="monotone"
-                dataKey="Saídas"
-                stroke={theme.coral}
-                strokeWidth={2.5}
-                fill="url(#mbrGradSaidas)"
-                dot={false}
-                activeDot={{ r: 4 }}
-              />
-              <Line
-                yAxisId="left"
-                type="monotone"
-                dataKey="Saídas"
-                stroke={mixColors(theme.coral, "#FFFFFF", 0.65)}
-                strokeOpacity={0.55}
-                strokeWidth={2}
-                dot={false}
-                isAnimationActive={false}
-                legendType="none"
-                className="mbr-linha-cometa"
-              />
-              {investMontada && (
-                <>
-                  <Area
-                    yAxisId="left"
-                    type="monotone"
-                    dataKey="Investimentos"
-                    stroke={theme.chartMuted}
-                    strokeWidth={2.5}
-                    fill="url(#mbrGradInvest)"
-                    strokeOpacity={investOpaca ? 1 : 0}
-                    fillOpacity={investOpaca ? 1 : 0}
-                    style={{ transition: "fill-opacity 0.3s ease, stroke-opacity 0.3s ease" }}
-                    isAnimationActive={investOpaca}
-                    animationDuration={900}
-                    animationEasing="ease-out"
-                    dot={false}
-                    activeDot={{ r: 4 }}
-                  />
-                  {investOpaca && (
-                    <Line
-                      yAxisId="left"
-                      type="monotone"
-                      dataKey="Investimentos"
-                      stroke={mixColors(theme.chartMuted, "#FFFFFF", 0.65)}
-                      strokeOpacity={0.55}
-                      strokeWidth={2}
-                      dot={false}
-                      isAnimationActive={false}
-                      legendType="none"
-                      className="mbr-linha-cometa"
-                    />
-                  )}
-                </>
-              )}
-            </ComposedChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-      </Reveal>
 
-      {(futuros || []).length > 0 && (
-        <Reveal delay={50}>
-          <div className="rounded-2xl p-4 mb-4 mbr-card-lift" style={{ background: `linear-gradient(150deg, ${theme.card} 0%, ${theme.card2} 130%)`, border: `1px solid ${theme.cardBorder}` }}>
-            <SectionTitle>Contas futuras</SectionTitle>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {(() => {
-                const { previstoEntrada12Meses, previstoSaida12Meses, saldoPrevisto12Meses } = totaisFuturos(futuros, motos);
-                return (
-                  <>
-                    <div>
-                      <div className="text-xs uppercase tracking-wide mb-1" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
-                        A receber (12 meses)
-                      </div>
-                      <div style={{ fontFamily: HEAD_FONT, fontSize: 18, color: theme.mint }}>{fmt(previstoEntrada12Meses)}</div>
-                    </div>
-                    <div>
-                      <div className="text-xs uppercase tracking-wide mb-1" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
-                        A pagar (12 meses)
-                      </div>
-                      <div style={{ fontFamily: HEAD_FONT, fontSize: 18, color: theme.coral }}>{fmt(previstoSaida12Meses)}</div>
-                    </div>
-                    <div>
-                      <div className="text-xs uppercase tracking-wide mb-1" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
-                        Saldo previsto
-                      </div>
-                      <div style={{ fontFamily: HEAD_FONT, fontSize: 18, color: saldoPrevisto12Meses >= 0 ? theme.mint : theme.coral }}>
-                        {fmt(saldoPrevisto12Meses)}
-                      </div>
-                    </div>
-                  </>
-                );
-              })()}
-            </div>
-            <div className="mt-4 pt-4" style={{ borderTop: `1px solid ${theme.divider}` }}>
-              <div className="text-xs uppercase tracking-wide mb-2" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
-                Próximos 7 dias
+          {paybackPorMoto.length > 0 && (
+            <div className="flex flex-col" style={{ gap: 12, paddingTop: 4, borderTop: "1px solid var(--rd-border-soft)" }}>
+              <div className="flex items-baseline flex-wrap" style={{ gap: 8, paddingTop: 14 }}>
+                <span style={RD_LABEL}>Payback</span>
+                <span style={{ fontSize: 12, color: "var(--rd-text-dim)" }}>quanto falta pra cada moto se pagar</span>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                {(() => {
-                  const { entrada: entrada7d, saida: saida7d, itensEntrada: itensEntrada7d, itensSaida: itensSaida7d } = futurosProximosDias(futuros, motos, 7);
+              <div className="flex flex-col" style={{ gap: 9 }}>
+                {paybackPorMoto.map((r) => {
+                  const parada = r.status !== "alugada";
+                  const cor = parada ? "var(--rd-negative)" : r.percentPago >= 50 ? "var(--rd-positive)" : r.percentPago >= 15 ? "var(--rd-attention)" : "var(--rd-negative)";
                   return (
-                    <>
-                      <div>
-                        <div className="text-xs mb-1" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
-                          A receber
-                        </div>
-                        <ValorComDetalhe itens={itensEntrada7d} fmt={fmt}>
-                          <div style={{ fontFamily: HEAD_FONT, fontSize: 18, color: theme.mint }}>{fmt(entrada7d)}</div>
-                        </ValorComDetalhe>
+                    <div key={r.placa} className="flex items-center" style={{ gap: 12 }}>
+                      <span style={{ fontFamily: "ui-monospace, monospace", fontSize: 11.5, color: "var(--rd-text-muted)", width: 66, flex: "none" }}>
+                        {formatPlaca(r.placa)}
+                      </span>
+                      <div style={{ flex: 1 }}>
+                        <BarraComCometa pct={r.percentPago} color={cor} />
                       </div>
-                      <div>
-                        <div className="text-xs mb-1" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
-                          A pagar
-                        </div>
-                        <ValorComDetalhe itens={itensSaida7d} fmt={fmt}>
-                          <div style={{ fontFamily: HEAD_FONT, fontSize: 18, color: theme.coral }}>{fmt(saida7d)}</div>
-                        </ValorComDetalhe>
-                      </div>
-                    </>
+                      <span style={{ fontSize: 11.5, color: "var(--rd-text-dim)", width: 84, textAlign: "right", flex: "none" }}>
+                        {parada ? "parada" : r.jaPagou ? "quitada" : fmt(r.restante)}
+                      </span>
+                    </div>
                   );
-                })()}
+                })}
               </div>
             </div>
-          </div>
-        </Reveal>
-      )}
+          )}
+        </div>
+      </div>
 
-      <Reveal>
-      <div className="grid gap-4 mb-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
-        <div className="rounded-2xl p-4 mbr-card-lift" style={{ background: `linear-gradient(150deg, ${theme.card} 0%, ${theme.card2} 130%)`, border: `1px solid ${theme.cardBorder}` }}>
-          <SectionTitle color={theme.mint}>Motos que mais faturam/mês</SectionTitle>
-          {rankingFaturamento.length === 0 ? (
-            <div className="text-xs" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
-              Nenhuma moto alugada no momento.
-            </div>
+      {/* Faixa 3 — Próximos 7 dias / Onde estão / Do começo */}
+      <div className="flex flex-col lg:flex-row" style={{ gap: 18 }}>
+        <div
+          className="flex flex-col"
+          style={{ flex: "1 1 260px", background: "var(--rd-surface)", border: "1px solid var(--rd-border)", borderRadius: 16, padding: "20px 22px", gap: 14 }}
+        >
+          <span style={RD_LABEL}>Próximos 7 dias</span>
+          {itens7d.length === 0 ? (
+            <span style={{ fontSize: 12.5, color: "var(--rd-text-dim)" }}>Nada previsto pros próximos 7 dias.</span>
           ) : (
-            <div className="flex flex-col gap-2">
-              {rankingFaturamento.map((m) => (
-                <div key={m.placa}>
-                  <div className="flex justify-between text-xs mb-1" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
-                    <span>{formatPlaca(m.placa)}</span>
-                    <span>{fmt(m.total)}</span>
-                  </div>
-                  <BarraComCometa pct={(m.total / maxFaturamentoMoto) * 100} color={theme.mint} />
+            <div className="flex flex-col" style={{ gap: 11 }}>
+              {itens7d.map((it, i) => (
+                <div key={i} className="flex items-center" style={{ gap: 12 }}>
+                  <span className="truncate" style={{ fontSize: 13.5, fontWeight: 500, flex: 1, color: "var(--rd-text)" }}>
+                    {it.label}
+                  </span>
+                  <span style={{ fontSize: 13.5, fontWeight: 700, color: it.sinal > 0 ? "var(--rd-brand-light)" : "var(--rd-negative)", flex: "none" }}>
+                    {it.sinal > 0 ? "+ " : "− "}
+                    {fmt(it.total)}
+                  </span>
                 </div>
               ))}
             </div>
           )}
         </div>
 
-        <div className="rounded-2xl p-4 mbr-card-lift" style={{ background: `linear-gradient(150deg, ${theme.card} 0%, ${theme.card2} 130%)`, border: `1px solid ${theme.cardBorder}` }}>
-          <SectionTitle color={theme.coral}>Gastos por natureza (total)</SectionTitle>
-          <div className="flex flex-col gap-2">
-            {porNatureza.map((n) => (
-              <div key={n.natureza}>
-                <div className="flex justify-between text-xs mb-1" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
-                  <span>{n.natureza}</span>
-                  <span>{fmt(n.total)}</span>
-                </div>
-                <BarraComCometa pct={(n.total / maxNatureza) * 100} color={theme.coral} />
-              </div>
-            ))}
+        <button
+          onClick={() => onIrPara?.("rastreio")}
+          className="flex flex-col"
+          style={{
+            flex: "1 1 260px",
+            background: "var(--rd-surface)",
+            border: "1px solid var(--rd-border)",
+            borderRadius: 16,
+            padding: "20px 22px",
+            gap: 14,
+            textAlign: "left",
+          }}
+        >
+          <div className="flex items-center">
+            <span style={RD_LABEL}>Onde estão</span>
+            <span style={{ marginLeft: "auto", fontSize: 12.5, color: "var(--rd-text-dim)" }}>ver mapa ›</span>
           </div>
-        </div>
-
-        {rankingManutencao.length > 0 && (
-          <div className="rounded-2xl p-4 mbr-card-lift" style={{ background: `linear-gradient(150deg, ${theme.card} 0%, ${theme.card2} 130%)`, border: `1px solid ${theme.cardBorder}` }}>
-            <SectionTitle color={theme.coral}>Maiores gastos de manutenção</SectionTitle>
-            <div className="flex flex-col gap-2">
-              {rankingManutencao.map((m) => (
-                <div key={m.placa}>
-                  <div className="flex justify-between text-xs mb-1" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
-                    <span>{formatPlaca(m.placa)}</span>
-                    <span>{fmt(m.total)}</span>
-                  </div>
-                  <BarraComCometa pct={(m.total / maxManutencao) * 100} color={theme.coral} />
-                </div>
-              ))}
+          <div
+            style={{
+              flex: 1,
+              minHeight: 132,
+              borderRadius: 12,
+              background: "var(--rd-surface-2)",
+              border: "1px solid var(--rd-border-soft)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 24,
+            }}
+          >
+            <div className="flex flex-col items-center" style={{ gap: 4 }}>
+              <span style={{ fontSize: 28, fontWeight: 700, color: "var(--rd-positive)" }}>{alugadas}</span>
+              <span style={{ fontSize: 11, color: "var(--rd-text-dim)" }}>rodando</span>
+            </div>
+            <div style={{ width: 1, height: 36, background: "var(--rd-border)" }} />
+            <div className="flex flex-col items-center" style={{ gap: 4 }}>
+              <span style={{ fontSize: 28, fontWeight: 700, color: "var(--rd-attention)" }}>{disponiveis}</span>
+              <span style={{ fontSize: 11, color: "var(--rd-text-dim)" }}>paradas</span>
             </div>
           </div>
-        )}
+        </button>
+
+        <div
+          className="flex flex-col"
+          style={{ flex: "0.8 1 220px", background: "var(--rd-surface)", border: "1px solid var(--rd-border)", borderRadius: 16, padding: "20px 22px", gap: 16 }}
+        >
+          <span style={RD_LABEL}>Do começo</span>
+          <div className="flex flex-col" style={{ gap: 13 }}>
+            <ValorPequeno label="Investido em frota" valor={fmt(investimentoFrota)} />
+            <ValorPequeno label="Já faturado" valor={fmt(faturamentoAcumulado)} cor="var(--rd-brand-light)" />
+            <ValorPequeno label="Ticket médio" valor={fmt(ticketMedio)} />
+          </div>
+        </div>
       </div>
-      </Reveal>
     </div>
   );
 }
@@ -6592,7 +6299,14 @@ function AppAutenticado({ perfil, onSignOut }) {
         ) : (
           <div key={tab} className="mbr-fade-in" style={tab === "rastreio" ? { height: "100%" } : undefined}>
             {tab === "dashboard" ? (
-              <DashboardView motos={motosState.items} lancamentos={fluxoState.items} clientes={clientesState.items} futuros={futurosState.items} />
+              <DashboardView
+                motos={motosState.items}
+                lancamentos={fluxoState.items}
+                clientes={clientesState.items}
+                futuros={futurosState.items}
+                config={configState.value}
+                onIrPara={setTab}
+              />
             ) : tab === "motos" ? (
               <MotosView
                 motos={motosState.items}
