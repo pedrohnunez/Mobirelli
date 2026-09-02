@@ -69,27 +69,33 @@ import {
    como único destaque, zero bordas visíveis (superfícies separadas por
    contraste, não por contorno)
 =========================================================== */
+// Paleta antiga do site, agora REMAPEADA pra paleta do redesign (os mesmos valores
+// dos tokens --rd-* de index.css, em hex porque hexToRgba()/mixColors() precisam de
+// hex de verdade, não de var(--...)).
+//
+// Por que remapear em vez de trocar tela por tela: tudo que ainda não foi reescrito
+// no design novo (os 11 modais, as fichas expandidas de moto e de cliente, a tela de
+// login) lê estas chaves. Mudando aqui, essa superfície inteira passa a falar a mesma
+// língua visual do resto — em vez de o site ter metade numa estética e metade noutra.
 const theme = {
-  bg: "#121212",
-  panel: "#1A1A1A",
-  card: "#1A1A1A",
-  card2: "#242420",
-  // sem bordas em card/badge/avatar/ícone — único uso permitido é como divisor
-  // fino (borderTop/Bottom) entre linhas de uma lista, nunca como caixa
-  cardBorder: "transparent",
-  divider: "#242420",
-  mint: "#2FA666",
-  mintText: "#0E2116",
-  sage: "#6FA087",
-  amber: "#D9A25A",
-  coral: "#D9695E",
-  text: "#F5F4EF",
-  textMuted: "#A8ABA3",
-  textFaint: "#8A8D85",
-  textGhost: "#5A5D58",
-  outline: "#2A2E29",
-  outlineText: "#C7CAC2",
-  chartMuted: "#4A4D48",
+  bg: "#0E1512",          // --rd-shell
+  panel: "#141B16",       // --rd-surface
+  card: "#141B16",        // --rd-surface
+  card2: "#0F1712",       // --rd-surface-2
+  cardBorder: "#26352C",  // --rd-border (no design novo o cartão TEM borda fina)
+  divider: "#1A2620",     // --rd-row-border
+  mint: "#8AA981",        // --rd-brand-soft — fundo de botão primário
+  mintText: "#0E1512",    // --rd-shell — texto POR CIMA do verde claro
+  sage: "#A8C79E",        // --rd-brand-light
+  amber: "#C68A3A",       // --rd-attention
+  coral: "#D9705C",       // --rd-negative
+  text: "#E8EDE7",        // --rd-text
+  textMuted: "#A9B8AB",   // --rd-text-muted
+  textFaint: "#7C8C7E",   // --rd-text-dim
+  textGhost: "#5E6F61",   // --rd-text-faint
+  outline: "#26352C",     // --rd-border
+  outlineText: "#A9B8AB", // --rd-text-muted
+  chartMuted: "#5E6F61",  // --rd-text-faint
 };
 
 // mesma ideia do "theme" acima — mutado uma vez no topo de AppAutenticado (a partir do
@@ -115,11 +121,13 @@ const mixColors = (hexA, hexB, t) => {
   const b = hexToRgb(hexB);
   return rgbToHex({ r: a.r + (b.r - a.r) * t, g: a.g + (b.g - a.g) * t, b: a.b + (b.b - a.b) * t });
 };
-// títulos usam Inter Tight peso 700 (geométrica, mais "cheia"); o resto da interface
-// usa Inter em só 2 pesos (400 regular e 600 semibold)
-const HEAD_FONT = "'Inter Tight', -apple-system, BlinkMacSystemFont, system-ui, sans-serif";
-const BODY_FONT = "'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif";
-const MONO_FONT = "'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace";
+// O site inteiro usa uma fonte só (Montserrat, a do redesign) — o que separa título de
+// texto é peso e tamanho, não família. HEAD_FONT/BODY_FONT continuam existindo porque
+// meio site ainda os cita; agora os dois apontam pra mesma pilha, então não sobra
+// nenhum pedaço da interface escrito na fonte antiga.
+const HEAD_FONT = "'Montserrat', -apple-system, BlinkMacSystemFont, system-ui, sans-serif";
+const BODY_FONT = "'Montserrat', -apple-system, BlinkMacSystemFont, system-ui, sans-serif";
+const MONO_FONT = "ui-monospace, SFMono-Regular, Menlo, monospace";
 
 const fontImport = `
 @import url('https://fonts.googleapis.com/css2?family=Inter+Tight:wght@700&family=Inter:wght@400;600&family=IBM+Plex+Mono:wght@500&display=swap');
@@ -691,20 +699,20 @@ function MotoPlate({ placa, size = "normal" }) {
   return (
     <div
       style={{
-        background: theme.card2,
-        borderRadius: grande ? 9 : 6,
-        padding: grande ? "6px 14px" : "3px 9px",
+        background: "var(--rd-brand)",
+        borderRadius: 999,
+        padding: grande ? "6px 15px" : "3px 10px",
         display: "inline-flex",
         alignItems: "center",
       }}
     >
       <span
         style={{
-          fontFamily: MONO_FONT,
-          fontWeight: 500,
-          letterSpacing: grande ? 2 : 1.5,
-          fontSize: grande ? 22 : 14,
-          color: theme.text,
+          fontFamily: "ui-monospace, monospace",
+          fontWeight: 700,
+          letterSpacing: grande ? 1.5 : 0.5,
+          fontSize: grande ? 19 : 11.5,
+          color: "var(--rd-brand-light)",
         }}
       >
         {placa ? formatPlaca(placa) : "SEM PLACA"}
@@ -714,10 +722,10 @@ function MotoPlate({ placa, size = "normal" }) {
 }
 
 const MOTO_STATUS = {
-  disponivel: { label: "Disponível", color: theme.mint, dark: true, icon: CheckCircle2 },
-  alugada: { label: "Alugada", color: theme.amber, dark: true, icon: Bike },
-  preparacao: { label: "Em preparação", color: theme.sage, dark: true, icon: Clock },
-  manutencao: { label: "Em manutenção", color: theme.coral, dark: true, icon: Wrench },
+  disponivel: { label: "Disponível", color: "#C68A3A", dark: true, icon: CheckCircle2 },
+  alugada: { label: "Alugada", color: "#8AA981", dark: true, icon: Bike },
+  preparacao: { label: "Em preparação", color: "#A8C79E", dark: true, icon: Clock },
+  manutencao: { label: "Em manutenção", color: "#D9705C", dark: true, icon: Wrench },
 };
 
 function StatusBadge({ status }) {
@@ -791,26 +799,34 @@ function Modal({ title, onClose, children }) {
   return createPortal(
     <div
       className="fixed inset-0 flex items-end sm:items-center justify-center"
-      style={{ background: "rgba(10,20,13,0.7)", opacity: visible ? 1 : 0, transition: "opacity 0.2s ease", zIndex: 999 }}
+      style={{ background: "rgba(6,10,8,0.74)", opacity: visible ? 1 : 0, transition: "opacity 0.2s ease", zIndex: 999 }}
       onClick={handleClose}
     >
       <div
-        className="w-full sm:max-w-md rounded-t-[24px] sm:rounded-[20px] p-5 max-h-[92vh] overflow-y-auto"
+        className="w-full sm:max-w-md max-h-[92vh] overflow-y-auto mbr-modal-card"
         style={{
-          background: theme.panel,
-          border: `1px solid ${theme.cardBorder}`,
-          boxShadow: "0 -8px 30px rgba(0,0,0,0.25)",
+          background: "var(--rd-surface)",
+          border: "1px solid var(--rd-border)",
+          padding: "var(--rd-pad-card-y) var(--rd-pad-card-x) var(--rd-s6)",
+          fontFamily: "var(--rd-font)",
+          color: "var(--rd-text)",
+          boxShadow: "0 -8px 34px rgba(0,0,0,0.34)",
           opacity: visible ? 1 : 0,
           transform: visible ? "translateY(0) scale(1)" : "translateY(28px) scale(0.97)",
           transition: "transform 0.24s cubic-bezier(0.32, 0.72, 0, 1), opacity 0.2s ease",
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="sm:hidden mx-auto mb-3 rounded-full" style={{ width: 36, height: 5, background: theme.cardBorder }} />
-        <div className="flex items-center justify-between mb-4">
-          <h3 style={{ fontFamily: HEAD_FONT, fontSize: 20, color: theme.text }}>{title}</h3>
-          <button onClick={handleClose} className="mbr-hover-grow" style={{ color: theme.textMuted }}>
-            <X size={20} />
+        <div className="sm:hidden mx-auto rounded-full" style={{ width: 36, height: 5, marginBottom: "var(--rd-s3)", background: "var(--rd-border)" }} />
+        <div className="flex items-center justify-between" style={{ gap: "var(--rd-s3)", marginBottom: "var(--rd-s5)" }}>
+          <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, letterSpacing: "-0.02em", color: "var(--rd-text)" }}>{title}</h3>
+          <button
+            onClick={handleClose}
+            aria-label="Fechar"
+            className="flex items-center justify-center flex-shrink-0"
+            style={{ width: 32, height: 32, borderRadius: 999, background: "var(--rd-surface-2)", border: "1px solid var(--rd-border)", color: "var(--rd-text-muted)" }}
+          >
+            <X size={16} strokeWidth={2.5} />
           </button>
         </div>
         {children}
@@ -879,7 +895,18 @@ function PdfViewer({ url, title, onClose }) {
 
 function FieldLabel({ children }) {
   return (
-    <label className="text-xs uppercase tracking-wide mb-1 block" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+    <label
+      className="block"
+      style={{
+        fontSize: 10.5,
+        fontWeight: 700,
+        letterSpacing: "0.14em",
+        textTransform: "uppercase",
+        color: "var(--rd-text-faint)",
+        fontFamily: "var(--rd-font)",
+        marginBottom: 6,
+      }}
+    >
       {children}
     </label>
   );
@@ -887,20 +914,20 @@ function FieldLabel({ children }) {
 
 const inputStyle = {
   width: "100%",
-  background: theme.bg,
-  border: `1px solid ${theme.cardBorder}`,
-  borderRadius: 10,
-  padding: "9px 11px",
-  color: theme.text,
-  fontFamily: BODY_FONT,
-  fontSize: 14,
-  marginBottom: 12,
+  background: "var(--rd-surface-2)",
+  border: "1px solid var(--rd-border)",
+  borderRadius: 12,
+  padding: "10px 13px",
+  color: "var(--rd-text)",
+  fontFamily: "var(--rd-font)",
+  fontSize: 13.5,
+  marginBottom: 14,
 };
 
 // input[type=date] tem um controle nativo (o ícone do calendário) que o navegador
 // desenha com um "box" próprio, maior que o de um input de texto comum, mesmo com o
 // padding igual — height explícito força os dois a ficarem do mesmo tamanho
-const dateInputStyle = { ...inputStyle, height: 41 };
+const dateInputStyle = { ...inputStyle, height: 43 };
 
 function SelectField({ value, onChange, options }) {
   return (
@@ -915,7 +942,7 @@ function SelectField({ value, onChange, options }) {
 }
 
 function Row2({ children }) {
-  return <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">{children}</div>;
+  return <div className="grid grid-cols-1 sm:grid-cols-2" style={{ gap: "var(--rd-s3)" }}>{children}</div>;
 }
 
 /* ===========================================================
@@ -977,7 +1004,7 @@ function AnexoField({ label, linkValue, storageKey, fileName, onChange }) {
               target="_blank"
               rel="noreferrer"
               className="text-xs font-semibold rounded-xl px-3 py-1.5 flex items-center gap-1"
-              style={{ background: theme.mint, color: theme.text, fontWeight: 600 }}
+              style={{ background: theme.mint, color: theme.mintText, fontWeight: 600 }}
             >
               <FileText size={12} /> {fileName}
             </a>
@@ -1370,7 +1397,7 @@ function ClienteFormModal({ cliente, onClose, onSave, title }) {
           />
         </div>
       </Row2>
-      <button onClick={() => onSave(form)} className="w-full rounded-xl py-2 font-semibold mt-1" style={{ background: theme.mint, color: theme.text, fontWeight: 600 }}>
+      <button onClick={() => onSave(form)} className="w-full rounded-xl py-2 font-semibold mt-1" style={{ background: theme.mint, color: theme.mintText, fontWeight: 600 }}>
         Salvar
       </button>
     </Modal>
@@ -1465,7 +1492,7 @@ function VincularMotoModal({ cliente, motosDisponiveis, onClose, onSave }) {
           onSave({ motoId, contrato: { ...contrato, id: contratoId, valorMensal: Number(contrato.valorMensal) || 0 } })
         }
         className="w-full rounded-xl py-2 font-semibold mt-1"
-        style={{ background: theme.mint, color: theme.text, fontWeight: 600 }}
+        style={{ background: theme.mint, color: theme.mintText, fontWeight: 600 }}
       >
         Confirmar vínculo
       </button>
@@ -1508,8 +1535,8 @@ function ClientesView({ clientes, persistClientes, motos, persistMotos }) {
   const semMotoAgora = clientes.filter((c) => !motos.some((m) => m.contratoAtual?.clienteId === c.id)).length;
 
   return (
-    <div className="flex flex-col" style={{ gap: 18 }}>
-      <div className="flex items-center flex-wrap" style={{ gap: 16 }}>
+    <div className="flex flex-col" style={{ gap: "var(--rd-gap-secao)" }}>
+      <div className="flex items-center flex-wrap" style={{ gap: "var(--rd-s4)" }}>
         <div className="flex flex-col" style={{ gap: 3 }}>
           <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, letterSpacing: "-0.02em", color: "var(--rd-text)", fontFamily: "var(--rd-font)" }}>Clientes</h1>
           <span style={{ fontSize: 12.5, color: "var(--rd-text-dim)" }}>
@@ -1552,19 +1579,7 @@ function ClientesView({ clientes, persistClientes, motos, persistMotos }) {
         </div>
       ) : (
         <>
-          <div
-            className="mbr-desktop-grid"
-            style={{
-              gridTemplateColumns: "1fr 150px 200px 170px 84px",
-              padding: "0 4px 10px",
-              borderBottom: "1px solid var(--rd-border-soft)",
-              fontSize: 11,
-              fontWeight: 700,
-              letterSpacing: "0.14em",
-              textTransform: "uppercase",
-              color: "var(--rd-text-faint)",
-            }}
-          >
+          <div className="mbr-desktop-grid mbr-tab-head mbr-grid-clientes">
             <span>Cliente</span>
             <span>CPF/CNPJ</span>
             <span>Contato</span>
@@ -1579,23 +1594,22 @@ function ClientesView({ clientes, persistClientes, motos, persistMotos }) {
           return (
             <div key={c.id} className="rounded-2xl overflow-hidden" style={{ background: "var(--rd-surface)", border: "1px solid var(--rd-border)" }}>
               <button
-                className="w-full text-left mbr-desktop-grid"
+                className="w-full text-left mbr-desktop-grid mbr-tab-row mbr-grid-clientes"
                 onClick={() => setExpandido(aberto ? null : c.id)}
-                style={{ gridTemplateColumns: "1fr 150px 200px 170px 84px", alignItems: "center", padding: "16px 18px" }}
               >
-                <div className="flex flex-col min-w-0" style={{ gap: 2 }}>
+                <div className="flex flex-col min-w-0" style={{ gap: 4 }}>
                   <span className="truncate" style={{ fontSize: 13.5, fontWeight: 600, color: "var(--rd-text)" }}>{c.nome || "Sem nome"}</span>
                   <span className="truncate" style={{ fontSize: 11.5, color: "var(--rd-text-dim)" }}>{[c.cidade, c.estado].filter(Boolean).join("/") || "—"}</span>
                 </div>
                 <span className="truncate" style={{ minWidth: 0, fontFamily: "ui-monospace, monospace", fontSize: 12.5, color: "var(--rd-text-muted)" }}>
                   {c.cpfCnpj || "—"}
                 </span>
-                <div className="flex flex-col min-w-0" style={{ gap: 2 }}>
+                <div className="flex flex-col min-w-0" style={{ gap: 4 }}>
                   <span className="truncate" style={{ fontSize: 12.5, color: "var(--rd-text-muted)" }}>{c.telefone || "—"}</span>
                   <span className="truncate" style={{ fontSize: 11.5, color: "var(--rd-text-dim)" }}>{c.email || ""}</span>
                 </div>
                 {motoVinculada ? (
-                  <div className="flex items-center" style={{ gap: 8 }}>
+                  <div className="flex items-center min-w-0" style={{ gap: 8 }}>
                     <span
                       style={{
                         fontFamily: "ui-monospace, monospace",
@@ -1641,7 +1655,17 @@ function ClientesView({ clientes, persistClientes, motos, persistMotos }) {
               </button>
 
               <Collapse open={aberto}>
-                <div className="px-4 pb-4 text-sm" style={{ fontFamily: BODY_FONT }}>
+                <div
+                  className="text-sm"
+                  style={{
+                    fontFamily: BODY_FONT,
+                    // mesma calha lateral da linha fechada, pra ficha aberta e linha
+                    // fechada compartilharem a mesma margem em vez de cada uma ter a sua
+                    padding: "0 var(--rd-pad-row-x) var(--rd-s5)",
+                    borderTop: "1px solid var(--rd-border-soft)",
+                    paddingTop: "var(--rd-s5)",
+                  }}
+                >
                   {motoVinculada ? (
                     <div className="mb-5">
                       <div className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: theme.textFaint }}>
@@ -1683,7 +1707,7 @@ function ClientesView({ clientes, persistClientes, motos, persistMotos }) {
                         <button
                           onClick={() => setModal({ mode: "vincular", cliente: c })}
                           className="text-xs font-semibold rounded-xl px-3"
-                          style={{ background: theme.mint, color: theme.text, minHeight: 44 }}
+                          style={{ background: theme.mint, color: theme.mintText, minHeight: 44 }}
                         >
                           Vincular a uma moto disponível
                         </button>
@@ -2325,7 +2349,7 @@ function MotoFormModal({ moto, onClose, onSave, title }) {
       <div className="text-xs -mt-2 mb-3" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
         Na Melocaliza: Compartilhar localização → Novo → escolha esta moto → validade "Nenhum" → copie o link gerado.
       </div>
-      <button onClick={() => onSave(form)} className="w-full rounded-xl py-2 font-semibold mt-1" style={{ background: theme.mint, color: theme.text, fontWeight: 600 }}>
+      <button onClick={() => onSave(form)} className="w-full rounded-xl py-2 font-semibold mt-1" style={{ background: theme.mint, color: theme.mintText, fontWeight: 600 }}>
         Salvar
       </button>
     </Modal>
@@ -2545,7 +2569,7 @@ function ContratoModal({ moto, clientes, onClose, onSave, editando }) {
           })
         }
         className="w-full rounded-xl py-2 font-semibold mt-1"
-        style={{ background: theme.mint, color: theme.text, fontWeight: 600 }}
+        style={{ background: theme.mint, color: theme.mintText, fontWeight: 600 }}
       >
         {editando ? "Salvar contrato" : "Confirmar aluguel"}
       </button>
@@ -2576,7 +2600,7 @@ function CustoExtraModal({ onClose, onSave }) {
       <button
         onClick={() => onSave({ ...form, valorGasto: Number(form.valorGasto) || 0 })}
         className="w-full rounded-xl py-2 font-semibold mt-1"
-        style={{ background: theme.mint, color: theme.text, fontWeight: 600 }}
+        style={{ background: theme.mint, color: theme.mintText, fontWeight: 600 }}
       >
         Salvar
       </button>
@@ -2611,7 +2635,7 @@ function ManutencaoModal({ onClose, onSave }) {
       <button
         onClick={() => onSave({ ...form, valorGasto: Number(form.valorGasto) || 0 })}
         className="w-full rounded-xl py-2 font-semibold mt-1"
-        style={{ background: theme.mint, color: theme.text, fontWeight: 600 }}
+        style={{ background: theme.mint, color: theme.mintText, fontWeight: 600 }}
       >
         Salvar
       </button>
@@ -2672,7 +2696,7 @@ function ConsultaPlacaModal({ onClose }) {
           onClick={consultar}
           disabled={status === "carregando"}
           className="rounded-xl px-4 font-semibold text-sm"
-          style={{ background: theme.mint, color: theme.text, fontWeight: 600, opacity: status === "carregando" ? 0.6 : 1 }}
+          style={{ background: theme.mint, color: theme.mintText, fontWeight: 600, opacity: status === "carregando" ? 0.6 : 1 }}
         >
           Consultar
         </button>
@@ -2898,8 +2922,10 @@ function MotosView({ motos, persist, clientes, persistClientes, config, lancamen
   ];
 
   return (
-    <div className="flex flex-col" style={{ gap: 18 }}>
-      <div className="flex items-center flex-wrap" style={{ gap: 16 }}>
+    <div className="flex flex-col" style={{ gap: "var(--rd-gap-secao)" }}>
+      {/* linha 1 — só título e ações. Os filtros saíram daqui: com título,
+          filtros e dois botões na mesma linha, o topo virava um amontoado */}
+      <div className="flex items-center flex-wrap" style={{ gap: "var(--rd-s4)" }}>
         <div className="flex flex-col" style={{ gap: 3 }}>
           <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, letterSpacing: "-0.02em", color: "var(--rd-text)", fontFamily: "var(--rd-font)" }}>Frota</h1>
           <span style={{ fontSize: 12.5, color: "var(--rd-text-dim)" }}>
@@ -2907,25 +2933,7 @@ function MotosView({ motos, persist, clientes, persistClientes, config, lancamen
             {contagemStatus.disponivel} parada{contagemStatus.disponivel === 1 ? "" : "s"}
           </span>
         </div>
-        <div style={{ display: "flex", gap: 2, background: "var(--rd-surface-2)", border: "1px solid var(--rd-border)", borderRadius: 999, padding: 4 }}>
-          {filtros.map((f) => (
-            <button
-              key={f.id}
-              onClick={() => setFiltroStatus(f.id)}
-              style={{
-                padding: "6px 14px",
-                borderRadius: 999,
-                fontSize: 12.5,
-                fontWeight: filtroStatus === f.id ? 700 : 600,
-                background: filtroStatus === f.id ? "var(--rd-brand)" : "transparent",
-                color: filtroStatus === f.id ? "#F0F5EE" : f.id === "disponivel" ? "var(--rd-attention)" : "var(--rd-text-dim)",
-              }}
-            >
-              {f.label}
-            </button>
-          ))}
-        </div>
-        <div className="flex items-center" style={{ gap: 8, marginLeft: "auto" }}>
+        <div className="flex items-center" style={{ gap: "var(--rd-s2)", marginLeft: "auto" }}>
           <button
             onClick={() => setModal({ type: "consulta" })}
             className="flex items-center"
@@ -2954,23 +2962,44 @@ function MotosView({ motos, persist, clientes, persistClientes, config, lancamen
         </div>
       </div>
 
-      <div className="relative">
-        <Search size={15} strokeWidth={2.75} style={{ position: "absolute", left: 14, top: 12, color: "var(--rd-text-dim)" }} />
-        <input
-          style={{
-            width: "100%",
-            background: "var(--rd-surface-2)",
-            border: "1px solid var(--rd-border)",
-            borderRadius: 12,
-            padding: "10px 14px 10px 38px",
-            color: "var(--rd-text)",
-            fontSize: 13.5,
-            fontFamily: "var(--rd-font)",
-          }}
-          placeholder="Buscar por placa, chassi, renavam ou modelo"
-          value={busca}
-          onChange={(e) => setBusca(e.target.value)}
-        />
+      {/* linha 2 — busca e filtros, o "painel de garimpo" da tela */}
+      <div className="flex items-center flex-wrap" style={{ gap: "var(--rd-s3)" }}>
+        <div className="relative" style={{ flex: "1 1 240px", minWidth: 0 }}>
+          <Search size={15} strokeWidth={2.75} style={{ position: "absolute", left: 14, top: 12, color: "var(--rd-text-dim)" }} />
+          <input
+            style={{
+              width: "100%",
+              background: "var(--rd-surface-2)",
+              border: "1px solid var(--rd-border)",
+              borderRadius: 12,
+              padding: "10px 14px 10px 38px",
+              color: "var(--rd-text)",
+              fontSize: 13.5,
+              fontFamily: "var(--rd-font)",
+            }}
+            placeholder="Buscar por placa, chassi, renavam ou modelo"
+            value={busca}
+            onChange={(e) => setBusca(e.target.value)}
+          />
+        </div>
+        <div className="mbr-filtros" style={{ flex: "0 1 auto", minWidth: 0 }}>
+          {filtros.map((f) => (
+            <button
+              key={f.id}
+              onClick={() => setFiltroStatus(f.id)}
+              style={{
+                padding: "6px 14px",
+                borderRadius: 999,
+                fontSize: 12.5,
+                fontWeight: filtroStatus === f.id ? 700 : 600,
+                background: filtroStatus === f.id ? "var(--rd-brand)" : "transparent",
+                color: filtroStatus === f.id ? "#F0F5EE" : f.id === "disponivel" ? "var(--rd-attention)" : "var(--rd-text-dim)",
+              }}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {linhas.length === 0 ? (
@@ -2980,25 +3009,13 @@ function MotosView({ motos, persist, clientes, persistClientes, config, lancamen
       ) : (
         <>
           {/* cabeçalho da tabela — só desktop/tablet (>=1024px); no celular vira cartão por moto */}
-          <div
-            className="mbr-desktop-grid"
-            style={{
-              gridTemplateColumns: "132px 1fr 116px 116px 1fr 130px 84px",
-              padding: "0 4px 10px",
-              borderBottom: "1px solid var(--rd-border-soft)",
-              fontSize: 11,
-              fontWeight: 700,
-              letterSpacing: "0.14em",
-              textTransform: "uppercase",
-              color: "var(--rd-text-faint)",
-            }}
-          >
+          <div className="mbr-desktop-grid mbr-tab-head mbr-grid-frota">
             <span>Placa</span>
             <span>Cliente</span>
             <span>Mensalidade</span>
             <span>Vencimento</span>
-            <span>Payback</span>
-            <span>Onde está</span>
+            <span className="mbr-col-extra">Payback</span>
+            <span className="mbr-col-extra">Onde está</span>
             <span></span>
           </div>
 
@@ -3015,9 +3032,8 @@ function MotosView({ motos, persist, clientes, persistClientes, config, lancamen
           return (
             <div key={moto.id} className="rounded-2xl overflow-hidden" style={{ background: parada && moto.status === "disponivel" ? "#15120C" : "var(--rd-surface)", border: "1px solid var(--rd-border)" }}>
               <button
-                className="w-full text-left mbr-desktop-grid"
+                className="w-full text-left mbr-desktop-grid mbr-tab-row mbr-grid-frota"
                 onClick={() => setExpandido(aberto ? null : moto.id)}
-                style={{ gridTemplateColumns: "132px 1fr 116px 116px 1fr 130px 84px", alignItems: "center", padding: "16px 18px" }}
               >
                 <div className="flex flex-col" style={{ gap: 5 }}>
                   <span style={{ fontFamily: "ui-monospace, monospace", fontSize: 13.5, fontWeight: 600, color: "var(--rd-text)" }}>{formatPlaca(moto.placa)}</span>
@@ -3035,7 +3051,7 @@ function MotosView({ motos, persist, clientes, persistClientes, config, lancamen
                     {parada ? `${MOTO_STATUS[moto.status]?.label || "Parada"}${dias != null ? ` ${dias}d` : ""}` : "Alugada"}
                   </span>
                 </div>
-                <div className="flex flex-col min-w-0" style={{ gap: 3, paddingRight: 16 }}>
+                <div className="flex flex-col min-w-0" style={{ gap: 3 }}>
                   {cliente ? (
                     <>
                       <span className="truncate" style={{ fontSize: 13.5, fontWeight: 600, color: "var(--rd-text)" }}>{cliente.nome}</span>
@@ -3070,13 +3086,13 @@ function MotosView({ motos, persist, clientes, persistClientes, config, lancamen
                 ) : (
                   <span style={{ fontSize: 13, color: "var(--rd-text-dim)" }}>—</span>
                 )}
-                <div className="flex items-center" style={{ gap: 10, paddingRight: 24 }}>
-                  <div style={{ flex: 1 }}>
+                <div className="flex items-center mbr-col-extra" style={{ gap: 10 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
                     <BarraComCometa pct={payback} color={payback >= 50 ? "var(--rd-positive)" : payback >= 15 ? "var(--rd-attention)" : "var(--rd-negative)"} />
                   </div>
                   <span style={{ fontSize: 11.5, color: "var(--rd-text-dim)", flex: "none" }}>{payback.toFixed(0)}%</span>
                 </div>
-                <div className="flex items-center" style={{ gap: 7 }}>
+                <div className="flex items-center mbr-col-extra" style={{ gap: 7, minWidth: 0 }}>
                   <span style={{ width: 7, height: 7, borderRadius: 999, background: parada ? "var(--rd-attention)" : "var(--rd-positive)", flex: "none" }} />
                   <span className="truncate" style={{ fontSize: 12.5, color: "var(--rd-text-muted)" }}>
                     {parada ? "Pátio" : [cliente?.cidade, cliente?.estado].filter(Boolean).join("/") || "—"}
@@ -3107,7 +3123,17 @@ function MotosView({ motos, persist, clientes, persistClientes, config, lancamen
               </button>
 
               <Collapse open={aberto}>
-                <div className="px-4 pb-4 text-sm" style={{ fontFamily: BODY_FONT }}>
+                <div
+                  className="text-sm"
+                  style={{
+                    fontFamily: BODY_FONT,
+                    // mesma calha lateral da linha fechada, pra ficha aberta e linha
+                    // fechada compartilharem a mesma margem em vez de cada uma ter a sua
+                    padding: "0 var(--rd-pad-row-x) var(--rd-s5)",
+                    borderTop: "1px solid var(--rd-border-soft)",
+                    paddingTop: "var(--rd-s5)",
+                  }}
+                >
                   <div style={{ fontFamily: HEAD_FONT, fontSize: 16, color: theme.text }} className="mb-5">
                     {moto.modelo || "Modelo não informado"}
                   </div>
@@ -3167,7 +3193,7 @@ function MotosView({ motos, persist, clientes, persistClientes, config, lancamen
                         <button
                           onClick={() => setModal({ type: "contrato", moto })}
                           className="text-xs font-semibold rounded-xl px-3"
-                          style={{ background: theme.mint, color: theme.text, minHeight: 44 }}
+                          style={{ background: theme.mint, color: theme.mintText, minHeight: 44 }}
                         >
                           Alugar / novo contrato
                         </button>
@@ -3516,7 +3542,7 @@ function LancamentoModal({ lancamento, onClose, onSave, onDelete, motos, editand
         <button
           onClick={() => onSave({ ...form, valor: Number(form.valor) || 0 })}
           className="flex-1 rounded-xl py-2 font-semibold mt-1"
-          style={{ background: theme.mint, color: theme.text, fontWeight: 600 }}
+          style={{ background: theme.mint, color: theme.mintText, fontWeight: 600 }}
         >
           Salvar
         </button>
@@ -3637,7 +3663,7 @@ function FuturoModal({ futuro, onClose, onSave, onDelete, editando, motos }) {
         <button
           onClick={salvar}
           className="flex-1 rounded-xl py-2 font-semibold mt-1"
-          style={{ background: theme.mint, color: theme.text, fontWeight: 600 }}
+          style={{ background: theme.mint, color: theme.mintText, fontWeight: 600 }}
         >
           Salvar
         </button>
@@ -5623,7 +5649,7 @@ function NovoUsuarioModal({ onClose, onSaved }) {
         onClick={salvar}
         disabled={enviando}
         className="w-full rounded-xl py-2 font-semibold"
-        style={{ background: theme.mint, color: theme.text, fontWeight: 600, opacity: enviando ? 0.7 : 1 }}
+        style={{ background: theme.mint, color: theme.mintText, fontWeight: 600, opacity: enviando ? 0.7 : 1 }}
       >
         {enviando ? "Criando..." : "Criar usuário"}
       </button>
@@ -5670,7 +5696,7 @@ function RedefinirSenhaModal({ usuario, onClose, onSaved }) {
         onClick={salvar}
         disabled={enviando}
         className="w-full rounded-xl py-2 font-semibold"
-        style={{ background: theme.mint, color: theme.text, fontWeight: 600, opacity: enviando ? 0.7 : 1 }}
+        style={{ background: theme.mint, color: theme.mintText, fontWeight: 600, opacity: enviando ? 0.7 : 1 }}
       >
         {enviando ? "Salvando..." : "Salvar nova senha"}
       </button>
@@ -6107,7 +6133,7 @@ function LoginView() {
           type="submit"
           disabled={enviando}
           className="w-full rounded-xl py-2.5 font-semibold"
-          style={{ background: theme.mint, color: theme.text, fontWeight: 600, opacity: enviando ? 0.7 : 1 }}
+          style={{ background: theme.mint, color: theme.mintText, fontWeight: 600, opacity: enviando ? 0.7 : 1 }}
         >
           {enviando ? "Entrando..." : "Entrar"}
         </button>
@@ -6169,7 +6195,7 @@ function CriarAdminView() {
           type="submit"
           disabled={enviando}
           className="w-full rounded-xl py-2.5 font-semibold"
-          style={{ background: theme.mint, color: theme.text, fontWeight: 600, opacity: enviando ? 0.7 : 1 }}
+          style={{ background: theme.mint, color: theme.mintText, fontWeight: 600, opacity: enviando ? 0.7 : 1 }}
         >
           {enviando ? "Criando..." : "Criar administrador"}
         </button>
@@ -6321,6 +6347,62 @@ function AppAutenticado({ perfil, onSignOut }) {
           .mbr-desktop-grid { display: grid; }
           .mbr-main-pad-bottom { padding-bottom: 32px; }
         }
+
+        /* -----------------------------------------------------------
+           TABELAS — o cabeçalho e a linha compartilham a MESMA classe de
+           grade e a MESMA calha lateral. Era exatamente isso que faltava:
+           o cabeçalho tinha 4px de calha e a linha 18px, então nenhum
+           rótulo caía em cima da coluna que ele nomeia. O +1px do
+           cabeçalho compensa a borda de 1px do cartão da linha.
+        ----------------------------------------------------------- */
+        .mbr-tab-head {
+          padding: 0 calc(var(--rd-pad-row-x) + 1px) 10px;
+          column-gap: var(--rd-gap-col);
+          border-bottom: 1px solid var(--rd-border-soft);
+          font-size: 11px;
+          font-weight: 700;
+          letter-spacing: 0.14em;
+          text-transform: uppercase;
+          color: var(--rd-text-faint);
+        }
+        .mbr-tab-row {
+          padding: var(--rd-pad-row-y) var(--rd-pad-row-x);
+          column-gap: var(--rd-gap-col);
+          align-items: center;
+        }
+
+        /* colunas secundárias — só entram quando existe largura de sobra
+           pra elas respirarem (>=1280px). Abaixo disso a tabela mostra
+           menos coluna e cada uma fica larga, em vez de espremer sete */
+        .mbr-col-extra { display: none !important; }
+        @media (min-width: 1280px) {
+          .mbr-col-extra { display: flex !important; }
+        }
+
+        .mbr-grid-frota { grid-template-columns: 116px minmax(0, 1fr) 124px 112px 80px; }
+        @media (min-width: 1280px) {
+          .mbr-grid-frota { grid-template-columns: 116px minmax(0, 1.5fr) 124px 112px minmax(0, 0.9fr) 132px 80px; }
+        }
+        .mbr-grid-clientes { grid-template-columns: minmax(0, 1.15fr) 150px minmax(0, 1fr) 168px 76px; }
+
+        /* grupo de filtros/abas em pílula — no celular quatro pílulas não cabem
+           lado a lado, e como o grupo não encolhia ele empurrava a página inteira
+           pro lado. Aqui ele vira uma faixa que rola sozinha, sem barra à vista */
+        .mbr-filtros {
+          display: flex;
+          gap: 2px;
+          background: var(--rd-surface-2);
+          border: 1px solid var(--rd-border);
+          border-radius: 999px;
+          padding: 4px;
+          max-width: 100%;
+          overflow-x: auto;
+          scrollbar-width: none;
+          -ms-overflow-style: none;
+          -webkit-overflow-scrolling: touch;
+        }
+        .mbr-filtros::-webkit-scrollbar { display: none; }
+        .mbr-filtros > button { flex: none; white-space: nowrap; }
       `}</style>
 
       <div style={{ display: "flex", alignItems: "flex-start" }}>
@@ -6549,7 +6631,14 @@ function AppAutenticado({ perfil, onSignOut }) {
 
           <main
             className={tab === "rastreio" ? "" : "mbr-main-pad-bottom px-4 sm:px-8 pt-5 max-w-5xl mx-auto lg:max-w-7xl"}
-            style={tab === "rastreio" ? { position: "absolute", inset: 0 } : undefined}
+            // width:100% + minWidth:0 são obrigatórios aqui. O <main> tem "mx-auto" (margem
+            // lateral automática, pra centralizar), e margem automática no eixo cruzado
+            // DESLIGA o stretch do flex: sem largura explícita, o <main> passa a se medir
+            // pelo próprio conteúdo (min-content) e ignora a largura da janela. Era isso
+            // que empurrava a página toda pro lado no celular — o <main> ficava com 494px
+            // numa tela de 390px, e o site inteiro ia junto. Com width:100% ele volta a
+            // obedecer a coluna, e o "max-w-*" continua limitando no desktop.
+            style={tab === "rastreio" ? { position: "absolute", inset: 0 } : { width: "100%", minWidth: 0 }}
           >
         {loading ? (
           <div className="flex flex-col gap-3">

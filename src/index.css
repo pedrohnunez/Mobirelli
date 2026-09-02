@@ -46,6 +46,31 @@
   --rd-r-chip: 10px;
   --rd-r-pill: 999px;
 
+  /* ---------------------------------------------------------
+     ESPAÇAMENTO — escala única de 4px usada no site inteiro.
+     Antes cada tela tinha o seu próprio número solto (16, 18,
+     22, 26...), e nada alinhava com nada. Regra: só usar estes
+     valores; se precisar de um número que não está aqui, é
+     sinal de que o lugar certo é outro token.
+  --------------------------------------------------------- */
+  --rd-s1: 4px;
+  --rd-s2: 8px;
+  --rd-s3: 12px;
+  --rd-s4: 16px;
+  --rd-s5: 20px;
+  --rd-s6: 24px;
+  --rd-s7: 32px;
+
+  /* medidas derivadas — os únicos "paddings de composição" do site */
+  --rd-pad-card-y: 20px;   /* altura interna de um card */
+  --rd-pad-card-x: 22px;   /* largura interna de um card */
+  --rd-pad-row-y: 18px;    /* altura interna de uma linha de tabela */
+  --rd-pad-row-x: 20px;    /* MESMA calha do cabeçalho da tabela — é o que
+                              faz rótulo e conteúdo ficarem na mesma coluna */
+  --rd-gap-secao: 20px;    /* entre blocos de uma tela */
+  --rd-gap-lista: 10px;    /* entre linhas de uma lista */
+  --rd-gap-col: 16px;      /* entre colunas de uma tabela */
+
   /* fonte */
   --rd-font: 'Montserrat', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
 }
@@ -53,6 +78,17 @@
 html, body, #root {
   height: 100%;
   background-color: #121212;
+}
+
+/* o modal sobe como "folha" colada embaixo no celular (só os cantos de cima
+   arredondados) e vira um cartão flutuante inteiro no desktop */
+.mbr-modal-card {
+  border-radius: 22px 22px 0 0;
+}
+@media (min-width: 640px) {
+  .mbr-modal-card {
+    border-radius: 20px;
+  }
 }
 
 body {
