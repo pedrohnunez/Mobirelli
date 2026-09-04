@@ -323,6 +323,27 @@ function totaisFuturos(futuros, motos) {
   };
 }
 
+// O NOME de uma conta futura — o texto que aparece na lista e que vira o título do
+// lançamento quando ela é confirmada.
+//
+// Existem dois formatos de conta futura guardados no banco:
+//  - as NOVAS gravam o nome em "nome", e "categoria"/"descricao" são classificação e
+//    detalhe extra (a mesma convenção da aba Lançado);
+//  - as ANTIGAS não tinham campo "nome": o nome era digitado em "descricao" e a
+//    classificação ia em "categoria".
+// Por isso "descricao" vem ANTES de "categoria" aqui: numa conta antiga, ler a
+// categoria primeiro faria a classificação ("Seguro", "Ferramenta") aparecer no lugar
+// do nome que a pessoa digitou — que era exatamente o que acontecia antes.
+function nomeDoFuturo(f) {
+  return f?.nome || f?.descricao || f?.categoria || "Sem nome";
+}
+
+// detalhe extra de uma conta futura, sem repetir o que já está no nome (numa conta
+// antiga "descricao" É o nome, então ali não sobra detalhe nenhum)
+function detalheDoFuturo(f) {
+  return f?.nome ? f?.descricao || "" : "";
+}
+
 // quanto está previsto entrar/sair nos próximos `dias` dias — pra ver rapidinho o que
 // vence essa semana, sem precisar abrir o mês inteiro em "Futuros". Também devolve item
 // a item (moto/categoria) pra dar pra mostrar "de onde vem" ao passar o mouse
@@ -339,7 +360,7 @@ function futurosProximosDias(futuros, motos, dias = 7) {
 
   const rotulo = (f) => {
     const moto = motos?.find((m) => m.id === f.motoId);
-    const base = f.descricao || f.categoria || "Item";
+    const base = nomeDoFuturo(f);
     if (!moto) return base;
     const placa = formatPlaca(moto.placa);
     return base.includes(placa) ? base : `${base} (${placa})`;
@@ -3260,29 +3281,93 @@ function emptyFuturo() {
   return {
     id: uid(),
     tipo: "saida",
-    descricao: "",
-    categoria: "",
+    nome: "",        // o que aparece na lista e vira o título do lançamento
+    categoria: "",   // classificação livre (opcional)
+    descricao: "",   // detalhe extra (opcional)
+    natureza: "Operacional",
     valor: "",
     vencimento: todayISO(),
     recorrente: false,
     pago: false,
     motoId: "",
+    parcelas: 1,
   };
 }
 
 function FuturoModal({ futuro, onClose, onSave, onDelete, editando, motos }) {
-  const [form, setForm] = useState({ tipo: "saida", motoId: "", aplicarTodas: false, ...futuro });
+  // conta antiga não tem "nome": o nome dela estava em "descricao". Ao abrir pra editar,
+  // trazemos esse texto pro campo Nome (e esvaziamos o detalhe), senão a pessoa reabria a
+  // conta e via o campo Nome em branco
+  const ehAntiga = futuro && !futuro.nome && futuro.descricao;
+  const [form, setForm] = useState({
+    tipo: "saida",
+    motoId: "",
+    aplicarTodas: false,
+    natureza: "Operacional",
+    parcelas: futuro?.parcelasTotal || 1,
+    ...futuro,
+    nome: futuro?.nome || (ehAntiga ? futuro.descricao : ""),
+    descricao: ehAntiga ? "" : futuro?.descricao || "",
+  });
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
   const isEntrada = form.tipo === "entrada";
 
+  // uma escolha só, em vez de duas caixinhas soltas ("se repete todo mês" + "já foi
+  // pago") que davam pra marcar juntas sem querer e não tinham como dizer "parcelado"
+  const modo = form.recorrente ? "mensal" : Number(form.parcelas) > 1 ? "parcelado" : "unica";
+  const trocarModo = (novo) =>
+    setForm({
+      ...form,
+      recorrente: novo === "mensal",
+      parcelas: novo === "parcelado" ? Math.max(2, Number(form.parcelas) || 2) : 1,
+      pago: novo === "unica" ? form.pago : false,
+    });
+
+  const nParcelas = Math.max(1, Number(form.parcelas) || 1);
+  const valorNum = Number(form.valor) || 0;
+  // uma parcela já existente não vira um novo carnê ao ser reaberta
+  const jaEhParcela = Number(futuro?.parcelasTotal) > 1;
+
+  // igual ao modal de lançamento: o formulário abre curto e o resto fica atrás de "Mais
+  // opções" — já aberto se a conta que está sendo editada usa algum desses campos
+  const [maisOpcoes, setMaisOpcoes] = useState(
+    !!(form.motoId || form.categoria || form.descricao || (form.natureza && form.natureza !== "Operacional"))
+  );
+
   const salvar = () => {
-    const { aplicarTodas, ...base } = form;
-    const valor = Number(base.valor) || 0;
-    if (aplicarTodas && (motos || []).length > 0) {
-      onSave(motos.map((m) => ({ ...base, id: uid(), valor, motoId: m.id })));
-    } else {
-      onSave({ ...base, valor });
-    }
+    const { aplicarTodas, parcelas, ...base } = form;
+    const valor = valorNum;
+    const nome = (base.nome || "").trim();
+    const comNome = { ...base, nome, valor };
+
+    // parcelado: gera uma conta por mês a partir do 1º vencimento, cada uma com o valor
+    // da parcela e marcada "k/n" — assim cada parcela é confirmada no seu mês, e a
+    // projeção dos próximos meses já conta com elas
+    const gerarParcelas = (baseConta) => {
+      const [ano, mes, dia] = (baseConta.vencimento || todayISO()).split("-").map(Number);
+      const grupo = uid();
+      return Array.from({ length: nParcelas }, (_, i) => {
+        const d = new Date(ano, mes - 1 + i, dia);
+        return {
+          ...baseConta,
+          id: i === 0 ? baseConta.id : uid(),
+          vencimento: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`,
+          recorrente: false,
+          pago: false,
+          parcelaAtual: i + 1,
+          parcelasTotal: nParcelas,
+          grupoParcelas: grupo,
+        };
+      });
+    };
+
+    const alvos =
+      aplicarTodas && (motos || []).length > 0
+        ? motos.map((m) => ({ ...comNome, id: uid(), motoId: m.id }))
+        : [comNome];
+
+    const deveParcelar = nParcelas > 1 && !form.recorrente && !jaEhParcela;
+    onSave(deveParcelar ? alvos.flatMap(gerarParcelas) : alvos);
   };
 
   return (
@@ -3303,57 +3388,124 @@ function FuturoModal({ futuro, onClose, onSave, onDelete, editando, motos }) {
           </button>
         ))}
       </div>
-      <FieldLabel>Descrição</FieldLabel>
+      <FieldLabel>Nome</FieldLabel>
       <input
         style={inputStyle}
-        value={form.descricao}
-        onChange={set("descricao")}
-        placeholder={isEntrada ? "Aluguel de moto fixo, venda agendada..." : "Contabilidade, Imposto de renda..."}
+        value={form.nome}
+        onChange={set("nome")}
+        placeholder={isEntrada ? "De onde vem esse dinheiro" : "Quem você paga / o que é"}
       />
-      <FieldLabel>Categoria (opcional)</FieldLabel>
-      <input style={inputStyle} value={form.categoria} onChange={set("categoria")} placeholder="Imposto, serviço, taxa..." />
-      {(motos || []).length > 0 && (
-        <>
-          <FieldLabel>Moto relacionada (opcional)</FieldLabel>
-          <SelectField
-            value={form.motoId || ""}
-            onChange={(e) => setForm({ ...form, motoId: e.target.value })}
-            options={[
-              { value: "", label: "Nenhuma / não é de uma moto específica" },
-              ...motos.map((m) => ({ value: m.id, label: `${formatPlaca(m.placa)} — ${m.modelo || "modelo?"}` })),
-            ]}
-          />
-          {!editando && (
-            <label className="flex items-center gap-2 mb-3 text-sm" style={{ color: theme.text, fontFamily: BODY_FONT }}>
-              <input
-                type="checkbox"
-                checked={form.aplicarTodas}
-                onChange={(e) => setForm({ ...form, aplicarTodas: e.target.checked })}
-              />
-              Aplicar a todas as motos ({motos.length}) — lança uma conta dessas pra cada moto
-            </label>
-          )}
-        </>
-      )}
+      <div className="text-xs -mt-2 mb-3" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+        É esse texto que aparece na lista e vira o nome do lançamento quando você confirmar.
+      </div>
+
       <Row2>
         <div>
-          <FieldLabel>Valor (R$)</FieldLabel>
+          <FieldLabel>{modo === "parcelado" ? "Valor da parcela (R$)" : "Valor (R$)"}</FieldLabel>
           <input type="number" step="0.01" style={inputStyle} value={form.valor} onChange={set("valor")} />
         </div>
         <div>
-          <FieldLabel>Vencimento</FieldLabel>
+          <FieldLabel>{modo === "unica" ? "Vencimento" : "1º vencimento"}</FieldLabel>
           <input type="date" style={dateInputStyle} value={form.vencimento} onChange={set("vencimento")} />
         </div>
       </Row2>
-      <label className="flex items-center gap-2 mb-3 text-sm" style={{ color: theme.text, fontFamily: BODY_FONT }}>
-        <input type="checkbox" checked={form.recorrente} onChange={(e) => setForm({ ...form, recorrente: e.target.checked })} />
-        Se repete todo mês (ex: contabilidade)
-      </label>
-      {!form.recorrente && (
+
+      <FieldLabel>Como se repete</FieldLabel>
+      <div className="flex gap-2 mb-3">
+        {[
+          { id: "unica", label: "Uma vez" },
+          { id: "parcelado", label: "Parcelado" },
+          { id: "mensal", label: "Todo mês" },
+        ].map((op) => (
+          <button
+            key={op.id}
+            type="button"
+            onClick={() => trocarModo(op.id)}
+            disabled={jaEhParcela && op.id !== modo}
+            className="flex-1 rounded-xl py-2 text-sm font-semibold"
+            style={{
+              background: modo === op.id ? theme.mint : "transparent",
+              color: modo === op.id ? theme.mintText : theme.textMuted,
+              border: `1px solid ${theme.cardBorder}`,
+              opacity: jaEhParcela && op.id !== modo ? 0.4 : 1,
+            }}
+          >
+            {op.label}
+          </button>
+        ))}
+      </div>
+
+      {modo === "parcelado" && (
+        <>
+          <FieldLabel>Número de parcelas</FieldLabel>
+          <input
+            type="number"
+            min="2"
+            style={inputStyle}
+            value={form.parcelas}
+            onChange={(e) => setForm({ ...form, parcelas: Math.max(1, Number(e.target.value) || 1) })}
+            disabled={jaEhParcela}
+          />
+          <div className="text-xs -mt-2 mb-3" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+            {jaEhParcela
+              ? `Essa é a parcela ${futuro.parcelaAtual || 1} de ${futuro.parcelasTotal} — pra mudar o parcelamento, apague as parcelas e cadastre de novo.`
+              : `${nParcelas}x de ${formatCurrency(valorNum)} = ${formatCurrency(valorNum * nParcelas)} no total. Entra uma conta por mês a partir do 1º vencimento.`}
+          </div>
+        </>
+      )}
+      {modo === "mensal" && (
+        <div className="text-xs -mt-1 mb-3" style={{ color: theme.textMuted, fontFamily: BODY_FONT }}>
+          Se repete pra sempre, todo mês no mesmo dia — você confirma mês a mês.
+        </div>
+      )}
+      {modo === "unica" && (
         <label className="flex items-center gap-2 mb-3 text-sm" style={{ color: theme.text, fontFamily: BODY_FONT }}>
           <input type="checkbox" checked={form.pago} onChange={(e) => setForm({ ...form, pago: e.target.checked })} />
           {isEntrada ? "Já foi recebido" : "Já foi pago"}
         </label>
+      )}
+
+      {!maisOpcoes ? (
+        <button
+          type="button"
+          onClick={() => setMaisOpcoes(true)}
+          className="text-xs font-semibold mb-3"
+          style={{ color: theme.mint, fontFamily: BODY_FONT }}
+        >
+          + Mais opções (natureza, moto, detalhe extra)
+        </button>
+      ) : (
+        <>
+          <FieldLabel>Natureza</FieldLabel>
+          <SelectField value={form.natureza} onChange={set("natureza")} options={NATUREZAS.map((n) => ({ value: n, label: n }))} />
+          <FieldLabel>Categoria (opcional)</FieldLabel>
+          <input style={inputStyle} value={form.categoria} onChange={set("categoria")} placeholder="Pra agrupar contas parecidas" />
+          {(motos || []).length > 0 && (
+            <>
+              <FieldLabel>Moto relacionada (opcional)</FieldLabel>
+              <SelectField
+                value={form.motoId || ""}
+                onChange={(e) => setForm({ ...form, motoId: e.target.value })}
+                options={[
+                  { value: "", label: "Nenhuma / não é de uma moto específica" },
+                  ...motos.map((m) => ({ value: m.id, label: `${formatPlaca(m.placa)} — ${m.modelo || "modelo?"}` })),
+                ]}
+              />
+              {!editando && (
+                <label className="flex items-center gap-2 mb-3 text-sm" style={{ color: theme.text, fontFamily: BODY_FONT }}>
+                  <input
+                    type="checkbox"
+                    checked={form.aplicarTodas}
+                    onChange={(e) => setForm({ ...form, aplicarTodas: e.target.checked })}
+                  />
+                  Aplicar a todas as motos ({motos.length}) — lança uma conta dessas pra cada moto
+                </label>
+              )}
+            </>
+          )}
+          <FieldLabel>Detalhe extra (opcional)</FieldLabel>
+          <input style={inputStyle} value={form.descricao} onChange={set("descricao")} placeholder="Alguma observação a mais, se precisar" />
+        </>
       )}
       <div className="flex gap-2">
         <button
@@ -3421,7 +3573,7 @@ const FuturosView = forwardRef(function FuturosView({ futuros, persist, motos, c
       const cliente = moto?.contratoAtual ? clientes?.find((c) => c.id === moto.contratoAtual.clienteId) : null;
       const item = {
         id: f.id,
-        label: cliente?.nome || f.descricao || f.categoria || "Recebimento",
+        label: cliente?.nome || nomeDoFuturo(f),
         sub: moto ? formatPlaca(moto.placa) : null,
         valor: Number(f.valor) || 0,
       };
@@ -3452,13 +3604,29 @@ const FuturosView = forwardRef(function FuturosView({ futuros, persist, motos, c
           {f.tipo === "entrada" ? <TrendingUp size={16} color={theme.mint} /> : <TrendingDown size={16} color={theme.coral} />}
         </div>
         <div className="min-w-0">
-          <div style={{ color: theme.text, fontFamily: BODY_FONT, fontWeight: 600 }}>
-            {f.descricao || "Sem descrição"}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span style={{ color: theme.text, fontFamily: BODY_FONT, fontWeight: 600 }}>{nomeDoFuturo(f)}</span>
+            {f.parcelasTotal > 1 && (
+              <span
+                style={{
+                  fontSize: 10.5,
+                  fontWeight: 700,
+                  borderRadius: 999,
+                  padding: "1px 8px",
+                  background: theme.card2,
+                  color: theme.textMuted,
+                  flexShrink: 0,
+                }}
+              >
+                Parcela {f.parcelaAtual || 1}/{f.parcelasTotal}
+              </span>
+            )}
           </div>
           <div style={{ color: theme.textMuted, fontFamily: BODY_FONT, fontSize: 12 }}>
-            {f.recorrente ? `Recorrente · todo dia ${diaDoMes}` : `Vence em ${formatDate(f.vencimento)}`}
+            {f.recorrente ? `Todo mês · dia ${diaDoMes}` : `Vence em ${formatDate(f.vencimento)}`}
             {jaConfirmadoEsteMes && " · mês atual já lançado"}
             {motoLigada && ` · ${formatPlaca(motoLigada.placa)}`}
+            {detalheDoFuturo(f) && ` · ${detalheDoFuturo(f)}`}
           </div>
         </div>
       </div>
@@ -3712,8 +3880,11 @@ function FluxoCaixaView({ lancamentos, persist, motos, clientes, futuros, persis
         novasParcelas.push({
           id: uid(),
           tipo: lancamento.tipo,
-          descricao: `${lancamento.categoria || lancamento.descricao || "Parcela"} (${k}/${parcelasNovo})`,
+          // o "(k/n)" não entra no nome: quem mostra isso é a etiqueta "Parcela k/n"
+          nome: lancamento.categoria || lancamento.descricao || "Parcela",
           categoria: lancamento.categoria,
+          natureza: lancamento.natureza || "Operacional",
+          descricao: "",
           valor: lancamento.valor,
           vencimento: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`,
           recorrente: false,
@@ -3741,9 +3912,9 @@ function FluxoCaixaView({ lancamentos, persist, motos, clientes, futuros, persis
           id: uid(),
           tipo: f.tipo,
           data: f.vencimento,
-          natureza: "Operacional",
-          categoria: f.categoria,
-          descricao: f.descricao,
+          natureza: f.natureza || "Operacional",
+          categoria: nomeDoFuturo(f),
+          descricao: detalheDoFuturo(f),
           forma: "",
           motoId: f.motoId || "",
           parcelaAtual: f.parcelaAtual,
@@ -3784,7 +3955,19 @@ function FluxoCaixaView({ lancamentos, persist, motos, clientes, futuros, persis
   mesesCandidatosPendencia.forEach((mesKey) => {
     const pend = (futuros || [])
       .filter((f) => futuroPendenteNoMes(f, mesKey))
-      .map((f) => ({ ...f, id: `pend:${f.id}:${mesKey}`, _futuroId: f.id, _mesKey: mesKey, _pendente: true, data: dataDoFuturoNoMes(f, mesKey) }));
+      // a conta futura entra na lista de "Lançado" com a mesma forma de um lançamento,
+      // e lá o título da linha é "categoria" — então mandamos o NOME da conta nesse
+      // campo, senão a linha aparecia com a classificação no lugar do nome
+      .map((f) => ({
+        ...f,
+        id: `pend:${f.id}:${mesKey}`,
+        _futuroId: f.id,
+        _mesKey: mesKey,
+        _pendente: true,
+        categoria: nomeDoFuturo(f),
+        descricao: detalheDoFuturo(f),
+        data: dataDoFuturoNoMes(f, mesKey),
+      }));
     if (pend.length > 0) pendenciasPorMes[mesKey] = pend;
   });
 
@@ -3802,12 +3985,17 @@ function FluxoCaixaView({ lancamentos, persist, motos, clientes, futuros, persis
       id: uid(),
       tipo: original.tipo,
       data: dataDoFuturoNoMes(original, mesKey),
-      natureza: "Operacional",
-      categoria: original.categoria || original.descricao || "Sem categoria",
+      natureza: original.natureza || "Operacional",
+      // o lançamento herda o NOME da conta futura (na aba Lançado é "categoria" que
+      // aparece como título da linha). Antes vinha a categoria aqui, então uma conta
+      // chamada "X" com categoria "Seguro" virava um lançamento chamado "Seguro"
+      categoria: nomeDoFuturo(original),
       valor: Number(original.valor) || 0,
-      descricao: original.recorrente ? original.descricao : "",
+      descricao: detalheDoFuturo(original),
       forma: "",
       motoId: original.motoId || "",
+      parcelaAtual: original.parcelasTotal > 1 ? original.parcelaAtual : undefined,
+      parcelasTotal: original.parcelasTotal > 1 ? original.parcelasTotal : undefined,
     };
     await persist([...lancamentos, novoLancamento]);
     const futurosAtualizados = (futuros || []).map((x) =>
